@@ -54,6 +54,10 @@ export class GenomeData {
      */
     get_kpis(): string;
     /**
+     * Get command for a pipeline (if any)
+     */
+    get_pipeline_command(pipeline_id: string): string | undefined;
+    /**
      * Get all pipeline IDs as JSON array
      */
     get_pipeline_ids(): string;
@@ -141,6 +145,7 @@ export interface InitOutput {
     readonly genomedata_get_sample_label: (a: number, b: number, c: number) => [number, number];
     readonly genomedata_get_pipeline_ids: (a: number) => [number, number];
     readonly genomedata_get_pipeline_label: (a: number, b: number, c: number) => [number, number];
+    readonly genomedata_get_pipeline_command: (a: number, b: number, c: number) => [number, number];
     readonly genomedata_get_ground_truth_pipeline: (a: number) => [number, number];
     readonly genomedata_is_ground_truth: (a: number, b: number, c: number) => number;
     readonly genomedata_get_vcf_pipelines: (a: number) => [number, number];

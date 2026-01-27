@@ -606,6 +606,38 @@
             content: "⚠";
             font-size: 14px;
         }
+        .pipeline-info-item {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+        }
+        .pipeline-info-item .pipeline-name {
+            font-weight: bold;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        .pipeline-info-item .pipeline-command {
+            font-family: monospace;
+            font-size: 11px;
+            color: var(--text-secondary);
+            background: var(--bg-primary);
+            padding: 6px 8px;
+            border-radius: 3px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .pipeline-info-item .pipeline-badge {
+            display: inline-block;
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-left: 8px;
+            background: var(--accent-color);
+            color: white;
+        }
         .pagination {
             display: flex;
             gap: 10px;
@@ -716,6 +748,13 @@
             <summary>Statistics</summary>
             <div class="kpis" id="kpis"></div>
             <div class="warnings-container" id="warnings"></div>
+        </details>
+
+        <details class="collapsible-panel" id="pipelines-panel">
+            <summary>Pipelines</summary>
+            <div id="pipelines-info">
+                <p style="color:var(--text-secondary);font-size:11px;">Pipeline information will be shown here after loading data.</p>
+            </div>
         </details>
 
         <details class="collapsible-panel" id="coverage-panel">
@@ -1106,6 +1145,7 @@
                 showLoader('Calculating KPIs...', '');
                 updateKPIs();
                 displayWarnings();
+                populatePipelineInfo();
                 createFilterButtons(pipelines);
                 createVisibilityControls(pipelines);
 
@@ -1140,6 +1180,35 @@
             for (const warning of warnings) {
                 html += `<div class="warning-item">${warning}</div>`;
             }
+            container.innerHTML = html;
+        }
+
+        function populatePipelineInfo() {
+            const pipelineIds = JSON.parse(genomeData.get_pipeline_ids());
+            const container = document.getElementById('pipelines-info');
+
+            let html = '';
+            for (const pipelineId of pipelineIds) {
+                const label = genomeData.get_pipeline_label(pipelineId);
+                const command = genomeData.get_pipeline_command(pipelineId);
+                const isGroundTruth = genomeData.is_ground_truth(pipelineId);
+
+                html += `<div class="pipeline-info-item">`;
+                html += `<div class="pipeline-name">${label}`;
+                if (isGroundTruth) {
+                    html += `<span class="pipeline-badge">Ground Truth</span>`;
+                }
+                html += `</div>`;
+                if (command) {
+                    html += `<div class="pipeline-command">${command}</div>`;
+                }
+                html += `</div>`;
+            }
+
+            if (html === '') {
+                html = '<p style="color:var(--text-secondary);font-size:11px;">No pipeline information available.</p>';
+            }
+
             container.innerHTML = html;
         }
 

@@ -117,6 +117,7 @@ Open [https://genpat-it.github.io/coreguard/](https://genpat-it.github.io/coregu
 | `min_qual` | Minimum SNP quality score to include | 20 |
 | `include_indels` | Include insertions/deletions | false |
 | `ground_truth` | Mark pipeline as ground truth (BAM-only baseline) | false |
+| `command` | Command line used to run the pipeline (shown in viewer) | - |
 
 ## Technology
 

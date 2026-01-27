@@ -10,6 +10,7 @@ export const genomedata_get_sample_ids: (a: number) => [number, number];
 export const genomedata_get_sample_label: (a: number, b: number, c: number) => [number, number];
 export const genomedata_get_pipeline_ids: (a: number) => [number, number];
 export const genomedata_get_pipeline_label: (a: number, b: number, c: number) => [number, number];
+export const genomedata_get_pipeline_command: (a: number, b: number, c: number) => [number, number];
 export const genomedata_get_ground_truth_pipeline: (a: number) => [number, number];
 export const genomedata_is_ground_truth: (a: number, b: number, c: number) => number;
 export const genomedata_get_vcf_pipelines: (a: number) => [number, number];

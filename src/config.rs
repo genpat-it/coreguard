@@ -56,6 +56,10 @@ pub struct PipelineConfig {
     #[serde(default)]
     pub label: Option<String>,
 
+    /// Command line used to run this pipeline (optional, for documentation)
+    #[serde(default)]
+    pub command: Option<String>,
+
     /// Mark this pipeline as ground truth (baseline for comparison)
     #[serde(default)]
     pub ground_truth: bool,

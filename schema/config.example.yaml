@@ -40,6 +40,7 @@ pipelines:
   # Example 1: Aligner only (no variant calling) - marked as ground truth
   minimap2:
     label: "minimap2 baseline"
+    command: "minimap2 -ax sr reference.fasta reads_R1.fq.gz reads_R2.fq.gz | samtools sort -o output.bam"
     ground_truth: true  # This pipeline is used as the baseline for comparison
     samples:
       Sample1:
@@ -52,6 +53,7 @@ pipelines:
   # Example 2: Full pipeline with VCF + BAM
   snippy:
     label: "Snippy v4.6"
+    command: "snippy --cpus 8 --outdir out --ref reference.fasta --R1 reads_R1.fq.gz --R2 reads_R2.fq.gz"
     samples:
       Sample1:
         vcf: snippy/Sample1/snps.vcf
@@ -66,6 +68,7 @@ pipelines:
   # Example 3: VCF only (no BAM)
   cfsan:
     label: "CFSAN SNP Pipeline"
+    command: "cfsan_snp_pipeline run -m soft -o output reference.fasta samples/"
     samples:
       Sample1:
         vcf: cfsan/Sample1/var.flt.vcf
@@ -77,6 +80,7 @@ pipelines:
   # Example 4: Custom pipeline (partial samples)
   gatk:
     label: "GATK HaplotypeCaller"
+    command: "gatk HaplotypeCaller -R reference.fasta -I input.bam -O output.vcf"
     samples:
       Sample1:
         vcf: gatk/Sample1.g.vcf

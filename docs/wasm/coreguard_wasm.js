@@ -187,6 +187,22 @@ export class GenomeData {
         }
     }
     /**
+     * Get command for a pipeline (if any)
+     * @param {string} pipeline_id
+     * @returns {string | undefined}
+     */
+    get_pipeline_command(pipeline_id) {
+        const ptr0 = passStringToWasm0(pipeline_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.genomedata_get_pipeline_command(this.__wbg_ptr, ptr0, len0);
+        let v2;
+        if (ret[0] !== 0) {
+            v2 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v2;
+    }
+    /**
      * Get all pipeline IDs as JSON array
      * @returns {string}
      */

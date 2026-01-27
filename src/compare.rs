@@ -87,6 +87,8 @@ pub struct SampleInfo {
 pub struct PipelineInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command: Option<String>,
     pub has_vcf: bool,
     pub has_bam: bool,
     /// Mark this pipeline as ground truth (baseline for comparison)
@@ -167,6 +169,7 @@ impl CompareReport {
                     pipeline_id.clone(),
                     PipelineInfo {
                         label: pipeline.label.clone(),
+                        command: pipeline.command.clone(),
                         has_vcf,
                         has_bam,
                         ground_truth: pipeline.ground_truth,

@@ -4,14 +4,14 @@ Pipeline-agnostic SNP comparison tool for bacterial genomics.
 
 ## Overview
 
-CoreGuard compares SNP calls from multiple pipelines (Snippy, CFSAN, GATK, etc.) against a ground truth alignment, helping identify discrepancies and artifacts in variant calling.
+CoreGuard compares SNP calls from multiple pipelines (Snippy, CFSAN, GATK, etc.), helping identify discrepancies and artifacts in variant calling. Optionally, a ground truth alignment can be used to detect coverage gaps.
 
 **Live Viewer:** [https://genpat-it.github.io/coreguard/](https://genpat-it.github.io/coreguard/)
 
 ## Features
 
 - **Multi-pipeline comparison**: Compare SNP calls from different pipelines side-by-side
-- **Ground truth support**: Designate a baseline BAM alignment for gap detection
+- **Ground truth support** (optional): Designate a baseline BAM alignment for gap detection
 - **Interactive viewer**: Navigate through genomic positions with zoom/pan
 - **Smart filtering**: Filter by consensus, discordant calls, gaps, and pipeline-specific SNPs
 - **Distance matrix**: Calculate pairwise SNP distances between samples

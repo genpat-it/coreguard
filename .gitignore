@@ -1,0 +1,27 @@
+# Build
+/target/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Output files
+*.json
+*.html
+*.tsv
+*.bed
+
+# Temp directories
+bed_files/
+bed_output/
+docs/*.aux
+docs/*.log
+docs/*.out
+docs/*.toc
+docs/*.nav
+docs/*.snm
+docs/*.synctex.gz
+
+# Claude
+CLAUDE.md

@@ -1,0 +1,89 @@
+# CoreGuard Configuration Schema
+# ================================
+# Pipeline-agnostic SNP comparison tool
+#
+# Usage: coreguard compare --config project.yaml -o report.json
+
+# Reference genome (required)
+reference:
+  path: reference.fa
+  label: "Listeria monocytogenes EGD-e"  # optional, shown in UI
+
+# Samples definition
+# - key: internal ID (used for matching across pipelines)
+# - label: display name in UI (optional)
+# - reads: FASTQ files for baseline alignment (optional)
+samples:
+  TE15676:
+    label: "Outbreak Sample A"
+    reads:
+      - fastq/TE15676_R1.fq.gz
+      - fastq/TE15676_R2.fq.gz
+
+  TE15677:
+    label: "Outbreak Sample B"
+    reads:
+      - fastq/TE15677_R1.fq.gz
+      - fastq/TE15677_R2.fq.gz
+
+  TE15678:
+    label: "Control Sample"
+    # no reads = no baseline alignment for this sample
+
+# Pipeline definitions
+# - key: internal pipeline ID
+# - label: display name in UI (optional)
+# - samples: mapping of sample_id -> files
+#   - vcf: VCF file (optional) -> shows SNPs
+#   - bam: BAM file (optional) -> shows gaps/coverage
+pipelines:
+  # Example 1: Aligner only (no variant calling) - marked as ground truth
+  mm2:
+    label: "minimap2 baseline"
+    ground_truth: true  # This pipeline is used as the baseline for comparison
+    samples:
+      TE15676:
+        bam: mm2/TE15676.bam
+      TE15677:
+        bam: mm2/TE15677.bam
+      TE15678:
+        bam: mm2/TE15678.bam
+
+  # Example 2: Full pipeline with VCF + BAM
+  snippy:
+    label: "Snippy v4.6"
+    samples:
+      TE15676:
+        vcf: snippy/TE15676/snps.vcf
+        bam: snippy/TE15676/snps.bam
+      TE15677:
+        vcf: snippy/TE15677/snps.vcf
+        bam: snippy/TE15677/snps.bam
+      TE15678:
+        vcf: snippy/TE15678/snps.vcf
+        bam: snippy/TE15678/snps.bam
+
+  # Example 3: VCF only (no BAM)
+  cfsan:
+    label: "CFSAN SNP Pipeline"
+    samples:
+      TE15676:
+        vcf: cfsan/TE15676/var.flt.vcf
+      TE15677:
+        vcf: cfsan/TE15677/var.flt.vcf
+      TE15678:
+        vcf: cfsan/TE15678/var.flt.vcf
+
+  # Example 4: Custom pipeline
+  gatk:
+    label: "GATK HaplotypeCaller"
+    samples:
+      TE15676:
+        vcf: gatk/TE15676.g.vcf
+        bam: gatk/TE15676.dedup.bam
+
+# Options (optional)
+options:
+  min_depth: 1          # minimum depth to consider position covered
+  min_qual: 20          # minimum SNP quality to include
+  include_indels: false # include insertions/deletions (default: false)

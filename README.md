@@ -8,6 +8,16 @@ CoreGuard compares SNP calls from multiple pipelines (Snippy, CFSAN, GATK, etc.)
 
 **Live Viewer:** [https://genpat-it.github.io/coreguard/](https://genpat-it.github.io/coreguard/)
 
+## Why CoreGuard?
+
+Different SNP pipelines can produce different results on the same data. This matters because:
+
+- **Outbreak investigation**: SNP distances determine if isolates belong to the same outbreak. A difference of 1-2 SNPs can change epidemiological conclusions.
+- **Pipeline validation**: When adopting a new pipeline, you need to verify it produces consistent results with established methods.
+- **Troubleshooting**: When results seem wrong, CoreGuard helps visualize exactly where and why pipelines disagree.
+- **Quality control**: Identify problematic samples or genomic regions where pipelines consistently fail.
+- **Consensus SNPs**: Find high-confidence variants where all pipelines agree.
+
 ## Features
 
 - **Multi-pipeline comparison**: Compare SNP calls from different pipelines side-by-side

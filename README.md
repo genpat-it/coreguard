@@ -54,4 +54,4 @@ MIT License
 
 ## Author
 
-Andrea de Ruvo - [IZSAM](https://www.izs.it/) / [GenPat-IT](https://github.com/genpat-it)
+GenPat Team - genpat@izs.it

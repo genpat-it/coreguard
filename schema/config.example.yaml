@@ -6,27 +6,27 @@
 
 # Reference genome (required)
 reference:
-  path: reference.fa
-  label: "Listeria monocytogenes EGD-e"  # optional, shown in UI
+  path: reference.fasta
+  label: "Reference Genome"  # optional, shown in UI
 
 # Samples definition
 # - key: internal ID (used for matching across pipelines)
 # - label: display name in UI (optional)
 # - reads: FASTQ files for baseline alignment (optional)
 samples:
-  TE15676:
+  Sample1:
     label: "Outbreak Sample A"
     reads:
-      - fastq/TE15676_R1.fq.gz
-      - fastq/TE15676_R2.fq.gz
+      - fastq/Sample1_R1.fq.gz
+      - fastq/Sample1_R2.fq.gz
 
-  TE15677:
+  Sample2:
     label: "Outbreak Sample B"
     reads:
-      - fastq/TE15677_R1.fq.gz
-      - fastq/TE15677_R2.fq.gz
+      - fastq/Sample2_R1.fq.gz
+      - fastq/Sample2_R2.fq.gz
 
-  TE15678:
+  Sample3:
     label: "Control Sample"
     # no reads = no baseline alignment for this sample
 
@@ -38,49 +38,49 @@ samples:
 #   - bam: BAM file (optional) -> shows gaps/coverage
 pipelines:
   # Example 1: Aligner only (no variant calling) - marked as ground truth
-  mm2:
+  minimap2:
     label: "minimap2 baseline"
     ground_truth: true  # This pipeline is used as the baseline for comparison
     samples:
-      TE15676:
-        bam: mm2/TE15676.bam
-      TE15677:
-        bam: mm2/TE15677.bam
-      TE15678:
-        bam: mm2/TE15678.bam
+      Sample1:
+        bam: alignments/Sample1.bam
+      Sample2:
+        bam: alignments/Sample2.bam
+      Sample3:
+        bam: alignments/Sample3.bam
 
   # Example 2: Full pipeline with VCF + BAM
   snippy:
     label: "Snippy v4.6"
     samples:
-      TE15676:
-        vcf: snippy/TE15676/snps.vcf
-        bam: snippy/TE15676/snps.bam
-      TE15677:
-        vcf: snippy/TE15677/snps.vcf
-        bam: snippy/TE15677/snps.bam
-      TE15678:
-        vcf: snippy/TE15678/snps.vcf
-        bam: snippy/TE15678/snps.bam
+      Sample1:
+        vcf: snippy/Sample1/snps.vcf
+        bam: snippy/Sample1/snps.bam
+      Sample2:
+        vcf: snippy/Sample2/snps.vcf
+        bam: snippy/Sample2/snps.bam
+      Sample3:
+        vcf: snippy/Sample3/snps.vcf
+        bam: snippy/Sample3/snps.bam
 
   # Example 3: VCF only (no BAM)
   cfsan:
     label: "CFSAN SNP Pipeline"
     samples:
-      TE15676:
-        vcf: cfsan/TE15676/var.flt.vcf
-      TE15677:
-        vcf: cfsan/TE15677/var.flt.vcf
-      TE15678:
-        vcf: cfsan/TE15678/var.flt.vcf
+      Sample1:
+        vcf: cfsan/Sample1/var.flt.vcf
+      Sample2:
+        vcf: cfsan/Sample2/var.flt.vcf
+      Sample3:
+        vcf: cfsan/Sample3/var.flt.vcf
 
-  # Example 4: Custom pipeline
+  # Example 4: Custom pipeline (partial samples)
   gatk:
     label: "GATK HaplotypeCaller"
     samples:
-      TE15676:
-        vcf: gatk/TE15676.g.vcf
-        bam: gatk/TE15676.dedup.bam
+      Sample1:
+        vcf: gatk/Sample1.g.vcf
+        bam: gatk/Sample1.dedup.bam
 
 # Options (optional)
 options:

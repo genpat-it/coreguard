@@ -1,0 +1,16 @@
+{
+  "name": "coreguard-wasm",
+  "type": "module",
+  "description": "WASM module for coreguard nucleotide viewer",
+  "version": "0.1.0",
+  "files": [
+    "coreguard_wasm_bg.wasm",
+    "coreguard_wasm.js",
+    "coreguard_wasm.d.ts"
+  ],
+  "main": "coreguard_wasm.js",
+  "types": "coreguard_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

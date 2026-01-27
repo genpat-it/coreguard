@@ -59,6 +59,7 @@ pipelines:
   # Ground truth alignment (BAM only, no VCF)
   minimap2:
     label: "Ground Truth (minimap2)"
+    command: "minimap2 -ax sr -t 8 ref.fa reads_1.fq.gz reads_2.fq.gz | samtools sort -o out.bam"
     ground_truth: true
     samples:
       sample1:
@@ -71,6 +72,7 @@ pipelines:
   # SNP pipeline with VCF + BAM
   snippy:
     label: "Snippy v4.6"
+    command: "snippy --ref reference.fa --R1 reads_1.fq.gz --R2 reads_2.fq.gz --outdir out"
     samples:
       sample1:
         vcf: snippy/sample1/snps.vcf
@@ -85,6 +87,7 @@ pipelines:
   # Another pipeline (VCF only)
   cfsan:
     label: "CFSAN SNP Pipeline"
+    command: "cfsan_snp_pipeline run -m soft -o output reference.fasta"
     samples:
       sample1:
         vcf: cfsan/sample1/var.flt.vcf

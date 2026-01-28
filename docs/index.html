@@ -1908,39 +1908,42 @@
 
             // Show filtered positions count when filters are active
             if (filteredCount !== null) {
-                html += `<div class="kpi" style="border-color:#569cd6;"><div class="label">Filtered Positions ${infoIcon('filtered')}</div><div class="value" style="color:#569cd6;">${filteredCount.toLocaleString()}</div></div>`;
+                html += `<div class="kpi"><div class="label">Filtered Positions ${infoIcon('filtered')}</div><div class="value">${filteredCount.toLocaleString()}</div></div>`;
             }
 
-            // === SECTION 2: Per-Pipeline Statistics ===
-            html += sectionHeader('Per-Pipeline Statistics');
-
-            // Get MNP stats
-            const mnpStats = JSON.parse(genomeData.get_mnp_stats());
-
+            // === SECTION 2: SNPs ===
+            html += sectionHeader('SNPs');
             for (const [pipeline, snpCount] of Object.entries(kpis.snps)) {
                 const label = genomeData.get_pipeline_label(pipeline);
-                const shortLabel = label.split(' ')[0];
                 const snpPct = ((snpCount / refLength / kpis.samples) * 100).toFixed(2);
+                html += `<div class="kpi"><div class="label">${label} ${infoIcon('snps')}</div><div class="value">${snpCount.toLocaleString()} (${snpPct}%)</div></div>`;
+            }
 
-                // SNPs
-                html += `<div class="kpi"><div class="label">${label} SNPs ${infoIcon('snps')}</div><div class="value">${snpCount.toLocaleString()} (${snpPct}%)</div></div>`;
-
-                // Gaps
-                const gapCount = kpis.gaps[pipeline] || 0;
+            // === SECTION 3: Gaps ===
+            html += sectionHeader('Gaps');
+            for (const [pipeline, gapCount] of Object.entries(kpis.gaps)) {
+                const label = genomeData.get_pipeline_label(pipeline);
                 const gapPct = ((gapCount / refLength / kpis.samples) * 100).toFixed(1);
-                html += `<div class="kpi" style="border-color:var(--gap-color);"><div class="label">${label} Gaps ${infoIcon('gaps')}</div><div class="value" style="color:var(--gap-color);">${gapCount.toLocaleString()} bp (${gapPct}%)</div></div>`;
+                html += `<div class="kpi"><div class="label">${label} ${infoIcon('gaps')}</div><div class="value">${gapCount.toLocaleString()} bp (${gapPct}%)</div></div>`;
+            }
 
-                // MNPs (if available for this pipeline)
-                if (mnpStats && mnpStats[pipeline] && mnpStats[pipeline].mnps_found > 0) {
-                    const mStats = mnpStats[pipeline];
-                    html += `<div class="kpi" style="border-color:#ffb74d;" title="${mStats.mnps_found.toLocaleString()} MNPs decomposed into ${mStats.snps_from_mnps.toLocaleString()} individual SNPs">
-                        <div class="label">${shortLabel} MNPs ${infoIcon('mnps')}</div>
-                        <div class="value" style="color:#ffb74d;">${mStats.mnps_found.toLocaleString()} → ${mStats.snps_from_mnps.toLocaleString()} SNPs</div>
-                    </div>`;
+            // === SECTION 4: MNPs (if any) ===
+            const mnpStats = JSON.parse(genomeData.get_mnp_stats());
+            const hasMnps = mnpStats && Object.values(mnpStats).some(s => s && s.mnps_found > 0);
+            if (hasMnps) {
+                html += sectionHeader('MNPs');
+                for (const [pipeline, mStats] of Object.entries(mnpStats)) {
+                    if (mStats && mStats.mnps_found > 0) {
+                        const label = genomeData.get_pipeline_label(pipeline);
+                        html += `<div class="kpi" title="${mStats.mnps_found.toLocaleString()} MNPs decomposed into ${mStats.snps_from_mnps.toLocaleString()} individual SNPs">
+                            <div class="label">${label} ${infoIcon('mnps')}</div>
+                            <div class="value">${mStats.mnps_found.toLocaleString()} → ${mStats.snps_from_mnps.toLocaleString()} SNPs</div>
+                        </div>`;
+                    }
                 }
             }
 
-            // === SECTION 3: Ground Truth Comparison (only if GT exists) ===
+            // === SECTION 5: Ground Truth Comparison (only if GT exists) ===
             if (gtPipelineId) {
                 html += sectionHeader('Ground Truth Comparison');
 
@@ -1951,9 +1954,9 @@
                 const gtPileup = JSON.parse(genomeData.get_ground_truth_pileup());
                 if (gtPileup && typeof gtPileup === 'object') {
                     const pileupPct = ((gtPileup.total_snps / refLength / kpis.samples) * 100).toFixed(2);
-                    html += `<div class="kpi" style="border-color:#b5cea8;" title="SNPs counted from BAM pileup without variant calling\n${gtPileup.covered_positions.toLocaleString()} covered positions">
+                    html += `<div class="kpi" title="SNPs counted from BAM pileup without variant calling\n${gtPileup.covered_positions.toLocaleString()} covered positions">
                         <div class="label">${gtLabel} Pileup SNPs ${infoIcon('gt_pileup')}</div>
-                        <div class="value" style="color:#b5cea8;">${gtPileup.total_snps.toLocaleString()} (${pileupPct}%)</div>
+                        <div class="value">${gtPileup.total_snps.toLocaleString()} (${pileupPct}%)</div>
                     </div>`;
 
                     // Show comparison with VCF pipelines
@@ -1962,11 +1965,9 @@
                             const label = genomeData.get_pipeline_label(pipeline);
                             const diffSign = comp.difference > 0 ? '+' : '';
                             const pctSign = comp.percentage_diff > 0 ? '+' : '';
-                            const absPct = Math.abs(comp.percentage_diff);
-                            const color = absPct <= 5 ? '#81c784' : absPct <= 10 ? '#ffd54f' : '#e57373';
-                            html += `<div class="kpi" style="border-color:${color};" title="${label}: ${comp.pipeline_snps.toLocaleString()} SNPs vs GT: ${comp.ground_truth_snps.toLocaleString()} SNPs">
+                            html += `<div class="kpi" title="${label}: ${comp.pipeline_snps.toLocaleString()} SNPs vs GT: ${comp.ground_truth_snps.toLocaleString()} SNPs">
                                 <div class="label">${label} vs ${gtShortLabel} ${infoIcon('vs_gt')}</div>
-                                <div class="value" style="color:${color};">${diffSign}${comp.difference.toLocaleString()} (${pctSign}${comp.percentage_diff.toFixed(1)}%)</div>
+                                <div class="value">${diffSign}${comp.difference.toLocaleString()} (${pctSign}${comp.percentage_diff.toFixed(1)}%)</div>
                             </div>`;
                         }
                     }
@@ -1981,10 +1982,9 @@
                         const shortLabel = label.split(' ')[0];
                         const pctOfGt = stats.pct_of_a.toFixed(1);
                         const pctOfPipeline = stats.pct_of_b.toFixed(1);
-                        const color = stats.pct_of_a >= 90 ? '#81c784' : stats.pct_of_a >= 70 ? '#ffd54f' : '#e57373';
-                        html += `<div class="kpi" style="border-color:${color};" title="${stats.intersection.toLocaleString()} positions shared\n${gtLabel}: ${stats.total_a.toLocaleString()} SNPs\n${label}: ${stats.total_b.toLocaleString()} SNPs">
+                        html += `<div class="kpi" title="${stats.intersection.toLocaleString()} positions shared\n${gtLabel}: ${stats.total_a.toLocaleString()} SNPs\n${label}: ${stats.total_b.toLocaleString()} SNPs">
                             <div class="label">${shortLabel} ∩ ${gtShortLabel} ${infoIcon('intersection')}</div>
-                            <div class="value" style="color:${color};">${stats.intersection.toLocaleString()} (${pctOfGt}% ${gtShortLabel}, ${pctOfPipeline}% ${shortLabel})</div>
+                            <div class="value">${stats.intersection.toLocaleString()} (${pctOfGt}% ${gtShortLabel}, ${pctOfPipeline}% ${shortLabel})</div>
                         </div>`;
                     }
                 }
@@ -1995,23 +1995,21 @@
                     for (const [pipeline, stats] of Object.entries(snpsInGtGaps)) {
                         const label = genomeData.get_pipeline_label(pipeline);
                         const pct = stats.percentage.toFixed(2);
-                        const color = stats.percentage > 1 ? '#e57373' : '#81c784';
-                        html += `<div class="kpi" style="border-color:${color};" title="${stats.snps_in_gaps.toLocaleString()} of ${stats.total_snps.toLocaleString()} SNPs in GT gaps">
+                        html += `<div class="kpi" title="${stats.snps_in_gaps.toLocaleString()} of ${stats.total_snps.toLocaleString()} SNPs in GT gaps">
                             <div class="label">${label} in ${gtShortLabel} Gaps ${infoIcon('snps_in_gt_gaps')}</div>
-                            <div class="value" style="color:${color};">${stats.snps_in_gaps.toLocaleString()} (${pct}%)</div>
+                            <div class="value">${stats.snps_in_gaps.toLocaleString()} (${pct}%)</div>
                         </div>`;
                     }
                 }
             }
 
-            // === SECTION 4: Consensus Statistics (only if GT exists and we have VCF pipelines) ===
+            // === SECTION 6: Consensus Statistics (only if GT exists and we have VCF pipelines) ===
             const consensusStats = JSON.parse(genomeData.get_consensus_stats());
             if (consensusStats && consensusStats.global && gtPipelineId) {
                 html += sectionHeader('Consensus');
 
                 const g = consensusStats.global;
                 const consensusInGtPct = g.consensus_in_gt_pct.toFixed(1);
-                const color = g.consensus_in_gt_pct >= 90 ? '#81c784' : g.consensus_in_gt_pct >= 70 ? '#ffd54f' : '#e57373';
 
                 // Build list of VCF pipeline names
                 const vcfPipelines = JSON.parse(genomeData.get_vcf_pipelines());
@@ -2021,23 +2019,23 @@
 
                 // VCF Pipelines Consensus
                 const vcfConsensusPct = ((g.consensus_snps / refLength) * 100).toFixed(2);
-                html += `<div class="kpi" style="border-color:#4a4a4a;" title="Positions where ALL VCF pipelines agree on having a SNP">
+                html += `<div class="kpi" title="Positions where ALL VCF pipelines agree on having a SNP">
                     <div class="label">${pipelineNames} ${infoIcon('vcf_consensus')}</div>
                     <div class="value">${g.consensus_snps.toLocaleString()} (${vcfConsensusPct}%)</div>
                 </div>`;
 
                 // VCF Consensus vs GT
-                html += `<div class="kpi" style="border-color:${color};" title="VCF Consensus: ${g.consensus_snps.toLocaleString()} SNPs\n${gtShortLabel}: ${g.gt_snps.toLocaleString()} SNPs\nConsensus in ${gtShortLabel}: ${g.consensus_in_gt.toLocaleString()}\n${gtShortLabel} in Consensus: ${g.gt_in_consensus.toLocaleString()}">
+                html += `<div class="kpi" title="VCF Consensus: ${g.consensus_snps.toLocaleString()} SNPs\n${gtShortLabel}: ${g.gt_snps.toLocaleString()} SNPs\nConsensus in ${gtShortLabel}: ${g.consensus_in_gt.toLocaleString()}\n${gtShortLabel} in Consensus: ${g.gt_in_consensus.toLocaleString()}">
                     <div class="label">(${pipelineNames}) vs ${gtShortLabel} ${infoIcon('consensus_vs_gt')}</div>
-                    <div class="value" style="color:${color};">${g.consensus_in_gt.toLocaleString()} / ${g.consensus_snps.toLocaleString()} (${consensusInGtPct}%)</div>
+                    <div class="value">${g.consensus_in_gt.toLocaleString()} / ${g.consensus_snps.toLocaleString()} (${consensusInGtPct}%)</div>
                 </div>`;
 
                 // ALL pipelines consensus (GT ∩ CFSAN ∩ Snippy)
                 const allPipelineNames = gtShortLabel + ' ∩ ' + pipelineNames;
                 const allConsensusPct = ((consensusStats.global_all / refLength) * 100).toFixed(2);
-                html += `<div class="kpi" style="border-color:#9c27b0;" title="Positions where ALL pipelines (including GT) agree on having a SNP">
+                html += `<div class="kpi" title="Positions where ALL pipelines (including GT) agree on having a SNP">
                     <div class="label">${allPipelineNames} ${infoIcon('all_consensus')}</div>
-                    <div class="value" style="color:#9c27b0;">${consensusStats.global_all.toLocaleString()} (${allConsensusPct}%)</div>
+                    <div class="value">${consensusStats.global_all.toLocaleString()} (${allConsensusPct}%)</div>
                 </div>`;
             }
 

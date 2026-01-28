@@ -944,7 +944,7 @@
         <div class="or">or</div>
         <button onclick="document.getElementById('file-input').click()">Choose File</button>
         <input type="file" id="file-input" accept=".json,.json.gz,.gz" />
-        <div style="margin-top: 1rem;">
+        <div style="margin-top: 1rem; text-align: center;">
             <button onclick="loadDemo()" style="background: #455a64; font-size: 12px; padding: 8px 16px;">Load Demo</button>
             <p style="font-size: 11px; opacity: 0.7; margin-top: 5px;">4 Listeria samples &bull; Snippy vs CFSAN vs Ground Truth (minimap2)</p>
         </div>
@@ -1641,6 +1641,8 @@
                 console.error(error);
             }
         }
+        // Expose to global scope for onclick
+        window.loadDemo = loadDemo;
 
         async function loadFile(file) {
             showLoader('Loading file...', `${(file.size / 1024 / 1024).toFixed(1)} MB`);

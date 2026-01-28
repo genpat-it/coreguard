@@ -1389,6 +1389,34 @@
                 }
             }
 
+            // Ground truth pileup SNP statistics (raw count from BAM without variant calling)
+            const gtPileup = JSON.parse(genomeData.get_ground_truth_pileup());
+            if (gtPileup && typeof gtPileup === 'object') {
+                // Show ground truth SNP count
+                const gtPipeline = genomeData.get_ground_truth_pipeline();
+                const gtLabel = gtPipeline ? genomeData.get_pipeline_label(gtPipeline) : 'Ground Truth';
+                html += `<div class="kpi" style="border-color:#b5cea8;" title="SNPs counted from BAM pileup without variant calling\n${gtPileup.covered_positions.toLocaleString()} covered positions">
+                    <div class="label">${gtLabel} Pileup SNPs</div>
+                    <div class="value" style="color:#b5cea8;">${gtPileup.total_snps.toLocaleString()}</div>
+                </div>`;
+
+                // Show comparison with VCF pipelines
+                if (gtPileup.pipeline_comparison) {
+                    for (const [pipeline, comp] of Object.entries(gtPileup.pipeline_comparison)) {
+                        const label = genomeData.get_pipeline_label(pipeline);
+                        const diffSign = comp.difference > 0 ? '+' : '';
+                        const pctSign = comp.percentage_diff > 0 ? '+' : '';
+                        // Color: green if close to GT, yellow if off by <10%, red if off by >10%
+                        const absPct = Math.abs(comp.percentage_diff);
+                        const color = absPct <= 5 ? '#81c784' : absPct <= 10 ? '#ffd54f' : '#e57373';
+                        html += `<div class="kpi" style="border-color:${color};" title="${label}: ${comp.pipeline_snps.toLocaleString()} SNPs vs GT: ${comp.ground_truth_snps.toLocaleString()} SNPs">
+                            <div class="label">${label} vs GT</div>
+                            <div class="value" style="color:${color};">${diffSign}${comp.difference.toLocaleString()} (${pctSign}${comp.percentage_diff.toFixed(1)}%)</div>
+                        </div>`;
+                    }
+                }
+            }
+
             document.getElementById('kpis').innerHTML = html;
         }
 

@@ -137,6 +137,35 @@ pub struct Summary {
     /// SNPs in ground truth gaps statistics (pipeline_id -> stats)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub snps_in_gt_gaps: Option<HashMap<String, SnpsInGapsStats>>,
+    /// Ground truth pileup SNP statistics (raw count from BAM without variant calling)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ground_truth_pileup: Option<GroundTruthPileupStats>,
+}
+
+/// Ground truth SNP count from BAM pileup (without variant calling)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GroundTruthPileupStats {
+    /// Total SNPs counted from ground truth BAM pileup (all samples combined)
+    pub total_snps: usize,
+    /// SNP count per sample (sample_id -> count)
+    pub per_sample: HashMap<String, usize>,
+    /// Covered positions (where we could make a call)
+    pub covered_positions: usize,
+    /// Comparison with VCF pipelines (pipeline_id -> comparison)
+    pub pipeline_comparison: HashMap<String, PipelineVsGroundTruth>,
+}
+
+/// Comparison of a pipeline's SNP count vs ground truth pileup
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PipelineVsGroundTruth {
+    /// Pipeline SNP count (from VCF)
+    pub pipeline_snps: usize,
+    /// Ground truth SNP count (from BAM pileup)
+    pub ground_truth_snps: usize,
+    /// Numerical difference (pipeline - ground_truth)
+    pub difference: i64,
+    /// Percentage difference ((pipeline - ground_truth) / ground_truth * 100)
+    pub percentage_diff: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -342,6 +371,97 @@ impl CompareReport {
             None
         };
 
+        // Calculate ground truth pileup SNPs (raw count from BAM without variant calling)
+        let ground_truth_pileup = if let Some(gt_pipeline) = config.ground_truth_pipeline() {
+            log::info!("Calculating ground truth pileup SNP count...");
+
+            let mut per_sample: HashMap<String, usize> = HashMap::new();
+            let mut total_snps = 0usize;
+            let mut total_covered = 0usize;
+
+            // For each sample, count SNPs from the ground truth BAM
+            for sample_id in &sample_ids {
+                let bam_path: Option<String> = config.pipelines.get(&gt_pipeline)
+                    .and_then(|p| p.samples.get(sample_id))
+                    .and_then(|f| f.bam.clone());
+
+                if let Some(ref path) = bam_path {
+                    match pileup::count_snps_from_pileup(
+                        Path::new(path),
+                        &ref_seq,
+                        &ref_name,
+                        config.options.min_depth as u32,
+                        0.8,  // 80% consensus threshold
+                    ) {
+                        Ok((snp_count, covered_positions)) => {
+                            log::info!("  {}: {} SNPs from pileup ({} covered positions)",
+                                sample_id, snp_count, covered_positions);
+                            per_sample.insert(sample_id.clone(), snp_count);
+                            total_snps += snp_count;
+                            total_covered = total_covered.max(covered_positions);
+                        }
+                        Err(e) => {
+                            log::warn!("Failed to count pileup SNPs for {}: {}", sample_id, e);
+                        }
+                    }
+                }
+            }
+
+            // Compare with VCF pipelines
+            let mut pipeline_comparison: HashMap<String, PipelineVsGroundTruth> = HashMap::new();
+
+            for pipeline_id in &pipeline_ids {
+                if pipeline_id == &gt_pipeline {
+                    continue;
+                }
+                if let Some(pipeline_info) = pipelines.get(pipeline_id) {
+                    if !pipeline_info.has_vcf {
+                        continue;
+                    }
+                }
+
+                // Count total SNPs for this pipeline across all samples
+                let mut pipeline_snps = 0usize;
+                for sample_id in &sample_ids {
+                    if let Some(sample_data) = data.get(sample_id) {
+                        if let Some(pipeline_data) = sample_data.get(pipeline_id) {
+                            pipeline_snps += pipeline_data.snps.len();
+                        }
+                    }
+                }
+
+                let difference = pipeline_snps as i64 - total_snps as i64;
+                let percentage_diff = if total_snps > 0 {
+                    (difference as f64 / total_snps as f64) * 100.0
+                } else {
+                    0.0
+                };
+
+                pipeline_comparison.insert(pipeline_id.clone(), PipelineVsGroundTruth {
+                    pipeline_snps,
+                    ground_truth_snps: total_snps,
+                    difference,
+                    percentage_diff,
+                });
+
+                log::info!("  {} vs GT: {} vs {} SNPs (diff: {:+}, {:+.2}%)",
+                    pipeline_id, pipeline_snps, total_snps, difference, percentage_diff);
+            }
+
+            if !per_sample.is_empty() {
+                Some(GroundTruthPileupStats {
+                    total_snps,
+                    per_sample,
+                    covered_positions: total_covered,
+                    pipeline_comparison,
+                })
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         // Build summary
         let summary = Summary {
             total_samples: sample_ids.len(),
@@ -350,6 +470,7 @@ impl CompareReport {
             coreguard_version: env!("CARGO_PKG_VERSION").to_string(),
             warnings,
             snps_in_gt_gaps,
+            ground_truth_pileup,
         };
 
         Ok(CompareReport {

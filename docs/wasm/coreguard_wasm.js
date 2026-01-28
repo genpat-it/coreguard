@@ -174,6 +174,23 @@ export class GenomeData {
         }
     }
     /**
+     * Get ground truth pileup statistics as JSON
+     * Returns: { total_snps, per_sample, covered_positions, pipeline_comparison }
+     * @returns {string}
+     */
+    get_ground_truth_pileup() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_ground_truth_pileup(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get ground truth pipeline ID (if any)
      * @returns {string | undefined}
      */

@@ -50,6 +50,11 @@ export class GenomeData {
      */
     get_generated_at(): string;
     /**
+     * Get ground truth pileup statistics as JSON
+     * Returns: { total_snps, per_sample, covered_positions, pipeline_comparison }
+     */
+    get_ground_truth_pileup(): string;
+    /**
      * Get ground truth pipeline ID (if any)
      */
     get_ground_truth_pipeline(): string | undefined;
@@ -160,6 +165,7 @@ export interface InitOutput {
     readonly genomedata_get_generated_at: (a: number) => [number, number];
     readonly genomedata_get_warnings: (a: number) => [number, number];
     readonly genomedata_get_snps_in_gt_gaps: (a: number) => [number, number];
+    readonly genomedata_get_ground_truth_pileup: (a: number) => [number, number];
     readonly genomedata_get_file_paths: (a: number) => [number, number];
     readonly genomedata_get_ref_nuc: (a: number, b: number) => number;
     readonly genomedata_is_gap: (a: number, b: number, c: number, d: number, e: number, f: number) => number;

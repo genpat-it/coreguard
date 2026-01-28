@@ -484,6 +484,133 @@ pub fn count_snps_from_pileup(
     Ok((snp_count, covered_positions))
 }
 
+/// SNP detected from BAM pileup
+#[derive(Debug, Clone)]
+pub struct PileupSnp {
+    /// 1-based position
+    pub pos: usize,
+    /// Reference base
+    pub ref_base: char,
+    /// Alternative base (consensus from pileup)
+    pub alt_base: char,
+    /// Read depth at this position
+    pub depth: u32,
+    /// Consensus percentage (0.0 - 1.0)
+    pub consensus: f64,
+}
+
+/// Get SNPs by comparing BAM pileup to reference sequence
+///
+/// This scans the entire genome and returns positions where the consensus
+/// base from the BAM differs from the reference. This is a "raw" SNP list
+/// without any variant calling quality filters.
+///
+/// Returns: Vec of PileupSnp
+pub fn get_snps_from_pileup(
+    bam_path: &Path,
+    ref_seq: &str,
+    chrom: &str,
+    min_depth: u32,
+    min_consensus: f64,
+) -> Result<Vec<PileupSnp>> {
+    use std::io::BufReader;
+    use noodles::bam;
+    use noodles::bam::bai;
+
+    let ref_len = ref_seq.len();
+    let ref_bytes = ref_seq.as_bytes();
+
+    // Open BAM file
+    let mut reader = File::open(bam_path)
+        .map(BufReader::new)
+        .map(bam::io::Reader::new)
+        .with_context(|| format!("Failed to open BAM: {}", bam_path.display()))?;
+
+    // Read header
+    let header = reader.read_header()?;
+
+    // Try to open index
+    let index_path = bam_path.with_extension("bam.bai");
+    let index_path_alt = {
+        let mut p = bam_path.as_os_str().to_owned();
+        p.push(".bai");
+        PathBuf::from(p)
+    };
+
+    // Count bases at each position
+    let mut position_counts: HashMap<u32, HashMap<char, u32>> = HashMap::new();
+
+    // Read all records
+    if index_path.exists() || index_path_alt.exists() {
+        let idx_path = if index_path.exists() { &index_path } else { &index_path_alt };
+        let index = bai::read(idx_path)
+            .with_context(|| format!("Failed to read BAM index: {}", idx_path.display()))?;
+
+        // Query entire chromosome
+        let start = noodles::core::Position::try_from(1usize)?;
+        let end = noodles::core::Position::try_from(ref_len)?;
+        let region = noodles::core::Region::new(chrom, start..=end);
+
+        let mut query = reader.query(&header, &index, &region)?;
+
+        while let Some(result) = query.next() {
+            let record = result?;
+            process_record_for_snp_count(&record, &header, &mut position_counts)?;
+        }
+    } else {
+        log::warn!("No BAM index found for {}, doing full scan", bam_path.display());
+        for result in reader.records() {
+            let record = result?;
+            process_record_for_snp_count(&record, &header, &mut position_counts)?;
+        }
+    }
+
+    // Collect SNPs (positions where consensus differs from reference)
+    let mut snps = Vec::new();
+
+    for (pos, counts) in &position_counts {
+        let pos_usize = *pos as usize;
+        if pos_usize >= ref_len {
+            continue;
+        }
+
+        let total_depth: u32 = counts.values().sum();
+        if total_depth < min_depth {
+            continue;
+        }
+
+        // Find consensus base
+        let (best_base, best_count) = counts.iter()
+            .max_by_key(|(_, count)| *count)
+            .map(|(b, c)| (*b, *c))
+            .unwrap_or(('N', 0));
+
+        let consensus_pct = best_count as f64 / total_depth as f64;
+        if consensus_pct < min_consensus {
+            continue;
+        }
+
+        // Compare to reference
+        let ref_base = (ref_bytes[pos_usize] as char).to_ascii_uppercase();
+        let best_base_upper = best_base.to_ascii_uppercase();
+
+        if ref_base != best_base_upper && ref_base != 'N' && best_base_upper != 'N' {
+            snps.push(PileupSnp {
+                pos: pos_usize + 1,  // Convert to 1-based
+                ref_base,
+                alt_base: best_base_upper,
+                depth: total_depth,
+                consensus: consensus_pct,
+            });
+        }
+    }
+
+    // Sort by position
+    snps.sort_by_key(|s| s.pos);
+
+    Ok(snps)
+}
+
 /// Process a single BAM record for SNP counting (all positions)
 fn process_record_for_snp_count<R: Record>(
     record: &R,

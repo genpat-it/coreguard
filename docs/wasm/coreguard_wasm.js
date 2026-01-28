@@ -220,6 +220,23 @@ export class GenomeData {
         }
     }
     /**
+     * Get per-sample statistics as JSON
+     * Returns: { sample_id: { pipeline_id: { snps, snps_in_gt_gaps, agreement_with_gt, ... } } }
+     * @returns {string}
+     */
+    get_per_sample_stats() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_per_sample_stats(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get command for a pipeline (if any)
      * @param {string} pipeline_id
      * @returns {string | undefined}

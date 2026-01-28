@@ -298,6 +298,39 @@
         .info-modal-close:hover {
             color: var(--text-primary);
         }
+        /* Per-sample statistics table */
+        .stats-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            margin-top: 10px;
+        }
+        .stats-table th, .stats-table td {
+            padding: 6px 10px;
+            border: 1px solid var(--border-color);
+            text-align: right;
+        }
+        .stats-table th {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-weight: bold;
+            text-align: center;
+        }
+        .stats-table th:first-child, .stats-table td:first-child {
+            text-align: left;
+            font-weight: bold;
+            color: var(--label-color);
+        }
+        .stats-table tr:hover {
+            background: var(--bg-tertiary);
+        }
+        .stats-table .pipeline-header {
+            background: var(--bg-secondary);
+            color: var(--accent);
+        }
+        .stats-table .good { color: #81c784; }
+        .stats-table .warning { color: #ffd54f; }
+        .stats-table .bad { color: #e57373; }
         .filters {
             display: flex;
             gap: 8px;
@@ -880,6 +913,13 @@
             </div>
         </details>
 
+        <details class="collapsible-panel" id="per-sample-panel">
+            <summary>Per-Sample Statistics</summary>
+            <div id="per-sample-stats" style="overflow-x:auto;">
+                <p style="color:var(--text-secondary);font-size:11px;">Per-sample statistics will be shown here after loading data.</p>
+            </div>
+        </details>
+
         <details class="collapsible-panel" id="coverage-panel">
             <summary>Coverage Statistics</summary>
             <div id="coverage-stats-content">
@@ -1362,6 +1402,7 @@
                 updateKPIs();
                 displayWarnings();
                 populatePipelineInfo();
+                populatePerSampleStats();
                 populateReproducibilityCommands();
                 createFilterButtons(pipelines);
                 createVisibilityControls(pipelines);
@@ -1425,6 +1466,96 @@
             if (html === '') {
                 html = '<p style="color:var(--text-secondary);font-size:11px;">No pipeline information available.</p>';
             }
+
+            container.innerHTML = html;
+        }
+
+        function populatePerSampleStats() {
+            const container = document.getElementById('per-sample-stats');
+            const stats = JSON.parse(genomeData.get_per_sample_stats());
+            const sampleIds = JSON.parse(genomeData.get_sample_ids());
+            const pipelineIds = JSON.parse(genomeData.get_pipeline_ids());
+            const gtPipeline = genomeData.get_ground_truth_pipeline();
+
+            if (Object.keys(stats).length === 0) {
+                container.innerHTML = '<p style="color:var(--text-secondary);font-size:11px;">No per-sample statistics available.</p>';
+                return;
+            }
+
+            // Build table
+            let html = '<table class="stats-table">';
+
+            // Header row
+            html += '<tr><th rowspan="2">Sample</th>';
+            for (const pipelineId of pipelineIds) {
+                const label = genomeData.get_pipeline_label(pipelineId);
+                const isGT = pipelineId === gtPipeline;
+                const colspan = isGT ? 2 : 4;
+                html += `<th colspan="${colspan}" class="pipeline-header">${label}${isGT ? ' (GT)' : ''}</th>`;
+            }
+            html += '</tr>';
+
+            // Sub-header row
+            html += '<tr>';
+            for (const pipelineId of pipelineIds) {
+                const isGT = pipelineId === gtPipeline;
+                html += '<th>SNPs</th><th>Gaps</th>';
+                if (!isGT) {
+                    html += '<th title="SNPs at positions where GT also has a SNP">vs GT</th>';
+                    html += '<th title="SNPs falling in GT gap regions">in GT Gaps</th>';
+                }
+            }
+            html += '</tr>';
+
+            // Data rows
+            for (const sampleId of sampleIds) {
+                const sampleLabel = genomeData.get_sample_label(sampleId) || sampleId;
+                const sampleStats = stats[sampleId];
+                if (!sampleStats) continue;
+
+                html += `<tr><td>${sampleLabel}</td>`;
+
+                for (const pipelineId of pipelineIds) {
+                    const isGT = pipelineId === gtPipeline;
+                    const pStats = sampleStats.pipelines[pipelineId];
+
+                    if (pStats) {
+                        html += `<td>${pStats.snps.toLocaleString()}</td>`;
+                        html += `<td>${pStats.gap_bp.toLocaleString()}</td>`;
+
+                        if (!isGT) {
+                            // Agreement with GT
+                            const agreePct = pStats.agreement_with_gt_pct.toFixed(1);
+                            const agreeClass = pStats.agreement_with_gt_pct >= 90 ? 'good' : pStats.agreement_with_gt_pct >= 70 ? 'warning' : 'bad';
+                            html += `<td class="${agreeClass}" title="${pStats.agreement_with_gt.toLocaleString()} SNPs match GT positions">${agreePct}%</td>`;
+
+                            // SNPs in GT gaps
+                            const gapsPct = pStats.snps_in_gt_gaps_pct.toFixed(2);
+                            const gapsClass = pStats.snps_in_gt_gaps_pct <= 1 ? 'good' : pStats.snps_in_gt_gaps_pct <= 5 ? 'warning' : 'bad';
+                            html += `<td class="${gapsClass}" title="${pStats.snps_in_gt_gaps.toLocaleString()} SNPs in GT gaps">${pStats.snps_in_gt_gaps} (${gapsPct}%)</td>`;
+                        }
+                    } else {
+                        html += '<td>-</td><td>-</td>';
+                        if (!isGT) {
+                            html += '<td>-</td><td>-</td>';
+                        }
+                    }
+                }
+
+                html += '</tr>';
+            }
+
+            html += '</table>';
+
+            // Add legend
+            html += `<div style="margin-top:10px;font-size:10px;color:var(--text-secondary);">
+                <strong>Legend:</strong>
+                <span class="good">Green</span> = good,
+                <span class="warning">Yellow</span> = moderate,
+                <span class="bad">Red</span> = potential issue |
+                <strong>vs GT:</strong> % of GT SNP positions also called by this pipeline |
+                <strong>in GT Gaps:</strong> SNPs in regions with no GT coverage
+            </div>`;
 
             container.innerHTML = html;
         }

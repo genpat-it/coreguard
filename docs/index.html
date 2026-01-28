@@ -216,16 +216,87 @@
             padding: 10px 15px;
             border-radius: 4px;
             border: 1px solid var(--border-color);
+            position: relative;
         }
         .kpi .label {
             font-size: 11px;
             color: var(--text-secondary);
             text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .kpi .info-icon {
+            cursor: pointer;
+            opacity: 0.5;
+            font-size: 12px;
+            transition: opacity 0.2s;
+        }
+        .kpi .info-icon:hover {
+            opacity: 1;
         }
         .kpi .value {
             font-size: 18px;
             color: var(--snp-consensus);
             font-weight: bold;
+        }
+        /* Info Modal */
+        .info-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+        .info-modal.active {
+            display: flex;
+        }
+        .info-modal-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        .info-modal-content h3 {
+            margin: 0 0 15px 0;
+            color: var(--accent);
+            font-size: 16px;
+        }
+        .info-modal-content p {
+            margin: 0 0 10px 0;
+            color: var(--text-primary);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .info-modal-content .formula {
+            background: var(--bg-tertiary);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            margin: 10px 0;
+        }
+        .info-modal-close {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 20px;
+            cursor: pointer;
+        }
+        .info-modal-close:hover {
+            color: var(--text-primary);
         }
         .filters {
             display: flex;
@@ -762,6 +833,15 @@
         <div class="loader-progress" id="loader-progress"></div>
     </div>
 
+    <!-- Info Modal -->
+    <div class="info-modal" id="info-modal" onclick="if(event.target===this)closeInfoModal()">
+        <div class="info-modal-content">
+            <button class="info-modal-close" onclick="closeInfoModal()">&times;</button>
+            <h3 id="info-modal-title">KPI Info</h3>
+            <div id="info-modal-body"></div>
+        </div>
+    </div>
+
     <div class="header">
         <h1>CoreGuard SNP Comparison Viewer</h1>
         <div class="header-right">
@@ -1043,6 +1123,92 @@
 
         // Initialize theme on page load
         initTheme();
+
+        // KPI Info Modal
+        const kpiDescriptions = {
+            'reference': {
+                title: 'Reference Genome',
+                body: `<p>The length of the reference genome in base pairs (bp).</p>
+                       <p>All samples are aligned against this reference sequence for SNP calling.</p>`
+            },
+            'samples': {
+                title: 'Number of Samples',
+                body: `<p>Total number of samples (isolates) included in this comparison.</p>`
+            },
+            'pipelines': {
+                title: 'Number of Pipelines',
+                body: `<p>Number of different SNP calling pipelines being compared.</p>
+                       <p>Each pipeline may use different algorithms, parameters, or reference-based variant calling approaches.</p>`
+            },
+            'snps': {
+                title: 'SNP Count',
+                body: `<p>Total number of Single Nucleotide Polymorphisms (SNPs) detected by this pipeline across all samples.</p>
+                       <div class="formula">% = (SNPs / Reference Length / Samples) × 100</div>
+                       <p>The percentage indicates the average SNP density per sample relative to the reference genome.</p>`
+            },
+            'gaps': {
+                title: 'Gap Regions',
+                body: `<p>Total base pairs with insufficient coverage (depth < minimum threshold) across all samples.</p>
+                       <div class="formula">% = (Gap bp / Reference Length / Samples) × 100</div>
+                       <p>Gaps indicate regions where the pipeline could not confidently call variants due to low read coverage.</p>
+                       <p><strong>High gap percentage</strong> may indicate poor sequencing quality or divergent samples.</p>`
+            },
+            'snps_in_gt_gaps': {
+                title: 'SNPs in Ground Truth Gaps',
+                body: `<p>Number of SNPs called by this pipeline that fall within gap regions of the Ground Truth pipeline.</p>
+                       <div class="formula">% = (SNPs in GT Gaps / Total SNPs) × 100</div>
+                       <p><strong>Interpretation:</strong></p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li><span style="color:#81c784;">Green (&lt;1%)</span>: Good - few SNPs in unreliable regions</li>
+                           <li><span style="color:#e57373;">Red (&gt;1%)</span>: Potential false positives in low-coverage regions</li>
+                       </ul>
+                       <p>SNPs called in regions where the ground truth has no coverage are potentially unreliable.</p>`
+            },
+            'gt_pileup': {
+                title: 'Ground Truth Pileup SNPs',
+                body: `<p>Total SNPs detected directly from BAM pileup analysis <strong>without variant calling filters</strong>.</p>
+                       <div class="formula">% = (Pileup SNPs / Reference Length / Samples) × 100</div>
+                       <p>This is a raw count of positions where the consensus base from read alignments differs from the reference.</p>
+                       <p><strong>Purpose:</strong> Provides a baseline for comparing how many potential variants each pipeline reports vs. the raw signal in the data.</p>`
+            },
+            'vs_gt': {
+                title: 'Pipeline vs Ground Truth',
+                body: `<p>Comparison of this pipeline's SNP count against the Ground Truth pileup count.</p>
+                       <div class="formula">Difference = Pipeline SNPs - GT Pileup SNPs</div>
+                       <div class="formula">% = (Difference / GT Pileup SNPs) × 100</div>
+                       <p><strong>Interpretation:</strong></p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li><span style="color:#81c784;">Green (±5%)</span>: Close to raw signal</li>
+                           <li><span style="color:#ffd54f;">Yellow (5-10%)</span>: Moderate filtering/differences</li>
+                           <li><span style="color:#e57373;">Red (&gt;10%)</span>: Significant deviation - heavy filtering or artifacts</li>
+                       </ul>
+                       <p><strong>Negative values:</strong> Pipeline reports fewer SNPs than raw pileup (filtering)</p>
+                       <p><strong>Positive values:</strong> Pipeline reports more SNPs (possible artifacts or MNP decomposition)</p>`
+            },
+            'filtered': {
+                title: 'Filtered Positions',
+                body: `<p>Number of genomic positions matching the currently active filter criteria.</p>
+                       <p>Use filters to focus on specific types of variants (consensus, discordant, pipeline-specific, etc.)</p>`
+            }
+        };
+
+        function showKpiInfo(kpiType) {
+            const info = kpiDescriptions[kpiType];
+            if (!info) return;
+
+            document.getElementById('info-modal-title').textContent = info.title;
+            document.getElementById('info-modal-body').innerHTML = info.body;
+            document.getElementById('info-modal').classList.add('active');
+        }
+
+        function closeInfoModal() {
+            document.getElementById('info-modal').classList.remove('active');
+        }
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeInfoModal();
+        });
     </script>
 
     <script type="module">
@@ -1354,28 +1520,31 @@
             const kpisJson = genomeData.get_kpis();
             const kpis = JSON.parse(kpisJson);
 
+            // Helper to create info icon
+            const infoIcon = (type) => `<span class="info-icon" onclick="event.stopPropagation();showKpiInfo('${type}')">ⓘ</span>`;
+
             let html = `
-                <div class="kpi"><div class="label">Reference</div><div class="value">${genomeData.get_ref_length().toLocaleString()} bp</div></div>
-                <div class="kpi"><div class="label">Samples</div><div class="value">${kpis.samples}</div></div>
-                <div class="kpi"><div class="label">Pipelines</div><div class="value">${kpis.pipelines}</div></div>
+                <div class="kpi"><div class="label">Reference ${infoIcon('reference')}</div><div class="value">${genomeData.get_ref_length().toLocaleString()} bp</div></div>
+                <div class="kpi"><div class="label">Samples ${infoIcon('samples')}</div><div class="value">${kpis.samples}</div></div>
+                <div class="kpi"><div class="label">Pipelines ${infoIcon('pipelines')}</div><div class="value">${kpis.pipelines}</div></div>
             `;
 
             // Show filtered positions count when filters are active
             if (filteredCount !== null) {
-                html += `<div class="kpi" style="border-color:#569cd6;"><div class="label">Filtered Positions</div><div class="value" style="color:#569cd6;">${filteredCount.toLocaleString()}</div></div>`;
+                html += `<div class="kpi" style="border-color:#569cd6;"><div class="label">Filtered Positions ${infoIcon('filtered')}</div><div class="value" style="color:#569cd6;">${filteredCount.toLocaleString()}</div></div>`;
             }
 
             const refLength = genomeData.get_ref_length();
             for (const [pipeline, count] of Object.entries(kpis.snps)) {
                 const label = genomeData.get_pipeline_label(pipeline);
                 const snpPct = ((count / refLength / kpis.samples) * 100).toFixed(2);
-                html += `<div class="kpi"><div class="label">${label} SNPs</div><div class="value">${count.toLocaleString()} (${snpPct}%)</div></div>`;
+                html += `<div class="kpi"><div class="label">${label} SNPs ${infoIcon('snps')}</div><div class="value">${count.toLocaleString()} (${snpPct}%)</div></div>`;
             }
 
             for (const [pipeline, count] of Object.entries(kpis.gaps)) {
                 const label = genomeData.get_pipeline_label(pipeline);
                 const gapPct = ((count / refLength / kpis.samples) * 100).toFixed(1);
-                html += `<div class="kpi" style="border-color:var(--gap-color);"><div class="label">${label} Gaps</div><div class="value" style="color:var(--gap-color);">${count.toLocaleString()} bp (${gapPct}%)</div></div>`;
+                html += `<div class="kpi" style="border-color:var(--gap-color);"><div class="label">${label} Gaps ${infoIcon('gaps')}</div><div class="value" style="color:var(--gap-color);">${count.toLocaleString()} bp (${gapPct}%)</div></div>`;
             }
 
             // SNPs in ground truth gaps statistics
@@ -1386,7 +1555,7 @@
                     const pct = stats.percentage.toFixed(2);
                     const color = stats.percentage > 1 ? '#e57373' : '#81c784';
                     html += `<div class="kpi" style="border-color:${color};" title="${stats.snps_in_gaps.toLocaleString()} of ${stats.total_snps.toLocaleString()} SNPs in GT gaps">
-                        <div class="label">${label} in GT Gaps</div>
+                        <div class="label">${label} in GT Gaps ${infoIcon('snps_in_gt_gaps')}</div>
                         <div class="value" style="color:${color};">${stats.snps_in_gaps.toLocaleString()} (${pct}%)</div>
                     </div>`;
                 }
@@ -1400,7 +1569,7 @@
                 const gtLabel = gtPipeline ? genomeData.get_pipeline_label(gtPipeline) : 'Ground Truth';
                 const pileupPct = ((gtPileup.total_snps / refLength / kpis.samples) * 100).toFixed(2);
                 html += `<div class="kpi" style="border-color:#b5cea8;" title="SNPs counted from BAM pileup without variant calling\n${gtPileup.covered_positions.toLocaleString()} covered positions">
-                    <div class="label">${gtLabel} Pileup SNPs</div>
+                    <div class="label">${gtLabel} Pileup SNPs ${infoIcon('gt_pileup')}</div>
                     <div class="value" style="color:#b5cea8;">${gtPileup.total_snps.toLocaleString()} (${pileupPct}%)</div>
                 </div>`;
 
@@ -1414,7 +1583,7 @@
                         const absPct = Math.abs(comp.percentage_diff);
                         const color = absPct <= 5 ? '#81c784' : absPct <= 10 ? '#ffd54f' : '#e57373';
                         html += `<div class="kpi" style="border-color:${color};" title="${label}: ${comp.pipeline_snps.toLocaleString()} SNPs vs GT: ${comp.ground_truth_snps.toLocaleString()} SNPs">
-                            <div class="label">${label} vs GT</div>
+                            <div class="label">${label} vs GT ${infoIcon('vs_gt')}</div>
                             <div class="value" style="color:${color};">${diffSign}${comp.difference.toLocaleString()} (${pctSign}${comp.percentage_diff.toFixed(1)}%)</div>
                         </div>`;
                     }

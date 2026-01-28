@@ -1277,20 +1277,33 @@
                        </ul>`
             },
             'consensus_vs_gt': {
-                title: 'Consensus vs Ground Truth',
-                body: `<p><strong>Consensus</strong> = SNP positions where <strong>ALL VCF pipelines agree</strong> (have a SNP at the same position).</p>
-                       <p>This metric compares consensus positions with Ground Truth:</p>
+                title: 'VCF Consensus vs Ground Truth',
+                body: `<p><strong>VCF Consensus</strong> = SNP positions where <strong>ALL VCF pipelines agree</strong> (e.g., CFSAN ∩ Snippy).</p>
+                       <p>This metric compares VCF consensus positions with Ground Truth:</p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li><strong>Consensus in GT:</strong> How many consensus SNPs are also in GT (precision)</li>
-                           <li><strong>GT in Consensus:</strong> How many GT SNPs are in the consensus (sensitivity)</li>
+                           <li><strong>Consensus in GT:</strong> How many VCF consensus SNPs are also in GT (precision)</li>
+                           <li><strong>GT in Consensus:</strong> How many GT SNPs are in the VCF consensus (sensitivity)</li>
                        </ul>
                        <p><strong>Interpretation:</strong></p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li><span style="color:#81c784;">High % (≥90%)</span>: Consensus SNPs are well-supported by GT</li>
+                           <li><span style="color:#81c784;">High % (≥90%)</span>: VCF consensus is well-supported by GT</li>
                            <li><span style="color:#ffd54f;">Moderate % (70-90%)</span>: Some disagreement</li>
-                           <li><span style="color:#e57373;">Low % (&lt;70%)</span>: Significant discrepancy between consensus and GT</li>
+                           <li><span style="color:#e57373;">Low % (&lt;70%)</span>: Significant discrepancy</li>
                        </ul>
-                       <p><strong>Note:</strong> A high consensus-in-GT percentage indicates that when all pipelines agree, they are usually correct.</p>`
+                       <p><strong>Note:</strong> This does NOT include GT in the consensus calculation - it's VCF pipelines only, then compared to GT.</p>`
+            },
+            'all_consensus': {
+                title: 'All Pipelines Consensus',
+                body: `<p><strong>All Consensus</strong> = SNP positions where <strong>ALL pipelines INCLUDING Ground Truth</strong> agree.</p>
+                       <div class="formula">All Consensus = GT ∩ Pipeline1 ∩ Pipeline2 ∩ ...</div>
+                       <p>These are the "high confidence" SNPs - positions where every pipeline, including the ground truth, calls a variant.</p>
+                       <p><strong>Interpretation:</strong></p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li>Higher count = more agreement across all methods</li>
+                           <li>These SNPs are the most reliable for downstream analysis</li>
+                           <li>Can be used as a "gold standard" SNP set</li>
+                       </ul>
+                       <p><strong>% of Reference:</strong> Indicates the SNP density for the consensus set.</p>`
             },
             'mnp': {
                 title: 'MNP Decomposition',
@@ -1595,9 +1608,15 @@
                 const colspan = isGT ? 2 : 4;
                 html += `<th colspan="${colspan}" class="pipeline-header">${label}${isGT ? ' (GT)' : ''}</th>`;
             }
-            // Add Consensus column if we have GT
+            // Add Consensus columns if we have GT
             if (gtPipeline && consensusStats?.per_sample) {
-                html += '<th colspan="2" class="pipeline-header" style="background:#4a4a4a;">Consensus</th>';
+                // Build list of VCF pipeline names
+                const vcfPipelines = JSON.parse(genomeData.get_vcf_pipelines());
+                const nonGtPipelines = vcfPipelines.filter(p => p !== gtPipeline);
+                const pipelineNames = nonGtPipelines.map(p => genomeData.get_pipeline_label(p).split(' ')[0]).join(' ∩ ');
+                const gtLabel = genomeData.get_pipeline_label(gtPipeline).split(' ')[0];
+                html += `<th colspan="2" class="pipeline-header" style="background:#4a4a4a;" title="Positions where VCF pipelines agree">${pipelineNames}</th>`;
+                html += `<th class="pipeline-header" style="background:#6a1b9a;" title="Positions where ALL pipelines (incl. GT) agree">${gtLabel} ∩ ${pipelineNames}</th>`;
             }
             html += '</tr>';
 
@@ -1613,8 +1632,9 @@
             }
             // Add Consensus sub-headers
             if (gtPipeline && consensusStats?.per_sample) {
-                html += '<th title="Consensus SNPs (all pipelines agree)">SNPs</th>';
-                html += '<th title="Consensus SNPs also in GT">in GT</th>';
+                html += '<th title="VCF Consensus SNPs">SNPs</th>';
+                html += '<th title="VCF Consensus SNPs also in GT">in GT</th>';
+                html += '<th title="All pipelines (incl. GT) consensus">All</th>';
             }
             html += '</tr>';
 
@@ -1661,15 +1681,20 @@
                 // Add Consensus columns
                 if (gtPipeline && consensusStats?.per_sample) {
                     const cStats = consensusStats.per_sample[sampleId];
-                    if (cStats) {
-                        const cSnpPct = ((cStats.consensus_snps / refLength) * 100).toFixed(2);
-                        html += `<td title="${cStats.consensus_snps.toLocaleString()} consensus SNPs">${cStats.consensus_snps.toLocaleString()} (${cSnpPct}%)</td>`;
+                    if (cStats && cStats.vcf_consensus) {
+                        const vc = cStats.vcf_consensus;
+                        const cSnpPct = ((vc.consensus_snps / refLength) * 100).toFixed(2);
+                        html += `<td title="${vc.consensus_snps.toLocaleString()} VCF consensus SNPs">${vc.consensus_snps.toLocaleString()} (${cSnpPct}%)</td>`;
 
-                        const inGtPct = cStats.consensus_in_gt_pct.toFixed(1);
-                        const inGtClass = cStats.consensus_in_gt_pct >= 90 ? 'good' : cStats.consensus_in_gt_pct >= 70 ? 'warning' : 'bad';
-                        html += `<td class="${inGtClass}" title="${cStats.consensus_in_gt.toLocaleString()} of ${cStats.consensus_snps.toLocaleString()} consensus SNPs are in GT">${cStats.consensus_in_gt.toLocaleString()} (${inGtPct}%)</td>`;
+                        const inGtPct = vc.consensus_in_gt_pct.toFixed(1);
+                        const inGtClass = vc.consensus_in_gt_pct >= 90 ? 'good' : vc.consensus_in_gt_pct >= 70 ? 'warning' : 'bad';
+                        html += `<td class="${inGtClass}" title="${vc.consensus_in_gt.toLocaleString()} of ${vc.consensus_snps.toLocaleString()} VCF consensus SNPs are in GT">${vc.consensus_in_gt.toLocaleString()} (${inGtPct}%)</td>`;
+
+                        // All consensus (GT ∩ all VCF)
+                        const allPct = ((cStats.all_consensus / refLength) * 100).toFixed(2);
+                        html += `<td style="color:#9c27b0;" title="Positions where ALL pipelines (incl. GT) agree">${cStats.all_consensus.toLocaleString()} (${allPct}%)</td>`;
                     } else {
-                        html += '<td>-</td><td>-</td>';
+                        html += '<td>-</td><td>-</td><td>-</td>';
                     }
                 }
 
@@ -1878,9 +1903,24 @@
                 const consensusInGtPct = g.consensus_in_gt_pct.toFixed(1);
                 const gtInConsensusPct = g.gt_in_consensus_pct.toFixed(1);
                 const color = g.consensus_in_gt_pct >= 90 ? '#81c784' : g.consensus_in_gt_pct >= 70 ? '#ffd54f' : '#e57373';
-                html += `<div class="kpi" style="border-color:${color};" title="Consensus: ${g.consensus_snps.toLocaleString()} SNPs (all VCF pipelines agree)\nGT: ${g.gt_snps.toLocaleString()} SNPs\nConsensus in GT: ${g.consensus_in_gt.toLocaleString()}\nGT in Consensus: ${g.gt_in_consensus.toLocaleString()}">
-                    <div class="label">Consensus vs GT ${infoIcon('consensus_vs_gt')}</div>
+
+                // Build list of VCF pipeline names for the label
+                const vcfPipelines = JSON.parse(genomeData.get_vcf_pipelines());
+                const nonGtPipelines = vcfPipelines.filter(p => p !== gtPipeline2);
+                const pipelineNames = nonGtPipelines.map(p => genomeData.get_pipeline_label(p).split(' ')[0]).join(' ∩ ');
+
+                html += `<div class="kpi" style="border-color:${color};" title="Consensus: ${g.consensus_snps.toLocaleString()} SNPs (positions where ${pipelineNames} ALL agree)\nGT: ${g.gt_snps.toLocaleString()} SNPs\nConsensus in GT: ${g.consensus_in_gt.toLocaleString()}\nGT in Consensus: ${g.gt_in_consensus.toLocaleString()}">
+                    <div class="label">(${pipelineNames}) vs GT ${infoIcon('consensus_vs_gt')}</div>
                     <div class="value" style="color:${color};">${g.consensus_in_gt.toLocaleString()} / ${g.consensus_snps.toLocaleString()} (${consensusInGtPct}%)</div>
+                </div>`;
+
+                // ALL pipelines consensus (GT ∩ CFSAN ∩ Snippy)
+                const gtLabel = genomeData.get_pipeline_label(gtPipeline2).split(' ')[0];
+                const allPipelineNames = gtLabel + ' ∩ ' + pipelineNames;
+                const allConsensusPct = ((consensusStats.global_all / refLength) * 100).toFixed(2);
+                html += `<div class="kpi" style="border-color:#9c27b0;" title="Positions where ALL pipelines (including GT) agree on having a SNP">
+                    <div class="label">${allPipelineNames} ${infoIcon('all_consensus')}</div>
+                    <div class="value" style="color:#9c27b0;">${consensusStats.global_all.toLocaleString()} (${allConsensusPct}%)</div>
                 </div>`;
             }
 

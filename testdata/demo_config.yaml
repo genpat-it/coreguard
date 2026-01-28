@@ -1,0 +1,70 @@
+# CoreGuard Demo Configuration
+# Listeria monocytogenes comparison: Snippy vs CFSAN vs Ground Truth
+
+reference:
+  path: /home/IZSNT/a.deruvo/snps-study/visualization/data/reference/AL591824.1.fasta
+  label: "Listeria monocytogenes EGD-e"
+
+samples:
+  TE15676:
+    label: "15676"
+  TE15677:
+    label: "15677"
+  TE15678:
+    label: "15678"
+  TE8064:
+    label: "8064"
+
+pipelines:
+  mm2:
+    label: "Ground Truth"
+    command: "minimap2 -ax sr reference.fa reads.fq.gz | samtools sort -o output.bam"
+    ground_truth: true
+    samples:
+      TE15676:
+        bam: /home/IZSNT/a.deruvo/coreguard/testdata/mm2_bams/TE15676.bam
+      TE15677:
+        bam: /home/IZSNT/a.deruvo/coreguard/testdata/mm2_bams/TE15677.bam
+      TE15678:
+        bam: /home/IZSNT/a.deruvo/coreguard/testdata/mm2_bams/TE15678.bam
+      TE8064:
+        bam: /home/IZSNT/a.deruvo/coreguard/testdata/mm2_bams/TE8064.bam
+
+  snippy:
+    label: "Snippy"
+    command: "snippy --reference ref.fa --R1 reads_1.fq.gz --R2 reads_2.fq.gz --outdir out"
+    samples:
+      TE15676:
+        vcf: /home/IZSNT/a.deruvo/snps-study/results/TE15676_snippy/TE15676_snippy.vcf
+        bam: /home/IZSNT/a.deruvo/snps-study/results/TE15676_snippy/TE15676_snippy.bam
+      TE15677:
+        vcf: /home/IZSNT/a.deruvo/snps-study/results/TE15677_snippy/TE15677_snippy.vcf
+        bam: /home/IZSNT/a.deruvo/snps-study/results/TE15677_snippy/TE15677_snippy.bam
+      TE15678:
+        vcf: /home/IZSNT/a.deruvo/snps-study/results/TE15678_snippy/TE15678_snippy.vcf
+        bam: /home/IZSNT/a.deruvo/snps-study/results/TE15678_snippy/TE15678_snippy.bam
+      TE8064:
+        vcf: /home/IZSNT/a.deruvo/snps-study/results/TE8064_snippy/TE8064_snippy.vcf
+        bam: /home/IZSNT/a.deruvo/snps-study/results/TE8064_snippy/TE8064_snippy.bam
+
+  cfsan:
+    label: "CFSAN"
+    command: "cfsan_snp_pipeline run -s samples/ -o output/ reference.fasta"
+    samples:
+      TE15676:
+        vcf: /home/IZSNT/a.deruvo/snps-study/results/cfsan/samples/TE15676/var.flt.vcf
+        bam: /home/IZSNT/a.deruvo/snps-study/results/cfsan/samples/TE15676/reads.sorted.bam
+      TE15677:
+        vcf: /home/IZSNT/a.deruvo/snps-study/results/cfsan/samples/TE15677/var.flt.vcf
+        bam: /home/IZSNT/a.deruvo/snps-study/results/cfsan/samples/TE15677/reads.sorted.bam
+      TE15678:
+        vcf: /home/IZSNT/a.deruvo/snps-study/results/cfsan/samples/TE15678/var.flt.vcf
+        bam: /home/IZSNT/a.deruvo/snps-study/results/cfsan/samples/TE15678/reads.sorted.bam
+      TE8064:
+        vcf: /home/IZSNT/a.deruvo/snps-study/results/cfsan/samples/TE8064/var.flt.vcf
+        bam: /home/IZSNT/a.deruvo/snps-study/results/cfsan/samples/TE8064/reads.sorted.bam
+
+options:
+  min_depth: 1
+  min_qual: 20
+  include_indels: false

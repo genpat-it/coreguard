@@ -8,6 +8,16 @@ CoreGuard compares SNP calls from multiple pipelines (Snippy, CFSAN, GATK, etc.)
 
 **Live Viewer:** [https://genpat-it.github.io/coreguard/](https://genpat-it.github.io/coreguard/)
 
+### Demo
+
+Click **"Load Demo"** in the viewer to explore a pre-loaded dataset:
+
+- **Organism**: *Listeria monocytogenes* (4 samples)
+- **Pipelines compared**: Snippy, CFSAN SNP Pipeline
+- **Ground Truth**: minimap2 alignment (BAM pileup without variant calling)
+
+The demo illustrates how different pipelines can produce varying SNP calls on the same data, and how CoreGuard helps identify these discrepancies.
+
 ## Why CoreGuard?
 
 Different SNP pipelines can produce different results on the same data. This matters because:

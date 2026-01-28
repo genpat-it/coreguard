@@ -378,6 +378,174 @@ fn process_record<R: Record>(
 
 use std::path::PathBuf;
 
+/// Count SNPs by comparing BAM pileup to reference sequence
+///
+/// This scans the entire genome and counts positions where the consensus
+/// base from the BAM differs from the reference. This is a "raw" SNP count
+/// without any variant calling quality filters.
+///
+/// Returns: (snp_count, covered_positions)
+pub fn count_snps_from_pileup(
+    bam_path: &Path,
+    ref_seq: &str,
+    chrom: &str,
+    min_depth: u32,
+    min_consensus: f64,  // e.g., 0.8 for 80% consensus
+) -> Result<(usize, usize)> {
+    use std::io::BufReader;
+    use noodles::bam;
+    use noodles::bam::bai;
+
+    let ref_len = ref_seq.len();
+    let ref_bytes = ref_seq.as_bytes();
+
+    // Open BAM file
+    let mut reader = File::open(bam_path)
+        .map(BufReader::new)
+        .map(bam::io::Reader::new)
+        .with_context(|| format!("Failed to open BAM: {}", bam_path.display()))?;
+
+    // Read header
+    let header = reader.read_header()?;
+
+    // Try to open index
+    let index_path = bam_path.with_extension("bam.bai");
+    let index_path_alt = {
+        let mut p = bam_path.as_os_str().to_owned();
+        p.push(".bai");
+        PathBuf::from(p)
+    };
+
+    // Count bases at each position
+    let mut position_counts: HashMap<u32, HashMap<char, u32>> = HashMap::new();
+
+    // Read all records
+    if index_path.exists() || index_path_alt.exists() {
+        let idx_path = if index_path.exists() { &index_path } else { &index_path_alt };
+        let index = bai::read(idx_path)
+            .with_context(|| format!("Failed to read BAM index: {}", idx_path.display()))?;
+
+        // Query entire chromosome
+        let start = noodles::core::Position::try_from(1usize)?;
+        let end = noodles::core::Position::try_from(ref_len)?;
+        let region = noodles::core::Region::new(chrom, start..=end);
+
+        let mut query = reader.query(&header, &index, &region)?;
+
+        while let Some(result) = query.next() {
+            let record = result?;
+            process_record_for_snp_count(&record, &header, &mut position_counts)?;
+        }
+    } else {
+        log::warn!("No BAM index found for {}, doing full scan", bam_path.display());
+        for result in reader.records() {
+            let record = result?;
+            process_record_for_snp_count(&record, &header, &mut position_counts)?;
+        }
+    }
+
+    // Count SNPs (positions where consensus differs from reference)
+    let mut snp_count = 0;
+    let mut covered_positions = 0;
+
+    for (pos, counts) in &position_counts {
+        let pos = *pos as usize;
+        if pos >= ref_len {
+            continue;
+        }
+
+        let total_depth: u32 = counts.values().sum();
+        if total_depth < min_depth {
+            continue;
+        }
+
+        covered_positions += 1;
+
+        // Find consensus base
+        let (best_base, best_count) = counts.iter()
+            .max_by_key(|(_, count)| *count)
+            .map(|(b, c)| (*b, *c))
+            .unwrap_or(('N', 0));
+
+        let consensus_pct = best_count as f64 / total_depth as f64;
+        if consensus_pct < min_consensus {
+            continue;  // Ambiguous position, skip
+        }
+
+        // Compare to reference
+        let ref_base = (ref_bytes[pos] as char).to_ascii_uppercase();
+        let best_base_upper = best_base.to_ascii_uppercase();
+
+        if ref_base != best_base_upper && ref_base != 'N' && best_base_upper != 'N' {
+            snp_count += 1;
+        }
+    }
+
+    Ok((snp_count, covered_positions))
+}
+
+/// Process a single BAM record for SNP counting (all positions)
+fn process_record_for_snp_count<R: Record>(
+    record: &R,
+    _header: &noodles::sam::Header,
+    counts: &mut HashMap<u32, HashMap<char, u32>>,
+) -> Result<()> {
+
+    // Get alignment start (1-based in SAM/BAM)
+    let Some(start) = record.alignment_start() else {
+        return Ok(());
+    };
+    let start_pos = start?.get() as u32 - 1; // Convert to 0-based
+
+    // Get sequence
+    let seq = record.sequence();
+    let seq_len = seq.len();
+
+    // Get CIGAR to properly map reference positions to query positions
+    let cigar = record.cigar();
+
+    // Walk through the alignment
+    let mut ref_pos = start_pos;
+    let mut query_pos: usize = 0;
+
+    for op in cigar.iter() {
+        let op = op?;
+        let len = op.len();
+
+        use noodles::sam::alignment::record::cigar::op::Kind;
+        match op.kind() {
+            Kind::Match | Kind::SequenceMatch | Kind::SequenceMismatch => {
+                // These consume both reference and query
+                for i in 0..len {
+                    let rp = ref_pos + i as u32;
+                    let qp = query_pos + i;
+
+                    if qp < seq_len {
+                        let base = seq.get(qp).map(|b| b as char).unwrap_or('N');
+                        if base != 'N' {
+                            let entry = counts.entry(rp).or_insert_with(HashMap::new);
+                            *entry.entry(base).or_insert(0) += 1;
+                        }
+                    }
+                }
+                ref_pos += len as u32;
+                query_pos += len;
+            }
+            Kind::Insertion | Kind::SoftClip => {
+                query_pos += len;
+            }
+            Kind::Deletion | Kind::Skip => {
+                ref_pos += len as u32;
+            }
+            Kind::HardClip | Kind::Pad => {
+                // Consumes neither
+            }
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1384,7 +1384,7 @@
                     const color = stats.percentage > 1 ? '#e57373' : '#81c784';
                     html += `<div class="kpi" style="border-color:${color};" title="${stats.snps_in_gaps.toLocaleString()} of ${stats.total_snps.toLocaleString()} SNPs in GT gaps">
                         <div class="label">${label} in GT Gaps</div>
-                        <div class="value" style="color:${color};">${pct}%</div>
+                        <div class="value" style="color:${color};">${stats.snps_in_gaps.toLocaleString()} (${pct}%)</div>
                     </div>`;
                 }
             }

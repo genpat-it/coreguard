@@ -697,10 +697,79 @@ impl GenomeData {
             total_gaps.insert(pipeline_id.clone(), gap_bases);
         }
 
+        // Calculate core SNPs per pipeline (positions present in ALL samples)
+        let mut core_snps: HashMap<String, u32> = HashMap::new();
+        for pipeline_id in &self.pipeline_ids {
+            let mut sample_positions: Vec<std::collections::HashSet<u32>> = Vec::new();
+
+            for sample_data in self.samples.values() {
+                if let Some(pipeline_data) = sample_data.pipelines.get(pipeline_id) {
+                    let positions: std::collections::HashSet<u32> = pipeline_data.snps.iter()
+                        .map(|s| s.pos)
+                        .collect();
+                    sample_positions.push(positions);
+                }
+            }
+
+            // Intersection of all samples = core SNPs
+            let core_count = if sample_positions.len() > 1 {
+                let mut core = sample_positions[0].clone();
+                for positions in &sample_positions[1..] {
+                    core = core.intersection(positions).cloned().collect();
+                }
+                core.len() as u32
+            } else if sample_positions.len() == 1 {
+                sample_positions[0].len() as u32
+            } else {
+                0
+            };
+
+            core_snps.insert(pipeline_id.clone(), core_count);
+        }
+
+        // Calculate consensus SNPs per pipeline (SNPs that are in ALL pipelines)
+        // First, build a set of all SNP positions per pipeline (union across samples)
+        let mut pipeline_all_positions: HashMap<String, std::collections::HashSet<u32>> = HashMap::new();
+        for pipeline_id in &self.pipeline_ids {
+            let mut all_positions: std::collections::HashSet<u32> = std::collections::HashSet::new();
+            for sample_data in self.samples.values() {
+                if let Some(pipeline_data) = sample_data.pipelines.get(pipeline_id) {
+                    for snp in &pipeline_data.snps {
+                        all_positions.insert(snp.pos);
+                    }
+                }
+            }
+            pipeline_all_positions.insert(pipeline_id.clone(), all_positions);
+        }
+
+        // Global consensus = intersection of all pipelines
+        let global_consensus: std::collections::HashSet<u32> = if pipeline_all_positions.len() > 1 {
+            let mut iter = pipeline_all_positions.values();
+            let mut consensus = iter.next().unwrap().clone();
+            for positions in iter {
+                consensus = consensus.intersection(positions).cloned().collect();
+            }
+            consensus
+        } else if pipeline_all_positions.len() == 1 {
+            pipeline_all_positions.values().next().unwrap().clone()
+        } else {
+            std::collections::HashSet::new()
+        };
+
+        // For each pipeline, count how many of its SNPs are in global consensus
+        let mut consensus_snps: HashMap<String, u32> = HashMap::new();
+        for pipeline_id in &self.pipeline_ids {
+            // The consensus SNPs for a pipeline = size of global consensus
+            // (since all pipelines contribute the same positions to consensus)
+            consensus_snps.insert(pipeline_id.clone(), global_consensus.len() as u32);
+        }
+
         #[derive(Serialize)]
         struct Kpis {
             snps: HashMap<String, u32>,
             gaps: HashMap<String, u32>,
+            core_snps: HashMap<String, u32>,
+            consensus_snps: HashMap<String, u32>,
             samples: usize,
             pipelines: usize,
             ref_length: u32,
@@ -709,6 +778,8 @@ impl GenomeData {
         let kpis = Kpis {
             snps: total_snps,
             gaps: total_gaps,
+            core_snps,
+            consensus_snps,
             samples: self.samples.len(),
             pipelines: self.pipeline_ids.len(),
             ref_length: self.ref_len,

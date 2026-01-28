@@ -1370,9 +1370,11 @@
                 html += `<div class="kpi"><div class="label">${label} SNPs</div><div class="value">${count.toLocaleString()}</div></div>`;
             }
 
+            const refLength = genomeData.get_ref_length();
             for (const [pipeline, count] of Object.entries(kpis.gaps)) {
                 const label = genomeData.get_pipeline_label(pipeline);
-                html += `<div class="kpi" style="border-color:var(--gap-color);"><div class="label">${label} Gaps</div><div class="value" style="color:var(--gap-color);">${count.toLocaleString()} bp</div></div>`;
+                const gapPct = ((count / refLength / kpis.samples) * 100).toFixed(1);
+                html += `<div class="kpi" style="border-color:var(--gap-color);"><div class="label">${label} Gaps</div><div class="value" style="color:var(--gap-color);">${count.toLocaleString()} bp (${gapPct}%)</div></div>`;
             }
 
             // SNPs in ground truth gaps statistics
@@ -1395,9 +1397,10 @@
                 // Show ground truth SNP count
                 const gtPipeline = genomeData.get_ground_truth_pipeline();
                 const gtLabel = gtPipeline ? genomeData.get_pipeline_label(gtPipeline) : 'Ground Truth';
+                const pileupPct = ((gtPileup.total_snps / refLength / kpis.samples) * 100).toFixed(2);
                 html += `<div class="kpi" style="border-color:#b5cea8;" title="SNPs counted from BAM pileup without variant calling\n${gtPileup.covered_positions.toLocaleString()} covered positions">
                     <div class="label">${gtLabel} Pileup SNPs</div>
-                    <div class="value" style="color:#b5cea8;">${gtPileup.total_snps.toLocaleString()}</div>
+                    <div class="value" style="color:#b5cea8;">${gtPileup.total_snps.toLocaleString()} (${pileupPct}%)</div>
                 </div>`;
 
                 // Show comparison with VCF pipelines

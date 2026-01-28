@@ -85,6 +85,22 @@ export class GenomeData {
         }
     }
     /**
+     * Get file paths for reproducibility (sample -> pipeline -> {vcf_path, bam_path})
+     * @returns {string}
+     */
+    get_file_paths() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_file_paths(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Legacy method for backwards compatibility
      * @param {string} samples_json
      * @param {string} filters

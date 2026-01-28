@@ -105,6 +105,14 @@ pub struct PipelineData {
     /// SNP list
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub snps: Vec<Snp>,
+
+    /// Source VCF file path (for reproducibility)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vcf_path: Option<String>,
+
+    /// Source BAM file path (for reproducibility)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bam_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -211,6 +219,7 @@ impl CompareReport {
                             );
                             pipeline_data.gaps =
                                 load_gaps_from_bam(bam_path, ref_length, config.options.min_depth)?;
+                            pipeline_data.bam_path = Some(bam_path.clone());
                             log::info!(
                                 "  Found {} gap regions",
                                 pipeline_data.gaps.len()
@@ -231,6 +240,7 @@ impl CompareReport {
                                 config.options.include_indels,
                             )?;
                             pipeline_data.snps = result.snps;
+                            pipeline_data.vcf_path = Some(vcf_path.clone());
                             total_mnps_found += result.mnps_found;
                             total_snps_from_mnps += result.snps_from_mnps;
                             log::info!("  Found {} SNPs", pipeline_data.snps.len());

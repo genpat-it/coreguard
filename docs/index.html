@@ -638,6 +638,49 @@
             background: var(--accent-color);
             color: white;
         }
+        .repro-section {
+            margin-bottom: 15px;
+        }
+        .repro-section h4 {
+            margin: 0 0 8px 0;
+            color: var(--text-primary);
+            font-size: 12px;
+        }
+        .repro-cmd {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .repro-cmd code {
+            flex: 1;
+            font-family: monospace;
+            font-size: 10px;
+            background: var(--bg-primary);
+            padding: 6px 8px;
+            border-radius: 3px;
+            overflow-x: auto;
+            white-space: pre;
+            color: var(--text-secondary);
+        }
+        .repro-cmd button {
+            padding: 4px 8px;
+            font-size: 10px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .repro-cmd button:hover {
+            opacity: 0.8;
+        }
+        .repro-note {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            font-style: italic;
+        }
         .pagination {
             display: flex;
             gap: 10px;
@@ -761,6 +804,13 @@
             <summary>Coverage Statistics</summary>
             <div id="coverage-stats-content">
                 <p style="color:var(--text-secondary);font-size:11px;">Coverage statistics will be shown here after loading data.</p>
+            </div>
+        </details>
+
+        <details class="collapsible-panel" id="reproducibility-panel">
+            <summary>Reproducibility Commands</summary>
+            <div id="reproducibility-content">
+                <p style="color:var(--text-secondary);font-size:11px;">Verification commands will be shown here after loading data.</p>
             </div>
         </details>
 
@@ -1146,6 +1196,7 @@
                 updateKPIs();
                 displayWarnings();
                 populatePipelineInfo();
+                populateReproducibilityCommands();
                 createFilterButtons(pipelines);
                 createVisibilityControls(pipelines);
 
@@ -1210,6 +1261,93 @@
             }
 
             container.innerHTML = html;
+        }
+
+        function populateReproducibilityCommands() {
+            const container = document.getElementById('reproducibility-content');
+            const filePaths = JSON.parse(genomeData.get_file_paths());
+            const kpis = JSON.parse(genomeData.get_kpis());
+            const pipelineIds = JSON.parse(genomeData.get_pipeline_ids());
+            const groundTruthPipeline = genomeData.get_ground_truth_pipeline();
+
+            if (Object.keys(filePaths).length === 0) {
+                container.innerHTML = '<p style="color:var(--text-secondary);font-size:11px;">No file paths available in report.</p>';
+                return;
+            }
+
+            let html = '<p style="font-size:10px;color:var(--text-secondary);margin-bottom:15px;">Copy these commands to verify the statistics shown in the dashboard.</p>';
+
+            // Group commands by type
+            html += '<div class="repro-section"><h4>SNP Counts (bcftools)</h4>';
+            for (const pipeline of pipelineIds) {
+                if (!kpis.snps[pipeline]) continue;
+                const label = genomeData.get_pipeline_label(pipeline);
+                // Get first sample's VCF path as example
+                for (const [sample, pipelines] of Object.entries(filePaths)) {
+                    if (pipelines[pipeline]?.vcf) {
+                        const vcf = pipelines[pipeline].vcf;
+                        const cmd = `bcftools view -H "${vcf}" | wc -l`;
+                        html += `<div class="repro-cmd"><code>${cmd}</code><button onclick="copyToClipboard(this, \`${cmd.replace(/`/g, '\\`')}\`)">Copy</button></div>`;
+                        html += `<div class="repro-note">Expected: ~${kpis.snps[pipeline].toLocaleString()} for ${label} (${sample})</div>`;
+                        break;
+                    }
+                }
+            }
+            html += '</div>';
+
+            // Gap calculation commands
+            html += '<div class="repro-section"><h4>Gap Regions (samtools depth)</h4>';
+            for (const pipeline of pipelineIds) {
+                if (!kpis.gaps[pipeline]) continue;
+                const label = genomeData.get_pipeline_label(pipeline);
+                for (const [sample, pipelines] of Object.entries(filePaths)) {
+                    if (pipelines[pipeline]?.bam) {
+                        const bam = pipelines[pipeline].bam;
+                        const cmd = `samtools depth -a "${bam}" | awk '$3==0 {sum++} END {print sum}'`;
+                        html += `<div class="repro-cmd"><code>${cmd}</code><button onclick="copyToClipboard(this, \`${cmd.replace(/`/g, '\\`')}\`)">Copy</button></div>`;
+                        html += `<div class="repro-note">Zero-coverage positions for ${label} (${sample})</div>`;
+                        break;
+                    }
+                }
+            }
+            html += '</div>';
+
+            // SNPs in GT gaps verification
+            if (groundTruthPipeline) {
+                html += '<div class="repro-section"><h4>SNPs in Ground Truth Gaps (bedtools)</h4>';
+                html += '<div class="repro-note" style="margin-bottom:8px;">Export gaps as BED, then intersect with VCF:</div>';
+
+                for (const [sample, pipelines] of Object.entries(filePaths)) {
+                    if (pipelines[groundTruthPipeline]?.bam) {
+                        const gtBam = pipelines[groundTruthPipeline].bam;
+                        const cmd1 = `samtools depth -a "${gtBam}" | awk '$3==0 {print $1"\\t"$2-1"\\t"$2}' > gt_gaps.bed`;
+                        html += `<div class="repro-cmd"><code>${cmd1}</code><button onclick="copyToClipboard(this, \`${cmd1.replace(/`/g, '\\`')}\`)">Copy</button></div>`;
+
+                        for (const pipeline of pipelineIds) {
+                            if (pipeline === groundTruthPipeline) continue;
+                            if (pipelines[pipeline]?.vcf) {
+                                const vcf = pipelines[pipeline].vcf;
+                                const label = genomeData.get_pipeline_label(pipeline);
+                                const cmd2 = `bedtools intersect -a "${vcf}" -b gt_gaps.bed | wc -l`;
+                                html += `<div class="repro-cmd"><code>${cmd2}</code><button onclick="copyToClipboard(this, \`${cmd2.replace(/`/g, '\\`')}\`)">Copy</button></div>`;
+                                html += `<div class="repro-note">${label} SNPs in GT gaps (${sample})</div>`;
+                            }
+                        }
+                        break;
+                    }
+                }
+                html += '</div>';
+            }
+
+            container.innerHTML = html;
+        }
+
+        function copyToClipboard(button, text) {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                setTimeout(() => button.textContent = originalText, 1500);
+            });
         }
 
         function updateKPIs(filteredCount = null) {

@@ -1418,6 +1418,28 @@
                            <li>Sequencing quality was poor in this area</li>
                        </ul>
                        <p><strong>Note:</strong> SNPs called in gap regions of other pipelines may be less reliable.</p>`
+            },
+            'core_snps': {
+                title: 'Core SNPs',
+                body: `<p><strong>Core SNPs</strong> = SNP positions present in <strong>ALL samples</strong> within this pipeline.</p>
+                       <p>These are the most consistent SNPs - found by this pipeline in every sample analyzed.</p>
+                       <p><strong>Use:</strong></p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li>High core % = consistent variant calling across samples</li>
+                           <li>Low core % = many sample-specific variants (may indicate noise or real biological variation)</li>
+                       </ul>
+                       <p><strong>% of total:</strong> What fraction of all SNPs are present in every sample.</p>`
+            },
+            'consensus_snps': {
+                title: 'Consensus SNPs',
+                body: `<p><strong>Consensus SNPs</strong> = SNP positions where <strong>ALL pipelines</strong> agree (have a SNP at that position).</p>
+                       <p>This is the intersection of SNP positions across all variant callers.</p>
+                       <p><strong>Use:</strong></p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li>High consensus % = pipelines mostly agree</li>
+                           <li>Low consensus % = pipelines find different variants (method-specific calls)</li>
+                       </ul>
+                       <p><strong>Note:</strong> The consensus count is the same for all pipelines since it's the intersection.</p>`
             }
         };
 
@@ -1982,19 +2004,45 @@
                 html += `<div class="kpi"><div class="label">${label} ${infoIcon('gaps')}</div><div class="value">${gapCount.toLocaleString()} bp (${gapPct}%)</div></div>`;
             }
 
-            // MNPs (if any)
+            // MNPs
             const mnpStats = JSON.parse(genomeData.get_mnp_stats());
-            const hasMnps = mnpStats && Object.values(mnpStats).some(s => s && s.mnps_found > 0);
-            if (hasMnps) {
-                html += subLabel('MNPs');
-                for (const [pipeline, mStats] of Object.entries(mnpStats)) {
-                    if (mStats && mStats.mnps_found > 0) {
-                        const label = genomeData.get_pipeline_label(pipeline);
-                        html += `<div class="kpi" title="${mStats.mnps_found.toLocaleString()} MNPs decomposed into ${mStats.snps_from_mnps.toLocaleString()} individual SNPs">
-                            <div class="label">${label} ${infoIcon('mnps')}</div>
-                            <div class="value">${mStats.mnps_found.toLocaleString()} → ${mStats.snps_from_mnps.toLocaleString()} SNPs</div>
-                        </div>`;
-                    }
+            html += subLabel('MNPs');
+            for (const [pipeline, snpCount] of Object.entries(kpis.snps)) {
+                const label = genomeData.get_pipeline_label(pipeline);
+                const mStats = mnpStats ? mnpStats[pipeline] : null;
+                const mnpCount = mStats ? mStats.mnps_found : 0;
+                const snpsFromMnps = mStats ? mStats.snps_from_mnps : 0;
+                html += `<div class="kpi" title="${mnpCount.toLocaleString()} MNPs decomposed into ${snpsFromMnps.toLocaleString()} individual SNPs">
+                    <div class="label">${label} ${infoIcon('mnps')}</div>
+                    <div class="value">${mnpCount.toLocaleString()} → ${snpsFromMnps.toLocaleString()} SNPs</div>
+                </div>`;
+            }
+
+            // Core SNPs (positions in ALL samples of a pipeline)
+            if (kpis.core_snps) {
+                html += subLabel('Core SNPs');
+                for (const [pipeline, coreCount] of Object.entries(kpis.core_snps)) {
+                    const label = genomeData.get_pipeline_label(pipeline);
+                    const totalSnps = kpis.snps[pipeline] || 0;
+                    const corePct = totalSnps > 0 ? ((coreCount / totalSnps) * 100).toFixed(1) : 0;
+                    html += `<div class="kpi" title="SNP positions present in ALL samples for this pipeline">
+                        <div class="label">${label} ${infoIcon('core_snps')}</div>
+                        <div class="value">${coreCount.toLocaleString()} (${corePct}% of total)</div>
+                    </div>`;
+                }
+            }
+
+            // Consensus SNPs (positions in ALL pipelines)
+            if (kpis.consensus_snps) {
+                html += subLabel('Consensus SNPs');
+                for (const [pipeline, consCount] of Object.entries(kpis.consensus_snps)) {
+                    const label = genomeData.get_pipeline_label(pipeline);
+                    const totalSnps = kpis.snps[pipeline] || 0;
+                    const consPct = totalSnps > 0 ? ((consCount / totalSnps) * 100).toFixed(1) : 0;
+                    html += `<div class="kpi" title="SNP positions where ALL pipelines agree">
+                        <div class="label">${label} ${infoIcon('consensus_snps')}</div>
+                        <div class="value">${consCount.toLocaleString()} (${consPct}% of total)</div>
+                    </div>`;
                 }
             }
 
@@ -2101,29 +2149,29 @@
             const container = document.getElementById('filters');
             const infoIcon = (type) => `<span class="info-icon" onclick="event.stopPropagation();showKpiInfo('${type}')" style="margin-left:3px;">ⓘ</span>`;
 
-            container.innerHTML = '<span style="color:#808080;margin-right:5px;">SNP Filters:' + infoIcon('filter_pipeline') + '</span>';
+            container.innerHTML = '<span style="color:#808080;margin-right:5px;">SNP Filters:</span>';
 
             // Get pipelines with VCF data (only these can have SNP filters)
             const vcfPipelines = JSON.parse(genomeData.get_vcf_pipelines());
 
-            // Pipeline SNP filters - only for pipelines with VCF
+            // Pipeline SNP filters - only for pipelines with VCF (with info icon inside)
             for (const p of pipelines) {
-                if (!vcfPipelines.includes(p)) continue; // Skip pipelines without VCF
+                if (!vcfPipelines.includes(p)) continue;
                 const label = genomeData.get_pipeline_label(p);
-                container.innerHTML += `<button class="filter-btn" data-filter="${p}" onclick="toggleFilter('${p}')">${label}</button>`;
+                container.innerHTML += `<button class="filter-btn" data-filter="${p}" onclick="toggleFilter('${p}')">${label} ${infoIcon('filter_pipeline')}</button>`;
             }
 
-            // Special SNP filters with info icons
+            // Special SNP filters with info icons inside
             container.innerHTML += `
-                <button class="filter-btn" data-filter="consensus" onclick="toggleFilter('consensus')">Consensus</button>${infoIcon('filter_consensus')}
-                <button class="filter-btn" data-filter="discordant" onclick="toggleFilter('discordant')">Discordant</button>${infoIcon('filter_discordant')}
+                <button class="filter-btn" data-filter="consensus" onclick="toggleFilter('consensus')">Consensus ${infoIcon('filter_consensus')}</button>
+                <button class="filter-btn" data-filter="discordant" onclick="toggleFilter('discordant')">Discordant ${infoIcon('filter_discordant')}</button>
             `;
 
-            // Gap filters - show all pipelines (gaps come from BAM)
-            container.innerHTML += '<span style="color:#808080;margin-left:15px;margin-right:5px;">Gap Filters:' + infoIcon('filter_gaps') + '</span>';
+            // Gap filters - show all pipelines (with info icon inside)
+            container.innerHTML += '<span style="color:#808080;margin-left:15px;margin-right:5px;">Gap Filters:</span>';
             for (const p of pipelines) {
                 const label = genomeData.get_pipeline_label(p);
-                container.innerHTML += `<button class="filter-btn gap-filter" data-filter="gaps:${p}" onclick="toggleFilter('gaps:${p}')">${label} Gaps</button>`;
+                container.innerHTML += `<button class="filter-btn gap-filter" data-filter="gaps:${p}" onclick="toggleFilter('gaps:${p}')">${label} Gaps ${infoIcon('filter_gaps')}</button>`;
             }
         }
 

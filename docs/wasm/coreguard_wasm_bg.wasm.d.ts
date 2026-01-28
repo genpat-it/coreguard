@@ -27,6 +27,7 @@ export const genomedata_render_region: (a: number, b: number, c: number, d: numb
 export const genomedata_get_kpis: (a: number) => [number, number];
 export const genomedata_get_per_sample_stats: (a: number) => [number, number];
 export const genomedata_get_snp_intersection: (a: number) => [number, number];
+export const genomedata_get_consensus_stats: (a: number) => [number, number];
 export const genomedata_get_filtered_positions_v2: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number];
 export const genomedata_get_filtered_positions: (a: number, b: number, c: number, d: number, e: number) => [number, number];
 export const genomedata_render_filtered: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];

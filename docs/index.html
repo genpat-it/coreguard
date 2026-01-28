@@ -1276,6 +1276,22 @@
                            <li><span style="color:#e57373;">Red (&lt;70%)</span>: Low agreement - investigate differences</li>
                        </ul>`
             },
+            'consensus_vs_gt': {
+                title: 'Consensus vs Ground Truth',
+                body: `<p><strong>Consensus</strong> = SNP positions where <strong>ALL VCF pipelines agree</strong> (have a SNP at the same position).</p>
+                       <p>This metric compares consensus positions with Ground Truth:</p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li><strong>Consensus in GT:</strong> How many consensus SNPs are also in GT (precision)</li>
+                           <li><strong>GT in Consensus:</strong> How many GT SNPs are in the consensus (sensitivity)</li>
+                       </ul>
+                       <p><strong>Interpretation:</strong></p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li><span style="color:#81c784;">High % (≥90%)</span>: Consensus SNPs are well-supported by GT</li>
+                           <li><span style="color:#ffd54f;">Moderate % (70-90%)</span>: Some disagreement</li>
+                           <li><span style="color:#e57373;">Low % (&lt;70%)</span>: Significant discrepancy between consensus and GT</li>
+                       </ul>
+                       <p><strong>Note:</strong> A high consensus-in-GT percentage indicates that when all pipelines agree, they are usually correct.</p>`
+            },
             'mnp': {
                 title: 'MNP Decomposition',
                 body: `<p><strong>MNP (Multi-Nucleotide Polymorphism)</strong> = multiple adjacent SNPs reported as a single variant in VCF.</p>
@@ -1561,6 +1577,7 @@
             const pipelineIds = JSON.parse(genomeData.get_pipeline_ids());
             const gtPipeline = genomeData.get_ground_truth_pipeline();
             const refLength = genomeData.get_ref_length();
+            const consensusStats = JSON.parse(genomeData.get_consensus_stats());
 
             if (Object.keys(stats).length === 0) {
                 container.innerHTML = '<p style="color:var(--text-secondary);font-size:11px;">No per-sample statistics available.</p>';
@@ -1578,6 +1595,10 @@
                 const colspan = isGT ? 2 : 4;
                 html += `<th colspan="${colspan}" class="pipeline-header">${label}${isGT ? ' (GT)' : ''}</th>`;
             }
+            // Add Consensus column if we have GT
+            if (gtPipeline && consensusStats?.per_sample) {
+                html += '<th colspan="2" class="pipeline-header" style="background:#4a4a4a;">Consensus</th>';
+            }
             html += '</tr>';
 
             // Sub-header row
@@ -1589,6 +1610,11 @@
                     html += '<th title="SNPs at positions where GT also has a SNP">vs GT</th>';
                     html += '<th title="SNPs falling in GT gap regions">in GT Gaps</th>';
                 }
+            }
+            // Add Consensus sub-headers
+            if (gtPipeline && consensusStats?.per_sample) {
+                html += '<th title="Consensus SNPs (all pipelines agree)">SNPs</th>';
+                html += '<th title="Consensus SNPs also in GT">in GT</th>';
             }
             html += '</tr>';
 
@@ -1632,6 +1658,21 @@
                     }
                 }
 
+                // Add Consensus columns
+                if (gtPipeline && consensusStats?.per_sample) {
+                    const cStats = consensusStats.per_sample[sampleId];
+                    if (cStats) {
+                        const cSnpPct = ((cStats.consensus_snps / refLength) * 100).toFixed(2);
+                        html += `<td title="${cStats.consensus_snps.toLocaleString()} consensus SNPs">${cStats.consensus_snps.toLocaleString()} (${cSnpPct}%)</td>`;
+
+                        const inGtPct = cStats.consensus_in_gt_pct.toFixed(1);
+                        const inGtClass = cStats.consensus_in_gt_pct >= 90 ? 'good' : cStats.consensus_in_gt_pct >= 70 ? 'warning' : 'bad';
+                        html += `<td class="${inGtClass}" title="${cStats.consensus_in_gt.toLocaleString()} of ${cStats.consensus_snps.toLocaleString()} consensus SNPs are in GT">${cStats.consensus_in_gt.toLocaleString()} (${inGtPct}%)</td>`;
+                    } else {
+                        html += '<td>-</td><td>-</td>';
+                    }
+                }
+
                 html += '</tr>';
             }
 
@@ -1644,7 +1685,8 @@
                 <span class="warning">Yellow</span> = moderate,
                 <span class="bad">Red</span> = potential issue |
                 <strong>vs GT:</strong> % of GT SNP positions also called by this pipeline |
-                <strong>in GT Gaps:</strong> SNPs in regions with no GT coverage
+                <strong>in GT Gaps:</strong> SNPs in regions with no GT coverage |
+                <strong>Consensus:</strong> positions where ALL VCF pipelines agree
             </div>`;
 
             container.innerHTML = html;
@@ -1827,6 +1869,19 @@
                         <div class="value" style="color:${color};">${stats.intersection.toLocaleString()} (${pctOfGt}% GT, ${pctOfPipeline}% ${label.split(' ')[0]})</div>
                     </div>`;
                 }
+            }
+
+            // Consensus vs GT (positions where ALL VCF pipelines agree)
+            const consensusStats = JSON.parse(genomeData.get_consensus_stats());
+            if (consensusStats && consensusStats.global && gtPipeline2) {
+                const g = consensusStats.global;
+                const consensusInGtPct = g.consensus_in_gt_pct.toFixed(1);
+                const gtInConsensusPct = g.gt_in_consensus_pct.toFixed(1);
+                const color = g.consensus_in_gt_pct >= 90 ? '#81c784' : g.consensus_in_gt_pct >= 70 ? '#ffd54f' : '#e57373';
+                html += `<div class="kpi" style="border-color:${color};" title="Consensus: ${g.consensus_snps.toLocaleString()} SNPs (all VCF pipelines agree)\nGT: ${g.gt_snps.toLocaleString()} SNPs\nConsensus in GT: ${g.consensus_in_gt.toLocaleString()}\nGT in Consensus: ${g.gt_in_consensus.toLocaleString()}">
+                    <div class="label">Consensus vs GT ${infoIcon('consensus_vs_gt')}</div>
+                    <div class="value" style="color:${color};">${g.consensus_in_gt.toLocaleString()} / ${g.consensus_snps.toLocaleString()} (${consensusInGtPct}%)</div>
+                </div>`;
             }
 
             document.getElementById('kpis').innerHTML = html;

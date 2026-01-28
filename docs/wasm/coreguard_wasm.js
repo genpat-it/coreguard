@@ -69,6 +69,23 @@ export class GenomeData {
         }
     }
     /**
+     * Get consensus SNP statistics (positions where ALL VCF pipelines agree)
+     * Returns global and per-sample consensus vs GT comparison
+     * @returns {string}
+     */
+    get_consensus_stats() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_consensus_stats(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get coverage statistics per sample per pipeline
      * @returns {string}
      */

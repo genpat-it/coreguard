@@ -1520,6 +1520,7 @@
             const sampleIds = JSON.parse(genomeData.get_sample_ids());
             const pipelineIds = JSON.parse(genomeData.get_pipeline_ids());
             const gtPipeline = genomeData.get_ground_truth_pipeline();
+            const refLength = genomeData.get_ref_length();
 
             if (Object.keys(stats).length === 0) {
                 container.innerHTML = '<p style="color:var(--text-secondary);font-size:11px;">No per-sample statistics available.</p>';
@@ -1543,7 +1544,7 @@
             html += '<tr>';
             for (const pipelineId of pipelineIds) {
                 const isGT = pipelineId === gtPipeline;
-                html += '<th>SNPs</th><th>Gaps</th>';
+                html += '<th title="SNPs count and % of reference">SNPs</th><th title="Gap base pairs and % of reference">Gaps</th>';
                 if (!isGT) {
                     html += '<th title="SNPs at positions where GT also has a SNP">vs GT</th>';
                     html += '<th title="SNPs falling in GT gap regions">in GT Gaps</th>';
@@ -1564,19 +1565,24 @@
                     const pStats = sampleStats.pipelines[pipelineId];
 
                     if (pStats) {
-                        html += `<td>${pStats.snps.toLocaleString()}</td>`;
-                        html += `<td>${pStats.gap_bp.toLocaleString()}</td>`;
+                        // SNPs with percentage of reference
+                        const snpPct = ((pStats.snps / refLength) * 100).toFixed(2);
+                        html += `<td title="${pStats.snps.toLocaleString()} SNPs">${pStats.snps.toLocaleString()} (${snpPct}%)</td>`;
+
+                        // Gaps with percentage of reference
+                        const gapPct = ((pStats.gap_bp / refLength) * 100).toFixed(1);
+                        html += `<td title="${pStats.gap_bp.toLocaleString()} bp gaps">${pStats.gap_bp.toLocaleString()} (${gapPct}%)</td>`;
 
                         if (!isGT) {
                             // Agreement with GT
                             const agreePct = pStats.agreement_with_gt_pct.toFixed(1);
                             const agreeClass = pStats.agreement_with_gt_pct >= 90 ? 'good' : pStats.agreement_with_gt_pct >= 70 ? 'warning' : 'bad';
-                            html += `<td class="${agreeClass}" title="${pStats.agreement_with_gt.toLocaleString()} SNPs match GT positions">${agreePct}%</td>`;
+                            html += `<td class="${agreeClass}" title="${pStats.agreement_with_gt.toLocaleString()} SNPs match GT positions">${pStats.agreement_with_gt.toLocaleString()} (${agreePct}%)</td>`;
 
                             // SNPs in GT gaps
                             const gapsPct = pStats.snps_in_gt_gaps_pct.toFixed(2);
                             const gapsClass = pStats.snps_in_gt_gaps_pct <= 1 ? 'good' : pStats.snps_in_gt_gaps_pct <= 5 ? 'warning' : 'bad';
-                            html += `<td class="${gapsClass}" title="${pStats.snps_in_gt_gaps.toLocaleString()} SNPs in GT gaps">${pStats.snps_in_gt_gaps} (${gapsPct}%)</td>`;
+                            html += `<td class="${gapsClass}" title="${pStats.snps_in_gt_gaps.toLocaleString()} SNPs in GT gaps">${pStats.snps_in_gt_gaps.toLocaleString()} (${gapsPct}%)</td>`;
                         }
                     } else {
                         html += '<td>-</td><td>-</td>';

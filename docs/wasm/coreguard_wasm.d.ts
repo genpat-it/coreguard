@@ -68,6 +68,11 @@ export class GenomeData {
      */
     get_kpis(): string;
     /**
+     * Get per-sample SNP intersection with GT
+     * Returns: { sample_id: { pipeline_id: { intersection, pipeline_snps, gt_snps, pct_of_pipeline, pct_of_gt } } }
+     */
+    get_per_sample_intersection_with_gt(): string;
+    /**
      * Get per-sample statistics as JSON
      * Returns: { sample_id: { pipeline_id: { snps, snps_in_gt_gaps, agreement_with_gt, ... } } }
      */
@@ -190,6 +195,7 @@ export interface InitOutput {
     readonly genomedata_get_kpis: (a: number) => [number, number];
     readonly genomedata_get_per_sample_stats: (a: number) => [number, number];
     readonly genomedata_get_snp_intersection: (a: number) => [number, number];
+    readonly genomedata_get_per_sample_intersection_with_gt: (a: number) => [number, number];
     readonly genomedata_get_consensus_stats: (a: number) => [number, number];
     readonly genomedata_get_filtered_positions_v2: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number];
     readonly genomedata_get_filtered_positions: (a: number, b: number, c: number, d: number, e: number) => [number, number];

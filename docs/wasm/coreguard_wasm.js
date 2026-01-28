@@ -237,6 +237,40 @@ export class GenomeData {
         }
     }
     /**
+     * Get MNP (Multi-Nucleotide Polymorphism) statistics per pipeline
+     * Returns: { pipeline_id: { mnps_found, snps_from_mnps } }
+     * @returns {string}
+     */
+    get_mnp_stats() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_mnp_stats(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Get per-sample SNP intersection with GT
+     * Returns: { sample_id: { pipeline_id: { intersection, pipeline_snps, gt_snps, pct_of_pipeline, pct_of_gt } } }
+     * @returns {string}
+     */
+    get_per_sample_intersection_with_gt() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_per_sample_intersection_with_gt(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get per-sample statistics as JSON
      * Returns: { sample_id: { pipeline_id: { snps, snps_in_gt_gaps, agreement_with_gt, ... } } }
      * @returns {string}

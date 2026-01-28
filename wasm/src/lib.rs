@@ -802,6 +802,79 @@ impl GenomeData {
         serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
     }
 
+    /// Get SNP intersection statistics between pipelines
+    /// Returns: { pipeline_a: { pipeline_b: { intersection, pct_of_a, pct_of_b } } }
+    #[wasm_bindgen]
+    pub fn get_snp_intersection(&self) -> String {
+        #[derive(Serialize)]
+        struct IntersectionStats {
+            intersection: u32,
+            total_a: u32,
+            total_b: u32,
+            pct_of_a: f64,
+            pct_of_b: f64,
+        }
+
+        let mut result: HashMap<String, HashMap<String, IntersectionStats>> = HashMap::new();
+
+        // Collect all SNP positions per pipeline (across all samples)
+        let mut pipeline_snps: HashMap<String, std::collections::HashSet<u32>> = HashMap::new();
+
+        for pipeline_id in &self.pipeline_ids {
+            let mut positions: std::collections::HashSet<u32> = std::collections::HashSet::new();
+            for sample_data in self.samples.values() {
+                if let Some(pipeline_data) = sample_data.pipelines.get(pipeline_id) {
+                    for snp in &pipeline_data.snps {
+                        positions.insert(snp.pos);
+                    }
+                }
+            }
+            pipeline_snps.insert(pipeline_id.clone(), positions);
+        }
+
+        // Calculate intersection between all pairs
+        for pipeline_a in &self.pipeline_ids {
+            let mut inner: HashMap<String, IntersectionStats> = HashMap::new();
+            let snps_a = pipeline_snps.get(pipeline_a).unwrap();
+            let total_a = snps_a.len() as u32;
+
+            for pipeline_b in &self.pipeline_ids {
+                if pipeline_a == pipeline_b {
+                    continue;
+                }
+
+                let snps_b = pipeline_snps.get(pipeline_b).unwrap();
+                let total_b = snps_b.len() as u32;
+
+                let intersection = snps_a.intersection(snps_b).count() as u32;
+
+                let pct_of_a = if total_a > 0 {
+                    (intersection as f64 / total_a as f64) * 100.0
+                } else {
+                    0.0
+                };
+
+                let pct_of_b = if total_b > 0 {
+                    (intersection as f64 / total_b as f64) * 100.0
+                } else {
+                    0.0
+                };
+
+                inner.insert(pipeline_b.clone(), IntersectionStats {
+                    intersection,
+                    total_a,
+                    total_b,
+                    pct_of_a,
+                    pct_of_b,
+                });
+            }
+
+            result.insert(pipeline_a.clone(), inner);
+        }
+
+        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
+    }
+
     /// Get all SNP positions that match the given filters
     /// filters: comma-separated list of pipeline IDs, or special filters:
     /// - "consensus": positions where all pipelines agree

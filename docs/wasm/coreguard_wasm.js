@@ -402,6 +402,23 @@ export class GenomeData {
         }
     }
     /**
+     * Get SNP intersection statistics between pipelines
+     * Returns: { pipeline_a: { pipeline_b: { intersection, pct_of_a, pct_of_b } } }
+     * @returns {string}
+     */
+    get_snp_intersection() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_snp_intersection(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get SNPs in ground truth gaps statistics as JSON
      * @returns {string}
      */

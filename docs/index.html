@@ -2203,15 +2203,42 @@
                     }
                 }
 
-                // SNPs in ground truth gaps statistics
-                const snpsInGtGaps = JSON.parse(genomeData.get_snps_in_gt_gaps());
-                if (snpsInGtGaps && typeof snpsInGtGaps === 'object') {
-                    for (const [pipeline, stats] of Object.entries(snpsInGtGaps)) {
+                // SNPs in ground truth gaps statistics (Total, Core, Consensus)
+                if (kpis.snps_in_gt_gaps_total && Object.keys(kpis.snps_in_gt_gaps_total).length > 0) {
+                    html += subLabel('SNPs in GT Gaps (Total)');
+                    for (const [pipeline, count] of Object.entries(kpis.snps_in_gt_gaps_total)) {
                         const label = genomeData.get_pipeline_label(pipeline);
-                        const pct = stats.percentage.toFixed(2);
-                        html += `<div class="kpi kpi-gt" title="${stats.snps_in_gaps.toLocaleString()} of ${stats.total_snps.toLocaleString()} SNPs in GT gaps">
+                        const totalSnps = kpis.snps[pipeline] || 1;
+                        const pct = ((count / totalSnps) * 100).toFixed(2);
+                        html += `<div class="kpi kpi-gt" title="${count.toLocaleString()} SNPs fall within GT gap regions">
                             <div class="label">${label} in ${gtShortLabel} Gaps ${infoIcon('snps_in_gt_gaps')}</div>
-                            <div class="value">${stats.snps_in_gaps.toLocaleString()} (${pct}%)</div>
+                            <div class="value">${count.toLocaleString()} (${pct}%)</div>
+                        </div>`;
+                    }
+                }
+
+                if (kpis.snps_in_gt_gaps_core && Object.keys(kpis.snps_in_gt_gaps_core).length > 0) {
+                    html += subLabel('Core SNPs in GT Gaps');
+                    for (const [pipeline, count] of Object.entries(kpis.snps_in_gt_gaps_core)) {
+                        const label = genomeData.get_pipeline_label(pipeline);
+                        const coreSnps = kpis.core_snps[pipeline] || 1;
+                        const pct = ((count / coreSnps) * 100).toFixed(2);
+                        html += `<div class="kpi kpi-gt" title="${count.toLocaleString()} core SNPs fall within GT gap regions">
+                            <div class="label">Core ${label} in ${gtShortLabel} Gaps ${infoIcon('snps_in_gt_gaps')}</div>
+                            <div class="value">${count.toLocaleString()} (${pct}%)</div>
+                        </div>`;
+                    }
+                }
+
+                if (kpis.snps_in_gt_gaps_consensus && Object.keys(kpis.snps_in_gt_gaps_consensus).length > 0) {
+                    html += subLabel('Consensus SNPs in GT Gaps');
+                    for (const [pipeline, count] of Object.entries(kpis.snps_in_gt_gaps_consensus)) {
+                        const label = genomeData.get_pipeline_label(pipeline);
+                        const consSnps = kpis.consensus_snps[pipeline] || 1;
+                        const pct = ((count / consSnps) * 100).toFixed(2);
+                        html += `<div class="kpi kpi-gt" title="${count.toLocaleString()} consensus SNPs fall within GT gap regions">
+                            <div class="label">Cons ${label} in ${gtShortLabel} Gaps ${infoIcon('snps_in_gt_gaps')}</div>
+                            <div class="value">${count.toLocaleString()} (${pct}%)</div>
                         </div>`;
                     }
                 }

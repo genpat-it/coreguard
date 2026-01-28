@@ -841,6 +841,64 @@ impl GenomeData {
             }
         }
 
+        // Calculate SNPs in GT gaps for total, core, and consensus
+        let mut snps_in_gt_gaps_total: HashMap<String, u32> = HashMap::new();
+        let mut snps_in_gt_gaps_core: HashMap<String, u32> = HashMap::new();
+        let mut snps_in_gt_gaps_consensus: HashMap<String, u32> = HashMap::new();
+
+        if let Some(ref gt_id) = self.ground_truth_pipeline {
+            // Collect all GT gap regions across all samples
+            let mut all_gt_gaps: Vec<(u32, u32)> = Vec::new();
+            for sample_data in self.samples.values() {
+                if let Some(gt_data) = sample_data.pipelines.get(gt_id) {
+                    for gap in &gt_data.gaps {
+                        all_gt_gaps.push((gap.start, gap.end));
+                    }
+                }
+            }
+
+            // Helper to check if position is in any GT gap
+            let in_gt_gap = |pos: u32| -> bool {
+                all_gt_gaps.iter().any(|(start, end)| pos >= *start && pos < *end)
+            };
+
+            for pipeline_id in &self.pipeline_ids {
+                if pipeline_id == gt_id {
+                    continue;
+                }
+
+                // Total SNPs in GT gaps (sum across samples)
+                let mut total_in_gaps = 0u32;
+                for sample_data in self.samples.values() {
+                    if let Some(pipeline_data) = sample_data.pipelines.get(pipeline_id) {
+                        // Get GT gaps for this sample
+                        let sample_gt_gaps: Vec<(u32, u32)> = sample_data.pipelines.get(gt_id)
+                            .map(|p| p.gaps.iter().map(|g| (g.start, g.end)).collect())
+                            .unwrap_or_default();
+
+                        total_in_gaps += pipeline_data.snps.iter()
+                            .filter(|snp| sample_gt_gaps.iter().any(|(s, e)| snp.pos >= *s && snp.pos < *e))
+                            .count() as u32;
+                    }
+                }
+                snps_in_gt_gaps_total.insert(pipeline_id.clone(), total_in_gaps);
+
+                // Core SNPs in GT gaps
+                let pipeline_core = core_positions.get(pipeline_id).cloned().unwrap_or_default();
+                let core_in_gaps = pipeline_core.iter()
+                    .filter(|&&pos| in_gt_gap(pos))
+                    .count() as u32;
+                snps_in_gt_gaps_core.insert(pipeline_id.clone(), core_in_gaps);
+
+                // Consensus SNPs in GT gaps
+                let pipeline_cons = consensus_positions.get(pipeline_id).cloned().unwrap_or_default();
+                let cons_in_gaps = pipeline_cons.iter()
+                    .filter(|&&pos| in_gt_gap(pos))
+                    .count() as u32;
+                snps_in_gt_gaps_consensus.insert(pipeline_id.clone(), cons_in_gaps);
+            }
+        }
+
         #[derive(Serialize)]
         struct Kpis {
             snps: HashMap<String, u32>,
@@ -854,6 +912,9 @@ impl GenomeData {
             core_gt_total: u32,
             consensus_gt_missing: HashMap<String, u32>,
             consensus_gt_total: u32,
+            snps_in_gt_gaps_total: HashMap<String, u32>,
+            snps_in_gt_gaps_core: HashMap<String, u32>,
+            snps_in_gt_gaps_consensus: HashMap<String, u32>,
             samples: usize,
             pipelines: usize,
             ref_length: u32,
@@ -871,6 +932,9 @@ impl GenomeData {
             core_gt_total,
             consensus_gt_missing,
             consensus_gt_total,
+            snps_in_gt_gaps_total,
+            snps_in_gt_gaps_core,
+            snps_in_gt_gaps_consensus,
             samples: self.samples.len(),
             pipelines: self.pipeline_ids.len(),
             ref_length: self.ref_len,

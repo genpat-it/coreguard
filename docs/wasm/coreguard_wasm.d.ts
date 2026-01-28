@@ -94,6 +94,10 @@ export class GenomeData {
      */
     get_snp_alt(sample: string, pipeline: string, pos: number): string;
     /**
+     * Get SNPs in ground truth gaps statistics as JSON
+     */
+    get_snps_in_gt_gaps(): string;
+    /**
      * Get pipelines that have VCF data (used for consensus/discordant)
      */
     get_vcf_pipelines(): string;
@@ -151,6 +155,7 @@ export interface InitOutput {
     readonly genomedata_get_vcf_pipelines: (a: number) => [number, number];
     readonly genomedata_get_generated_at: (a: number) => [number, number];
     readonly genomedata_get_warnings: (a: number) => [number, number];
+    readonly genomedata_get_snps_in_gt_gaps: (a: number) => [number, number];
     readonly genomedata_get_ref_nuc: (a: number, b: number) => number;
     readonly genomedata_is_gap: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
     readonly genomedata_get_snp: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];

@@ -126,6 +126,16 @@ pub struct Summary {
     /// Warnings (e.g., MNP decomposition notices)
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub warnings: Vec<String>,
+    /// SNPs in ground truth gaps statistics (pipeline_id -> stats)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snps_in_gt_gaps: Option<HashMap<String, SnpsInGapsStats>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SnpsInGapsStats {
+    pub total_snps: usize,
+    pub snps_in_gaps: usize,
+    pub percentage: f64,
 }
 
 impl CompareReport {
@@ -256,6 +266,72 @@ impl CompareReport {
         let total_sites: usize = polymorphic_sites.values().map(|v| v.len()).max().unwrap_or(0);
         log::info!("Built polymorphic sites for {} pipelines ({} positions each)", polymorphic_sites.len(), total_sites);
 
+        // Calculate SNPs in ground truth gaps (if ground truth exists)
+        let snps_in_gt_gaps = if let Some(gt_pipeline) = config.ground_truth_pipeline() {
+            let mut stats: HashMap<String, SnpsInGapsStats> = HashMap::new();
+
+            // Helper function to check if position is in any gap
+            fn pos_in_gaps(pos: usize, gaps: &[[usize; 2]]) -> bool {
+                gaps.iter().any(|[start, end]| pos >= *start && pos < *end)
+            }
+
+            // For each VCF pipeline (excluding ground truth)
+            for pipeline_id in &pipeline_ids {
+                if pipeline_id == &gt_pipeline {
+                    continue;
+                }
+                if let Some(pipeline_info) = pipelines.get(pipeline_id) {
+                    if !pipeline_info.has_vcf {
+                        continue;
+                    }
+                }
+
+                let mut total_snps = 0usize;
+                let mut snps_in_gaps = 0usize;
+
+                for sample_id in &sample_ids {
+                    // Get ground truth gaps for this sample
+                    let gt_gaps = data
+                        .get(sample_id)
+                        .and_then(|s| s.get(&gt_pipeline))
+                        .map(|d| d.gaps.as_slice())
+                        .unwrap_or(&[]);
+
+                    // Get SNPs for this pipeline/sample
+                    if let Some(sample_data) = data.get(sample_id) {
+                        if let Some(pipeline_data) = sample_data.get(pipeline_id) {
+                            for snp in &pipeline_data.snps {
+                                total_snps += 1;
+                                if pos_in_gaps(snp.pos, gt_gaps) {
+                                    snps_in_gaps += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let percentage = if total_snps > 0 {
+                    (snps_in_gaps as f64 / total_snps as f64) * 100.0
+                } else {
+                    0.0
+                };
+
+                stats.insert(pipeline_id.clone(), SnpsInGapsStats {
+                    total_snps,
+                    snps_in_gaps,
+                    percentage,
+                });
+            }
+
+            if !stats.is_empty() {
+                Some(stats)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         // Build summary
         let summary = Summary {
             total_samples: sample_ids.len(),
@@ -263,6 +339,7 @@ impl CompareReport {
             generated_at: chrono::Utc::now().to_rfc3339(),
             coreguard_version: env!("CARGO_PKG_VERSION").to_string(),
             warnings,
+            snps_in_gt_gaps,
         };
 
         Ok(CompareReport {

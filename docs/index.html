@@ -1237,6 +1237,20 @@
                 html += `<div class="kpi" style="border-color:var(--gap-color);"><div class="label">${label} Gaps</div><div class="value" style="color:var(--gap-color);">${count.toLocaleString()} bp</div></div>`;
             }
 
+            // SNPs in ground truth gaps statistics
+            const snpsInGtGaps = JSON.parse(genomeData.get_snps_in_gt_gaps());
+            if (snpsInGtGaps && typeof snpsInGtGaps === 'object') {
+                for (const [pipeline, stats] of Object.entries(snpsInGtGaps)) {
+                    const label = genomeData.get_pipeline_label(pipeline);
+                    const pct = stats.percentage.toFixed(2);
+                    const color = stats.percentage > 1 ? '#e57373' : '#81c784';
+                    html += `<div class="kpi" style="border-color:${color};" title="${stats.snps_in_gaps.toLocaleString()} of ${stats.total_snps.toLocaleString()} SNPs in GT gaps">
+                        <div class="label">${label} in GT Gaps</div>
+                        <div class="value" style="color:${color};">${pct}%</div>
+                    </div>`;
+                }
+            }
+
             document.getElementById('kpis').innerHTML = html;
         }
 

@@ -16,6 +16,7 @@ export const genomedata_is_ground_truth: (a: number, b: number, c: number) => nu
 export const genomedata_get_vcf_pipelines: (a: number) => [number, number];
 export const genomedata_get_generated_at: (a: number) => [number, number];
 export const genomedata_get_warnings: (a: number) => [number, number];
+export const genomedata_get_snps_in_gt_gaps: (a: number) => [number, number];
 export const genomedata_get_ref_nuc: (a: number, b: number) => number;
 export const genomedata_is_gap: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
 export const genomedata_get_snp: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];

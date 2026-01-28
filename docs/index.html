@@ -1468,7 +1468,7 @@
             },
             'consensus_snps': {
                 title: 'Consensus SNPs',
-                body: `<p><strong>Consensus SNPs</strong> = SNP positions where <strong>ALL pipelines</strong> agree (have a SNP at that position).</p>
+                body: `<p><strong>Consensus SNPs</strong> = SNP positions where <strong>ALL samples within this pipeline</strong> have the <strong>SAME alt allele</strong>.</p>
                        <p>This is the intersection of SNP positions across all variant callers.</p>
                        <p><strong>Use:</strong></p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
@@ -2143,14 +2143,14 @@
                 }
             }
 
-            // Consensus SNPs (positions in ALL pipelines)
+            // Consensus SNPs (positions where ALL samples within pipeline have SAME alt)
             if (kpis.consensus_snps) {
                 html += subLabel('Consensus SNPs');
                 for (const [pipeline, consCount] of Object.entries(kpis.consensus_snps)) {
                     const label = genomeData.get_pipeline_label(pipeline);
                     const totalSnps = kpis.snps[pipeline] || 0;
                     const consPct = totalSnps > 0 ? ((consCount / totalSnps) * 100).toFixed(1) : 0;
-                    html += `<div class="kpi" title="SNP positions where ALL pipelines agree">
+                    html += `<div class="kpi" title="SNP positions where ALL samples have the SAME alt allele">
                         <div class="label">${label} ${infoIcon('consensus_snps')}</div>
                         <div class="value">${consCount.toLocaleString()} (${consPct}% of total)</div>
                     </div>`;

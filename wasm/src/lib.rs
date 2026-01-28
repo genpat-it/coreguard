@@ -890,9 +890,16 @@ impl GenomeData {
         }
 
         #[derive(Serialize)]
+        struct SampleConsensusStats {
+            vcf_consensus: ConsensusVsGt,
+            all_consensus: u32,  // GT ∩ all VCF pipelines
+        }
+
+        #[derive(Serialize)]
         struct ConsensusStats {
             global: ConsensusVsGt,
-            per_sample: HashMap<String, ConsensusVsGt>,
+            global_all: u32,  // Total positions where ALL pipelines (including GT) agree
+            per_sample: HashMap<String, SampleConsensusStats>,
         }
 
         // Get VCF pipelines (pipelines that have SNP data)
@@ -909,7 +916,9 @@ impl GenomeData {
 
         let mut global_consensus: std::collections::HashSet<u32> = std::collections::HashSet::new();
         let mut global_gt: std::collections::HashSet<u32> = std::collections::HashSet::new();
-        let mut per_sample_stats: HashMap<String, ConsensusVsGt> = HashMap::new();
+        let mut global_all_consensus: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        let mut per_sample_stats: HashMap<String, SampleConsensusStats> = HashMap::new();
+        let mut is_first_sample = true;
 
         // Calculate per-sample consensus
         for (sample_id, sample_data) in &self.samples {
@@ -925,8 +934,8 @@ impl GenomeData {
                 }
             }
 
-            // Consensus = intersection of all VCF pipelines
-            let sample_consensus: std::collections::HashSet<u32> = if pipeline_positions.len() > 1 {
+            // VCF Consensus = intersection of all VCF pipelines (excluding GT)
+            let sample_vcf_consensus: std::collections::HashSet<u32> = if pipeline_positions.len() > 1 {
                 let mut consensus = pipeline_positions[0].clone();
                 for positions in &pipeline_positions[1..] {
                     consensus = consensus.intersection(positions).cloned().collect();
@@ -947,28 +956,44 @@ impl GenomeData {
                 std::collections::HashSet::new()
             };
 
+            // ALL Consensus = GT ∩ all VCF pipelines
+            let sample_all_consensus: std::collections::HashSet<u32> =
+                sample_vcf_consensus.intersection(&sample_gt).cloned().collect();
+
             // Add to global sets
-            global_consensus.extend(&sample_consensus);
+            global_consensus.extend(&sample_vcf_consensus);
             global_gt.extend(&sample_gt);
 
-            // Calculate sample stats
-            let consensus_in_gt = sample_consensus.intersection(&sample_gt).count() as u32;
-            let gt_in_consensus = sample_gt.intersection(&sample_consensus).count() as u32;
+            // For global all consensus, we need intersection across samples
+            if is_first_sample {
+                global_all_consensus = sample_all_consensus.clone();
+                is_first_sample = false;
+            } else {
+                // Union for global (positions that appear in any sample)
+                global_all_consensus.extend(&sample_all_consensus);
+            }
 
-            let consensus_snps = sample_consensus.len() as u32;
+            // Calculate sample stats
+            let consensus_in_gt = sample_vcf_consensus.intersection(&sample_gt).count() as u32;
+            let gt_in_consensus = sample_gt.intersection(&sample_vcf_consensus).count() as u32;
+
+            let consensus_snps = sample_vcf_consensus.len() as u32;
             let gt_snps = sample_gt.len() as u32;
 
-            per_sample_stats.insert(sample_id.clone(), ConsensusVsGt {
-                consensus_snps,
-                gt_snps,
-                consensus_in_gt,
-                consensus_in_gt_pct: if consensus_snps > 0 {
-                    (consensus_in_gt as f64 / consensus_snps as f64) * 100.0
-                } else { 0.0 },
-                gt_in_consensus,
-                gt_in_consensus_pct: if gt_snps > 0 {
-                    (gt_in_consensus as f64 / gt_snps as f64) * 100.0
-                } else { 0.0 },
+            per_sample_stats.insert(sample_id.clone(), SampleConsensusStats {
+                vcf_consensus: ConsensusVsGt {
+                    consensus_snps,
+                    gt_snps,
+                    consensus_in_gt,
+                    consensus_in_gt_pct: if consensus_snps > 0 {
+                        (consensus_in_gt as f64 / consensus_snps as f64) * 100.0
+                    } else { 0.0 },
+                    gt_in_consensus,
+                    gt_in_consensus_pct: if gt_snps > 0 {
+                        (gt_in_consensus as f64 / gt_snps as f64) * 100.0
+                    } else { 0.0 },
+                },
+                all_consensus: sample_all_consensus.len() as u32,
             });
         }
 
@@ -989,6 +1014,7 @@ impl GenomeData {
                     (global_gt_in_consensus as f64 / global_gt.len() as f64) * 100.0
                 } else { 0.0 },
             },
+            global_all: global_all_consensus.len() as u32,
             per_sample: per_sample_stats,
         };
 

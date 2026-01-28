@@ -68,6 +68,11 @@ export class GenomeData {
      */
     get_kpis(): string;
     /**
+     * Get MNP (Multi-Nucleotide Polymorphism) statistics per pipeline
+     * Returns: { pipeline_id: { mnps_found, snps_from_mnps } }
+     */
+    get_mnp_stats(): string;
+    /**
      * Get per-sample SNP intersection with GT
      * Returns: { sample_id: { pipeline_id: { intersection, pipeline_snps, gt_snps, pct_of_pipeline, pct_of_gt } } }
      */
@@ -186,6 +191,7 @@ export interface InitOutput {
     readonly genomedata_get_warnings: (a: number) => [number, number];
     readonly genomedata_get_snps_in_gt_gaps: (a: number) => [number, number];
     readonly genomedata_get_ground_truth_pileup: (a: number) => [number, number];
+    readonly genomedata_get_mnp_stats: (a: number) => [number, number];
     readonly genomedata_get_file_paths: (a: number) => [number, number];
     readonly genomedata_get_ref_nuc: (a: number, b: number) => number;
     readonly genomedata_is_gap: (a: number, b: number, c: number, d: number, e: number, f: number) => number;

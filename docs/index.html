@@ -2009,7 +2009,6 @@
                 html += sectionHeader('Consensus');
 
                 const g = consensusStats.global;
-                const consensusInGtPct = g.consensus_in_gt_pct.toFixed(1);
 
                 // Build list of VCF pipeline names
                 const vcfPipelines = JSON.parse(genomeData.get_vcf_pipelines());
@@ -2024,10 +2023,11 @@
                     <div class="value">${g.consensus_snps.toLocaleString()} (${vcfConsensusPct}%)</div>
                 </div>`;
 
-                // VCF Consensus vs GT
+                // VCF Consensus vs GT - show as % of GT SNPs
+                const gtInConsensusPct = g.gt_in_consensus_pct.toFixed(1);
                 html += `<div class="kpi" title="VCF Consensus: ${g.consensus_snps.toLocaleString()} SNPs\n${gtShortLabel}: ${g.gt_snps.toLocaleString()} SNPs\nConsensus in ${gtShortLabel}: ${g.consensus_in_gt.toLocaleString()}\n${gtShortLabel} in Consensus: ${g.gt_in_consensus.toLocaleString()}">
                     <div class="label">(${pipelineNames}) vs ${gtShortLabel} ${infoIcon('consensus_vs_gt')}</div>
-                    <div class="value">${g.consensus_in_gt.toLocaleString()} / ${g.consensus_snps.toLocaleString()} (${consensusInGtPct}%)</div>
+                    <div class="value">${g.consensus_in_gt.toLocaleString()} / ${g.gt_snps.toLocaleString()} ${gtShortLabel} (${gtInConsensusPct}%)</div>
                 </div>`;
 
                 // ALL pipelines consensus (GT ∩ CFSAN ∩ Snippy)

@@ -63,6 +63,11 @@ export class GenomeData {
      */
     get_kpis(): string;
     /**
+     * Get per-sample statistics as JSON
+     * Returns: { sample_id: { pipeline_id: { snps, snps_in_gt_gaps, agreement_with_gt, ... } } }
+     */
+    get_per_sample_stats(): string;
+    /**
      * Get command for a pipeline (if any)
      */
     get_pipeline_command(pipeline_id: string): string | undefined;
@@ -173,6 +178,7 @@ export interface InitOutput {
     readonly genomedata_get_snp_alt: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly genomedata_render_region: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly genomedata_get_kpis: (a: number) => [number, number];
+    readonly genomedata_get_per_sample_stats: (a: number) => [number, number];
     readonly genomedata_get_filtered_positions_v2: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number];
     readonly genomedata_get_filtered_positions: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly genomedata_render_filtered: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];

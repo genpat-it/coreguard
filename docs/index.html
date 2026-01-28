@@ -1365,12 +1365,13 @@
                 html += `<div class="kpi" style="border-color:#569cd6;"><div class="label">Filtered Positions</div><div class="value" style="color:#569cd6;">${filteredCount.toLocaleString()}</div></div>`;
             }
 
+            const refLength = genomeData.get_ref_length();
             for (const [pipeline, count] of Object.entries(kpis.snps)) {
                 const label = genomeData.get_pipeline_label(pipeline);
-                html += `<div class="kpi"><div class="label">${label} SNPs</div><div class="value">${count.toLocaleString()}</div></div>`;
+                const snpPct = ((count / refLength / kpis.samples) * 100).toFixed(2);
+                html += `<div class="kpi"><div class="label">${label} SNPs</div><div class="value">${count.toLocaleString()} (${snpPct}%)</div></div>`;
             }
 
-            const refLength = genomeData.get_ref_length();
             for (const [pipeline, count] of Object.entries(kpis.gaps)) {
                 const label = genomeData.get_pipeline_label(pipeline);
                 const gapPct = ((count / refLength / kpis.samples) * 100).toFixed(1);

@@ -2157,7 +2157,43 @@
                 }
             }
 
-            // === SECTION 3: Ground Truth Comparison (only if GT exists) ===
+            // === SECTION 3: Cross-Pipeline Consensus (only if GT exists and we have VCF pipelines) ===
+            const consensusStats = JSON.parse(genomeData.get_consensus_stats());
+            if (consensusStats && consensusStats.global && gtPipelineId) {
+                html += sectionHeader('Cross-Pipeline Consensus');
+
+                const g = consensusStats.global;
+
+                // Build list of VCF pipeline names
+                const vcfPipelines = JSON.parse(genomeData.get_vcf_pipelines());
+                const nonGtPipelines = vcfPipelines.filter(p => p !== gtPipelineId);
+                const pipelineNames = nonGtPipelines.map(p => genomeData.get_pipeline_label(p).split(' ')[0]).join(' ∩ ');
+                const gtShortLabelCons = genomeData.get_pipeline_label(gtPipelineId).split(' ')[0];
+
+                // VCF Pipelines Consensus
+                const vcfConsensusPct = ((g.consensus_snps / refLength) * 100).toFixed(2);
+                html += `<div class="kpi" title="Positions where ALL VCF pipelines agree on having a SNP">
+                    <div class="label">${pipelineNames} ${infoIcon('vcf_consensus')}</div>
+                    <div class="value">${g.consensus_snps.toLocaleString()} (${vcfConsensusPct}%)</div>
+                </div>`;
+
+                // VCF Consensus vs GT - show as % of GT SNPs
+                const gtInConsensusPct = g.gt_in_consensus_pct.toFixed(1);
+                html += `<div class="kpi" title="VCF Consensus: ${g.consensus_snps.toLocaleString()} SNPs\n${gtShortLabelCons}: ${g.gt_snps.toLocaleString()} SNPs\nConsensus in ${gtShortLabelCons}: ${g.consensus_in_gt.toLocaleString()}\n${gtShortLabelCons} in Consensus: ${g.gt_in_consensus.toLocaleString()}">
+                    <div class="label">(${pipelineNames}) vs ${gtShortLabelCons} ${infoIcon('consensus_vs_gt')}</div>
+                    <div class="value">${g.consensus_in_gt.toLocaleString()} / ${g.gt_snps.toLocaleString()} ${gtShortLabelCons} (${gtInConsensusPct}%)</div>
+                </div>`;
+
+                // ALL pipelines consensus (GT ∩ CFSAN ∩ Snippy)
+                const allPipelineNames = gtShortLabelCons + ' ∩ ' + pipelineNames;
+                const allConsensusPct = ((consensusStats.global_all / refLength) * 100).toFixed(2);
+                html += `<div class="kpi" title="Positions where ALL pipelines (including GT) agree on having a SNP">
+                    <div class="label">${allPipelineNames} ${infoIcon('all_consensus')}</div>
+                    <div class="value">${consensusStats.global_all.toLocaleString()} (${allConsensusPct}%)</div>
+                </div>`;
+            }
+
+            // === SECTION 4: Ground Truth Comparison (only if GT exists) ===
             if (gtPipelineId) {
                 html += sectionHeader('Ground Truth Comparison');
 
@@ -2287,42 +2323,6 @@
                         </div>`;
                     }
                 }
-            }
-
-            // === SECTION 6: Consensus Statistics (only if GT exists and we have VCF pipelines) ===
-            const consensusStats = JSON.parse(genomeData.get_consensus_stats());
-            if (consensusStats && consensusStats.global && gtPipelineId) {
-                html += sectionHeader('Consensus');
-
-                const g = consensusStats.global;
-
-                // Build list of VCF pipeline names
-                const vcfPipelines = JSON.parse(genomeData.get_vcf_pipelines());
-                const nonGtPipelines = vcfPipelines.filter(p => p !== gtPipelineId);
-                const pipelineNames = nonGtPipelines.map(p => genomeData.get_pipeline_label(p).split(' ')[0]).join(' ∩ ');
-                const gtShortLabel = genomeData.get_pipeline_label(gtPipelineId).split(' ')[0];
-
-                // VCF Pipelines Consensus
-                const vcfConsensusPct = ((g.consensus_snps / refLength) * 100).toFixed(2);
-                html += `<div class="kpi" title="Positions where ALL VCF pipelines agree on having a SNP">
-                    <div class="label">${pipelineNames} ${infoIcon('vcf_consensus')}</div>
-                    <div class="value">${g.consensus_snps.toLocaleString()} (${vcfConsensusPct}%)</div>
-                </div>`;
-
-                // VCF Consensus vs GT - show as % of GT SNPs
-                const gtInConsensusPct = g.gt_in_consensus_pct.toFixed(1);
-                html += `<div class="kpi" title="VCF Consensus: ${g.consensus_snps.toLocaleString()} SNPs\n${gtShortLabel}: ${g.gt_snps.toLocaleString()} SNPs\nConsensus in ${gtShortLabel}: ${g.consensus_in_gt.toLocaleString()}\n${gtShortLabel} in Consensus: ${g.gt_in_consensus.toLocaleString()}">
-                    <div class="label">(${pipelineNames}) vs ${gtShortLabel} ${infoIcon('consensus_vs_gt')}</div>
-                    <div class="value">${g.consensus_in_gt.toLocaleString()} / ${g.gt_snps.toLocaleString()} ${gtShortLabel} (${gtInConsensusPct}%)</div>
-                </div>`;
-
-                // ALL pipelines consensus (GT ∩ CFSAN ∩ Snippy)
-                const allPipelineNames = gtShortLabel + ' ∩ ' + pipelineNames;
-                const allConsensusPct = ((consensusStats.global_all / refLength) * 100).toFixed(2);
-                html += `<div class="kpi" title="Positions where ALL pipelines (including GT) agree on having a SNP">
-                    <div class="label">${allPipelineNames} ${infoIcon('all_consensus')}</div>
-                    <div class="value">${consensusStats.global_all.toLocaleString()} (${allConsensusPct}%)</div>
-                </div>`;
             }
 
             document.getElementById('kpis').innerHTML = html;

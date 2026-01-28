@@ -1259,6 +1259,41 @@
                 title: 'Filtered Positions',
                 body: `<p>Number of genomic positions matching the currently active filter criteria.</p>
                        <p>Use filters to focus on specific types of variants (consensus, discordant, pipeline-specific, etc.)</p>`
+            },
+            'intersection': {
+                title: 'SNP Intersection with Ground Truth',
+                body: `<p>Number of SNP positions that are <strong>shared</strong> between this pipeline and the Ground Truth.</p>
+                       <div class="formula">Intersection = positions where BOTH pipelines call a SNP</div>
+                       <p>The two percentages show:</p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li><strong>% GT:</strong> What fraction of GT SNPs are also found by this pipeline (sensitivity/recall)</li>
+                           <li><strong>% Pipeline:</strong> What fraction of this pipeline's SNPs are confirmed by GT (precision)</li>
+                       </ul>
+                       <p><strong>Interpretation:</strong></p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li><span style="color:#81c784;">Green (≥90%)</span>: High agreement with ground truth</li>
+                           <li><span style="color:#ffd54f;">Yellow (70-90%)</span>: Moderate agreement</li>
+                           <li><span style="color:#e57373;">Red (&lt;70%)</span>: Low agreement - investigate differences</li>
+                       </ul>`
+            },
+            'mnp': {
+                title: 'MNP Decomposition',
+                body: `<p><strong>MNP (Multi-Nucleotide Polymorphism)</strong> = multiple adjacent SNPs reported as a single variant in VCF.</p>
+                       <p><strong>Example:</strong></p>
+                       <div class="formula">VCF: pos=100, REF=ACG, ALT=TGA</div>
+                       <p>This MNP is decomposed into 3 individual SNPs:</p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li>pos=100: A→T</li>
+                           <li>pos=101: C→G</li>
+                           <li>pos=102: G→A</li>
+                       </ul>
+                       <p><strong>Why decompose?</strong></p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li>Consistent position-level comparison between pipelines</li>
+                           <li>Some pipelines report MNPs, others report individual SNPs</li>
+                           <li>Enables accurate intersection and agreement calculations</li>
+                       </ul>
+                       <p><strong>Note:</strong> The total SNP count increases after decomposition, which is expected.</p>`
             }
         };
 
@@ -1480,7 +1515,12 @@
 
             let html = '';
             for (const warning of warnings) {
-                html += `<div class="warning-item">${warning}</div>`;
+                // Add info icon for MNP warnings
+                if (warning.includes('MNP')) {
+                    html += `<div class="warning-item">${warning} <span class="info-icon" onclick="event.stopPropagation();showKpiInfo('mnp')" style="cursor:pointer;">ⓘ</span></div>`;
+                } else {
+                    html += `<div class="warning-item">${warning}</div>`;
+                }
             }
             container.innerHTML = html;
         }
@@ -1768,6 +1808,24 @@
                             <div class="value" style="color:${color};">${diffSign}${comp.difference.toLocaleString()} (${pctSign}${comp.percentage_diff.toFixed(1)}%)</div>
                         </div>`;
                     }
+                }
+            }
+
+            // SNP intersection between pipelines
+            const intersection = JSON.parse(genomeData.get_snp_intersection());
+            const gtPipeline2 = genomeData.get_ground_truth_pipeline();
+            if (intersection && gtPipeline2 && intersection[gtPipeline2]) {
+                const gtIntersections = intersection[gtPipeline2];
+                for (const [pipeline, stats] of Object.entries(gtIntersections)) {
+                    const label = genomeData.get_pipeline_label(pipeline);
+                    const gtLabel = genomeData.get_pipeline_label(gtPipeline2);
+                    const pctOfGt = stats.pct_of_a.toFixed(1);
+                    const pctOfPipeline = stats.pct_of_b.toFixed(1);
+                    const color = stats.pct_of_a >= 90 ? '#81c784' : stats.pct_of_a >= 70 ? '#ffd54f' : '#e57373';
+                    html += `<div class="kpi" style="border-color:${color};" title="${stats.intersection.toLocaleString()} positions shared\n${gtLabel}: ${stats.total_a.toLocaleString()} SNPs\n${label}: ${stats.total_b.toLocaleString()} SNPs">
+                        <div class="label">${label} ∩ GT ${infoIcon('intersection')}</div>
+                        <div class="value" style="color:${color};">${stats.intersection.toLocaleString()} (${pctOfGt}% GT, ${pctOfPipeline}% ${label.split(' ')[0]})</div>
+                    </div>`;
                 }
             }
 

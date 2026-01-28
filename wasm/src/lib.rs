@@ -1007,11 +1007,12 @@ impl GenomeData {
         // Find ground truth pipeline
         let gt_pipeline = self.ground_truth_pipeline.as_ref();
 
-        let mut global_consensus: std::collections::HashSet<u32> = std::collections::HashSet::new();
-        let mut global_gt: std::collections::HashSet<u32> = std::collections::HashSet::new();
-        let mut global_all_consensus: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        // Use sums instead of unique positions to be consistent with other KPIs
+        let mut sum_consensus_snps: u32 = 0;
+        let mut sum_gt_snps: u32 = 0;
+        let mut sum_consensus_in_gt: u32 = 0;
+        let mut sum_all_consensus: u32 = 0;
         let mut per_sample_stats: HashMap<String, SampleConsensusStats> = HashMap::new();
-        let mut is_first_sample = true;
 
         // Calculate per-sample consensus
         for (sample_id, sample_data) in &self.samples {
@@ -1053,25 +1054,19 @@ impl GenomeData {
             let sample_all_consensus: std::collections::HashSet<u32> =
                 sample_vcf_consensus.intersection(&sample_gt).cloned().collect();
 
-            // Add to global sets
-            global_consensus.extend(&sample_vcf_consensus);
-            global_gt.extend(&sample_gt);
-
-            // For global all consensus, we need intersection across samples
-            if is_first_sample {
-                global_all_consensus = sample_all_consensus.clone();
-                is_first_sample = false;
-            } else {
-                // Union for global (positions that appear in any sample)
-                global_all_consensus.extend(&sample_all_consensus);
-            }
-
             // Calculate sample stats
             let consensus_in_gt = sample_vcf_consensus.intersection(&sample_gt).count() as u32;
             let gt_in_consensus = sample_gt.intersection(&sample_vcf_consensus).count() as u32;
 
             let consensus_snps = sample_vcf_consensus.len() as u32;
             let gt_snps = sample_gt.len() as u32;
+            let all_consensus = sample_all_consensus.len() as u32;
+
+            // Add to sums (consistent with other KPIs that sum across samples)
+            sum_consensus_snps += consensus_snps;
+            sum_gt_snps += gt_snps;
+            sum_consensus_in_gt += consensus_in_gt;
+            sum_all_consensus += all_consensus;
 
             per_sample_stats.insert(sample_id.clone(), SampleConsensusStats {
                 vcf_consensus: ConsensusVsGt {
@@ -1086,28 +1081,25 @@ impl GenomeData {
                         (gt_in_consensus as f64 / gt_snps as f64) * 100.0
                     } else { 0.0 },
                 },
-                all_consensus: sample_all_consensus.len() as u32,
+                all_consensus,
             });
         }
 
-        // Calculate global stats
-        let global_consensus_in_gt = global_consensus.intersection(&global_gt).count() as u32;
-        let global_gt_in_consensus = global_gt.intersection(&global_consensus).count() as u32;
-
+        // Calculate global stats using SUMS (consistent with other KPIs)
         let result = ConsensusStats {
             global: ConsensusVsGt {
-                consensus_snps: global_consensus.len() as u32,
-                gt_snps: global_gt.len() as u32,
-                consensus_in_gt: global_consensus_in_gt,
-                consensus_in_gt_pct: if !global_consensus.is_empty() {
-                    (global_consensus_in_gt as f64 / global_consensus.len() as f64) * 100.0
+                consensus_snps: sum_consensus_snps,
+                gt_snps: sum_gt_snps,
+                consensus_in_gt: sum_consensus_in_gt,
+                consensus_in_gt_pct: if sum_consensus_snps > 0 {
+                    (sum_consensus_in_gt as f64 / sum_consensus_snps as f64) * 100.0
                 } else { 0.0 },
-                gt_in_consensus: global_gt_in_consensus,
-                gt_in_consensus_pct: if !global_gt.is_empty() {
-                    (global_gt_in_consensus as f64 / global_gt.len() as f64) * 100.0
+                gt_in_consensus: sum_consensus_in_gt,  // Same as consensus_in_gt when using sums
+                gt_in_consensus_pct: if sum_gt_snps > 0 {
+                    (sum_consensus_in_gt as f64 / sum_gt_snps as f64) * 100.0
                 } else { 0.0 },
             },
-            global_all: global_all_consensus.len() as u32,
+            global_all: sum_all_consensus,
             per_sample: per_sample_stats,
         };
 

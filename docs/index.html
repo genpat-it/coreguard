@@ -1376,6 +1376,45 @@
                            <li><strong>Discordant:</strong> Show positions where pipelines disagree</li>
                            <li><strong>Gap filters:</strong> Show gap regions for specific pipelines</li>
                        </ul>`
+            },
+            'filter_pipeline': {
+                title: 'Pipeline SNP Filter',
+                body: `<p>Show only positions where this pipeline called a SNP.</p>
+                       <p><strong>Multiple pipelines selected:</strong></p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li><strong>OR mode:</strong> Position has SNP in ANY selected pipeline</li>
+                           <li><strong>AND mode:</strong> Position has SNP in ALL selected pipelines</li>
+                       </ul>
+                       <p>Use the mode selector to switch between OR/AND logic.</p>`
+            },
+            'filter_consensus': {
+                title: 'Consensus Filter',
+                body: `<p>Show positions where <strong>ALL selected pipelines agree</strong> on having a SNP.</p>
+                       <p>If no pipeline filters are selected, uses all VCF pipelines.</p>
+                       <p><strong>Example:</strong> With CFSAN and Snippy selected, shows positions where both call a SNP at the same position.</p>
+                       <p><strong>Note:</strong> This is the intersection of selected pipelines' SNP positions.</p>`
+            },
+            'filter_discordant': {
+                title: 'Discordant Filter',
+                body: `<p>Show positions where <strong>pipelines disagree</strong> - at least one has a SNP and at least one doesn't.</p>
+                       <p>If no pipeline filters are selected, uses all VCF pipelines.</p>
+                       <p><strong>Use case:</strong> Find positions where variant callers give different results, useful for:</p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li>Identifying pipeline-specific artifacts</li>
+                           <li>Finding borderline/low-confidence variants</li>
+                           <li>Quality control and validation</li>
+                       </ul>`
+            },
+            'filter_gaps': {
+                title: 'Gap Filter',
+                body: `<p>Show positions where this pipeline has a <strong>coverage gap</strong> (depth below threshold).</p>
+                       <p>Gaps indicate regions where:</p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li>Read coverage was insufficient for variant calling</li>
+                           <li>The sample may be missing this genomic region</li>
+                           <li>Sequencing quality was poor in this area</li>
+                       </ul>
+                       <p><strong>Note:</strong> SNPs called in gap regions of other pipelines may be less reliable.</p>`
             }
         };
 
@@ -2057,7 +2096,9 @@
 
         function createFilterButtons(pipelines) {
             const container = document.getElementById('filters');
-            container.innerHTML = '<span style="color:#808080;margin-right:5px;">SNP Filters:</span>';
+            const infoIcon = (type) => `<span class="info-icon" onclick="event.stopPropagation();showKpiInfo('${type}')" style="margin-left:3px;">ⓘ</span>`;
+
+            container.innerHTML = '<span style="color:#808080;margin-right:5px;">SNP Filters:' + infoIcon('filter_pipeline') + '</span>';
 
             // Get pipelines with VCF data (only these can have SNP filters)
             const vcfPipelines = JSON.parse(genomeData.get_vcf_pipelines());
@@ -2069,14 +2110,14 @@
                 container.innerHTML += `<button class="filter-btn" data-filter="${p}" onclick="toggleFilter('${p}')">${label}</button>`;
             }
 
-            // Special SNP filters
+            // Special SNP filters with info icons
             container.innerHTML += `
-                <button class="filter-btn" data-filter="consensus" onclick="toggleFilter('consensus')">Consensus</button>
-                <button class="filter-btn" data-filter="discordant" onclick="toggleFilter('discordant')">Discordant</button>
+                <button class="filter-btn" data-filter="consensus" onclick="toggleFilter('consensus')">Consensus</button>${infoIcon('filter_consensus')}
+                <button class="filter-btn" data-filter="discordant" onclick="toggleFilter('discordant')">Discordant</button>${infoIcon('filter_discordant')}
             `;
 
             // Gap filters - show all pipelines (gaps come from BAM)
-            container.innerHTML += '<span style="color:#808080;margin-left:15px;margin-right:5px;">Gap Filters:</span>';
+            container.innerHTML += '<span style="color:#808080;margin-left:15px;margin-right:5px;">Gap Filters:' + infoIcon('filter_gaps') + '</span>';
             for (const p of pipelines) {
                 const label = genomeData.get_pipeline_label(p);
                 container.innerHTML += `<button class="filter-btn gap-filter" data-filter="gaps:${p}" onclick="toggleFilter('gaps:${p}')">${label} Gaps</button>`;

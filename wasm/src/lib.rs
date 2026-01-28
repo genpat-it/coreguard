@@ -875,6 +875,126 @@ impl GenomeData {
         serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
     }
 
+    /// Get consensus SNP statistics (positions where ALL VCF pipelines agree)
+    /// Returns global and per-sample consensus vs GT comparison
+    #[wasm_bindgen]
+    pub fn get_consensus_stats(&self) -> String {
+        #[derive(Serialize)]
+        struct ConsensusVsGt {
+            consensus_snps: u32,
+            gt_snps: u32,
+            consensus_in_gt: u32,
+            consensus_in_gt_pct: f64,
+            gt_in_consensus: u32,
+            gt_in_consensus_pct: f64,
+        }
+
+        #[derive(Serialize)]
+        struct ConsensusStats {
+            global: ConsensusVsGt,
+            per_sample: HashMap<String, ConsensusVsGt>,
+        }
+
+        // Get VCF pipelines (pipelines that have SNP data)
+        let vcf_pipelines: Vec<&String> = self.pipeline_ids.iter()
+            .filter(|p| {
+                self.samples.values().any(|s| {
+                    s.pipelines.get(*p).map(|pd| pd.has_vcf).unwrap_or(false)
+                })
+            })
+            .collect();
+
+        // Find ground truth pipeline
+        let gt_pipeline = self.ground_truth_pipeline.as_ref();
+
+        let mut global_consensus: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        let mut global_gt: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        let mut per_sample_stats: HashMap<String, ConsensusVsGt> = HashMap::new();
+
+        // Calculate per-sample consensus
+        for (sample_id, sample_data) in &self.samples {
+            // Get SNP positions for each VCF pipeline in this sample
+            let mut pipeline_positions: Vec<std::collections::HashSet<u32>> = Vec::new();
+
+            for pipeline_id in &vcf_pipelines {
+                if let Some(pipeline_data) = sample_data.pipelines.get(*pipeline_id) {
+                    let positions: std::collections::HashSet<u32> = pipeline_data.snps.iter()
+                        .map(|s| s.pos)
+                        .collect();
+                    pipeline_positions.push(positions);
+                }
+            }
+
+            // Consensus = intersection of all VCF pipelines
+            let sample_consensus: std::collections::HashSet<u32> = if pipeline_positions.len() > 1 {
+                let mut consensus = pipeline_positions[0].clone();
+                for positions in &pipeline_positions[1..] {
+                    consensus = consensus.intersection(positions).cloned().collect();
+                }
+                consensus
+            } else if pipeline_positions.len() == 1 {
+                pipeline_positions[0].clone()
+            } else {
+                std::collections::HashSet::new()
+            };
+
+            // Get GT SNPs for this sample
+            let sample_gt: std::collections::HashSet<u32> = if let Some(gt_id) = gt_pipeline {
+                sample_data.pipelines.get(gt_id)
+                    .map(|pd| pd.snps.iter().map(|s| s.pos).collect())
+                    .unwrap_or_default()
+            } else {
+                std::collections::HashSet::new()
+            };
+
+            // Add to global sets
+            global_consensus.extend(&sample_consensus);
+            global_gt.extend(&sample_gt);
+
+            // Calculate sample stats
+            let consensus_in_gt = sample_consensus.intersection(&sample_gt).count() as u32;
+            let gt_in_consensus = sample_gt.intersection(&sample_consensus).count() as u32;
+
+            let consensus_snps = sample_consensus.len() as u32;
+            let gt_snps = sample_gt.len() as u32;
+
+            per_sample_stats.insert(sample_id.clone(), ConsensusVsGt {
+                consensus_snps,
+                gt_snps,
+                consensus_in_gt,
+                consensus_in_gt_pct: if consensus_snps > 0 {
+                    (consensus_in_gt as f64 / consensus_snps as f64) * 100.0
+                } else { 0.0 },
+                gt_in_consensus,
+                gt_in_consensus_pct: if gt_snps > 0 {
+                    (gt_in_consensus as f64 / gt_snps as f64) * 100.0
+                } else { 0.0 },
+            });
+        }
+
+        // Calculate global stats
+        let global_consensus_in_gt = global_consensus.intersection(&global_gt).count() as u32;
+        let global_gt_in_consensus = global_gt.intersection(&global_consensus).count() as u32;
+
+        let result = ConsensusStats {
+            global: ConsensusVsGt {
+                consensus_snps: global_consensus.len() as u32,
+                gt_snps: global_gt.len() as u32,
+                consensus_in_gt: global_consensus_in_gt,
+                consensus_in_gt_pct: if !global_consensus.is_empty() {
+                    (global_consensus_in_gt as f64 / global_consensus.len() as f64) * 100.0
+                } else { 0.0 },
+                gt_in_consensus: global_gt_in_consensus,
+                gt_in_consensus_pct: if !global_gt.is_empty() {
+                    (global_gt_in_consensus as f64 / global_gt.len() as f64) * 100.0
+                } else { 0.0 },
+            },
+            per_sample: per_sample_stats,
+        };
+
+        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
+    }
+
     /// Get all SNP positions that match the given filters
     /// filters: comma-separated list of pipeline IDs, or special filters:
     /// - "consensus": positions where all pipelines agree

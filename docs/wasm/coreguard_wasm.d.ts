@@ -23,6 +23,11 @@ export class GenomeData {
      */
     calculate_distance_matrix_filtered(pipeline_filter: string, mode: string, min_depth: number, min_consensus: number, min_qual: number): string;
     /**
+     * Get consensus SNP statistics (positions where ALL VCF pipelines agree)
+     * Returns global and per-sample consensus vs GT comparison
+     */
+    get_consensus_stats(): string;
+    /**
      * Get coverage statistics per sample per pipeline
      */
     get_coverage_stats(): string;
@@ -185,6 +190,7 @@ export interface InitOutput {
     readonly genomedata_get_kpis: (a: number) => [number, number];
     readonly genomedata_get_per_sample_stats: (a: number) => [number, number];
     readonly genomedata_get_snp_intersection: (a: number) => [number, number];
+    readonly genomedata_get_consensus_stats: (a: number) => [number, number];
     readonly genomedata_get_filtered_positions_v2: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number];
     readonly genomedata_get_filtered_positions: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly genomedata_render_filtered: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];

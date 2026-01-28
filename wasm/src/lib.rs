@@ -698,7 +698,10 @@ impl GenomeData {
         }
 
         // Calculate core SNPs per pipeline (positions present in ALL samples)
+        // Store both counts and position sets for GT comparison
         let mut core_snps: HashMap<String, u32> = HashMap::new();
+        let mut core_positions: HashMap<String, std::collections::HashSet<u32>> = HashMap::new();
+
         for pipeline_id in &self.pipeline_ids {
             let mut sample_positions: Vec<std::collections::HashSet<u32>> = Vec::new();
 
@@ -712,56 +715,130 @@ impl GenomeData {
             }
 
             // Intersection of all samples = core SNPs
-            let core_count = if sample_positions.len() > 1 {
+            let core_set = if sample_positions.len() > 1 {
                 let mut core = sample_positions[0].clone();
                 for positions in &sample_positions[1..] {
                     core = core.intersection(positions).cloned().collect();
                 }
-                core.len() as u32
+                core
             } else if sample_positions.len() == 1 {
-                sample_positions[0].len() as u32
+                sample_positions[0].clone()
             } else {
-                0
+                std::collections::HashSet::new()
             };
 
-            core_snps.insert(pipeline_id.clone(), core_count);
+            core_snps.insert(pipeline_id.clone(), core_set.len() as u32);
+            core_positions.insert(pipeline_id.clone(), core_set);
         }
 
-        // Calculate consensus SNPs per pipeline (SNPs that are in ALL pipelines)
-        // First, build a set of all SNP positions per pipeline (union across samples)
-        let mut pipeline_all_positions: HashMap<String, std::collections::HashSet<u32>> = HashMap::new();
+        // Calculate consensus SNPs per pipeline
+        // Consensus = positions where ALL samples have the SAME alt allele
+        let mut consensus_snps: HashMap<String, u32> = HashMap::new();
+        let mut consensus_positions: HashMap<String, std::collections::HashSet<u32>> = HashMap::new();
+
         for pipeline_id in &self.pipeline_ids {
-            let mut all_positions: std::collections::HashSet<u32> = std::collections::HashSet::new();
-            for sample_data in self.samples.values() {
-                if let Some(pipeline_data) = sample_data.pipelines.get(pipeline_id) {
-                    for snp in &pipeline_data.snps {
-                        all_positions.insert(snp.pos);
+            // For each position in core, check if all samples have the same alt
+            let core_pos = core_positions.get(pipeline_id).cloned().unwrap_or_default();
+            let mut consensus_set: std::collections::HashSet<u32> = std::collections::HashSet::new();
+
+            for &pos in &core_pos {
+                // Get alt allele for each sample at this position
+                let mut alts: Vec<u8> = Vec::new();
+                let mut all_have_snp = true;
+
+                for sample_data in self.samples.values() {
+                    if let Some(pipeline_data) = sample_data.pipelines.get(pipeline_id) {
+                        if let Some(snp) = Self::find_snp(&pipeline_data.snps, pos) {
+                            alts.push(snp.alt_allele);
+                        } else {
+                            all_have_snp = false;
+                            break;
+                        }
+                    } else {
+                        all_have_snp = false;
+                        break;
                     }
                 }
+
+                // Check if all samples have the same alt
+                if all_have_snp && !alts.is_empty() && alts.iter().all(|&a| a == alts[0]) {
+                    consensus_set.insert(pos);
+                }
             }
-            pipeline_all_positions.insert(pipeline_id.clone(), all_positions);
+
+            consensus_snps.insert(pipeline_id.clone(), consensus_set.len() as u32);
+            consensus_positions.insert(pipeline_id.clone(), consensus_set);
         }
 
-        // Global consensus = intersection of all pipelines
-        let global_consensus: std::collections::HashSet<u32> = if pipeline_all_positions.len() > 1 {
-            let mut iter = pipeline_all_positions.values();
-            let mut consensus = iter.next().unwrap().clone();
-            for positions in iter {
-                consensus = consensus.intersection(positions).cloned().collect();
-            }
-            consensus
-        } else if pipeline_all_positions.len() == 1 {
-            pipeline_all_positions.values().next().unwrap().clone()
-        } else {
-            std::collections::HashSet::new()
-        };
+        // Calculate GT SNPs missing per pipeline
+        // For each pipeline: sum across samples of (GT SNPs not called by pipeline)
+        let mut gt_snps_missing: HashMap<String, u32> = HashMap::new();
+        let mut gt_snps_called: HashMap<String, u32> = HashMap::new();
+        let mut gt_total_snps: u32 = 0;
 
-        // For each pipeline, count how many of its SNPs are in global consensus
-        let mut consensus_snps: HashMap<String, u32> = HashMap::new();
-        for pipeline_id in &self.pipeline_ids {
-            // The consensus SNPs for a pipeline = size of global consensus
-            // (since all pipelines contribute the same positions to consensus)
-            consensus_snps.insert(pipeline_id.clone(), global_consensus.len() as u32);
+        // Core GT missing and Consensus GT missing
+        let mut core_gt_missing: HashMap<String, u32> = HashMap::new();
+        let mut core_gt_total: u32 = 0;
+        let mut consensus_gt_missing: HashMap<String, u32> = HashMap::new();
+        let mut consensus_gt_total: u32 = 0;
+
+        if let Some(ref gt_id) = self.ground_truth_pipeline {
+            // First calculate total GT SNPs
+            for sample_data in self.samples.values() {
+                if let Some(gt_data) = sample_data.pipelines.get(gt_id) {
+                    gt_total_snps += gt_data.snps.len() as u32;
+                }
+            }
+
+            // Get Core GT and Consensus GT
+            let gt_core = core_positions.get(gt_id).cloned().unwrap_or_default();
+            let gt_consensus = consensus_positions.get(gt_id).cloned().unwrap_or_default();
+            core_gt_total = gt_core.len() as u32;
+            consensus_gt_total = gt_consensus.len() as u32;
+
+            // For each non-GT pipeline, calculate missing GT SNPs
+            for pipeline_id in &self.pipeline_ids {
+                if pipeline_id == gt_id {
+                    continue;
+                }
+
+                let mut missing = 0u32;
+                let mut called = 0u32;
+
+                for sample_data in self.samples.values() {
+                    // Get GT SNP positions for this sample
+                    let gt_positions: std::collections::HashSet<u32> = sample_data
+                        .pipelines.get(gt_id)
+                        .map(|p| p.snps.iter().map(|s| s.pos).collect())
+                        .unwrap_or_default();
+
+                    // Get pipeline SNP positions for this sample
+                    let pipeline_positions: std::collections::HashSet<u32> = sample_data
+                        .pipelines.get(pipeline_id)
+                        .map(|p| p.snps.iter().map(|s| s.pos).collect())
+                        .unwrap_or_default();
+
+                    // GT ∩ Pipeline = GT positions that pipeline also calls
+                    let intersection = gt_positions.intersection(&pipeline_positions).count() as u32;
+                    called += intersection;
+
+                    // GT SNPs not in pipeline = |GT| - |GT ∩ Pipeline|
+                    missing += gt_positions.len() as u32 - intersection;
+                }
+
+                gt_snps_missing.insert(pipeline_id.clone(), missing);
+                gt_snps_called.insert(pipeline_id.clone(), called);
+
+                // Core GT missing: |Core GT| - |Core GT ∩ Core Pipeline|
+                let pipeline_core = core_positions.get(pipeline_id).cloned().unwrap_or_default();
+                let core_intersection = gt_core.intersection(&pipeline_core).count() as u32;
+                core_gt_missing.insert(pipeline_id.clone(), core_gt_total - core_intersection);
+
+                // Consensus GT missing: |Consensus GT| - |Consensus GT ∩ Consensus Pipeline|
+                let pipeline_consensus = consensus_positions.get(pipeline_id).cloned().unwrap_or_default();
+                let consensus_intersection = gt_consensus.intersection(&pipeline_consensus).count() as u32;
+                consensus_gt_missing.insert(pipeline_id.clone(), consensus_gt_total - consensus_intersection);
+            }
         }
 
         #[derive(Serialize)]
@@ -770,6 +847,13 @@ impl GenomeData {
             gaps: HashMap<String, u32>,
             core_snps: HashMap<String, u32>,
             consensus_snps: HashMap<String, u32>,
+            gt_snps_missing: HashMap<String, u32>,
+            gt_snps_called: HashMap<String, u32>,
+            gt_total_snps: u32,
+            core_gt_missing: HashMap<String, u32>,
+            core_gt_total: u32,
+            consensus_gt_missing: HashMap<String, u32>,
+            consensus_gt_total: u32,
             samples: usize,
             pipelines: usize,
             ref_length: u32,
@@ -780,6 +864,13 @@ impl GenomeData {
             gaps: total_gaps,
             core_snps,
             consensus_snps,
+            gt_snps_missing,
+            gt_snps_called,
+            gt_total_snps,
+            core_gt_missing,
+            core_gt_total,
+            consensus_gt_missing,
+            consensus_gt_total,
             samples: self.samples.len(),
             pipelines: self.pipeline_ids.len(),
             ref_length: self.ref_len,

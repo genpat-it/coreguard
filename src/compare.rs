@@ -210,8 +210,10 @@ impl CompareReport {
         let mut pipelines = HashMap::new();
         for pipeline_id in &pipeline_ids {
             if let Some(pipeline) = config.pipelines.get(pipeline_id) {
-                let has_vcf = pipeline.samples.values().any(|f| f.vcf.is_some());
+                let has_vcf_files = pipeline.samples.values().any(|f| f.vcf.is_some());
                 let has_bam = pipeline.samples.values().any(|f| f.bam.is_some());
+                // Ground truth with BAM will have SNPs from pileup, so treat as having VCF
+                let has_vcf = has_vcf_files || (pipeline.ground_truth && has_bam);
                 pipelines.insert(
                     pipeline_id.clone(),
                     PipelineInfo {
@@ -273,6 +275,30 @@ impl CompareReport {
                             total_mnps_found += result.mnps_found;
                             total_snps_from_mnps += result.snps_from_mnps;
                             log::info!("  Found {} SNPs", pipeline_data.snps.len());
+                        } else if pipeline.ground_truth && files.bam.is_some() {
+                            // For ground truth without VCF, load SNPs from BAM pileup
+                            let bam_path = files.bam.as_ref().unwrap();
+                            log::info!(
+                                "Loading SNPs for {}/{} from BAM pileup {}",
+                                sample_id,
+                                pipeline_id,
+                                bam_path
+                            );
+                            let pileup_snps = pileup::get_snps_from_pileup(
+                                Path::new(bam_path),
+                                &ref_seq,
+                                &ref_name,
+                                config.options.min_depth as u32,
+                                0.8,  // 80% consensus threshold
+                            )?;
+                            pipeline_data.snps = pileup_snps.iter().map(|ps| Snp {
+                                pos: ps.pos,
+                                ref_allele: ps.ref_base.to_string(),
+                                alt: ps.alt_base.to_string(),
+                                qual: 0.0,  // No quality score from pileup
+                                dp: ps.depth as usize,
+                            }).collect();
+                            log::info!("  Found {} SNPs from pileup", pipeline_data.snps.len());
                         }
 
                         sample_data.insert(pipeline_id.clone(), pipeline_data);

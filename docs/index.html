@@ -240,6 +240,9 @@
             padding: 6px 0 2px 0;
             opacity: 0.7;
         }
+        .kpi.kpi-gt {
+            border-color: #7cb342;
+        }
         .kpi .label {
             font-size: 11px;
             color: var(--text-secondary);
@@ -2006,7 +2009,7 @@
                 const gtPileup = JSON.parse(genomeData.get_ground_truth_pileup());
                 if (gtPileup && typeof gtPileup === 'object') {
                     const pileupPct = ((gtPileup.total_snps / refLength / kpis.samples) * 100).toFixed(2);
-                    html += `<div class="kpi" title="SNPs counted from BAM pileup without variant calling\n${gtPileup.covered_positions.toLocaleString()} covered positions">
+                    html += `<div class="kpi kpi-gt" title="SNPs counted from BAM pileup without variant calling\n${gtPileup.covered_positions.toLocaleString()} covered positions">
                         <div class="label">${gtLabel} Pileup SNPs ${infoIcon('gt_pileup')}</div>
                         <div class="value">${gtPileup.total_snps.toLocaleString()} (${pileupPct}%)</div>
                     </div>`;
@@ -2017,7 +2020,7 @@
                             const label = genomeData.get_pipeline_label(pipeline);
                             const diffSign = comp.difference > 0 ? '+' : '';
                             const pctSign = comp.percentage_diff > 0 ? '+' : '';
-                            html += `<div class="kpi" title="${label}: ${comp.pipeline_snps.toLocaleString()} SNPs vs GT: ${comp.ground_truth_snps.toLocaleString()} SNPs">
+                            html += `<div class="kpi kpi-gt" title="${label}: ${comp.pipeline_snps.toLocaleString()} SNPs vs GT: ${comp.ground_truth_snps.toLocaleString()} SNPs">
                                 <div class="label">${label} vs ${gtShortLabel} ${infoIcon('vs_gt')}</div>
                                 <div class="value">${diffSign}${comp.difference.toLocaleString()} (${pctSign}${comp.percentage_diff.toFixed(1)}%)</div>
                             </div>`;
@@ -2034,7 +2037,7 @@
                         const shortLabel = label.split(' ')[0];
                         const pctOfGt = stats.pct_of_a.toFixed(1);
                         const pctOfPipeline = stats.pct_of_b.toFixed(1);
-                        html += `<div class="kpi" title="${stats.intersection.toLocaleString()} positions shared\n${gtLabel}: ${stats.total_a.toLocaleString()} SNPs\n${label}: ${stats.total_b.toLocaleString()} SNPs">
+                        html += `<div class="kpi kpi-gt" title="${stats.intersection.toLocaleString()} positions shared\n${gtLabel}: ${stats.total_a.toLocaleString()} SNPs\n${label}: ${stats.total_b.toLocaleString()} SNPs">
                             <div class="label">${shortLabel} ∩ ${gtShortLabel} ${infoIcon('intersection')}</div>
                             <div class="value">${stats.intersection.toLocaleString()} (${pctOfGt}% ${gtShortLabel}, ${pctOfPipeline}% ${shortLabel})</div>
                         </div>`;
@@ -2047,7 +2050,7 @@
                     for (const [pipeline, stats] of Object.entries(snpsInGtGaps)) {
                         const label = genomeData.get_pipeline_label(pipeline);
                         const pct = stats.percentage.toFixed(2);
-                        html += `<div class="kpi" title="${stats.snps_in_gaps.toLocaleString()} of ${stats.total_snps.toLocaleString()} SNPs in GT gaps">
+                        html += `<div class="kpi kpi-gt" title="${stats.snps_in_gaps.toLocaleString()} of ${stats.total_snps.toLocaleString()} SNPs in GT gaps">
                             <div class="label">${label} in ${gtShortLabel} Gaps ${infoIcon('snps_in_gt_gaps')}</div>
                             <div class="value">${stats.snps_in_gaps.toLocaleString()} (${pct}%)</div>
                         </div>`;

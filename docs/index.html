@@ -233,6 +233,13 @@
             margin-top: 0;
             border-top: none;
         }
+        .kpi-sub-label {
+            width: 100%;
+            font-size: 10px;
+            color: var(--text-secondary);
+            padding: 6px 0 2px 0;
+            opacity: 0.7;
+        }
         .kpi .label {
             font-size: 11px;
             color: var(--text-secondary);
@@ -1911,27 +1918,33 @@
                 html += `<div class="kpi"><div class="label">Filtered Positions ${infoIcon('filtered')}</div><div class="value">${filteredCount.toLocaleString()}</div></div>`;
             }
 
-            // === SECTION 2: SNPs ===
-            html += sectionHeader('SNPs');
+            // === SECTION 2: Per-Pipeline Statistics ===
+            html += sectionHeader('Per-Pipeline Statistics');
+
+            // Helper for subsection labels
+            const subLabel = (title) => `<div class="kpi-sub-label">${title}</div>`;
+
+            // SNPs
+            html += subLabel('SNPs');
             for (const [pipeline, snpCount] of Object.entries(kpis.snps)) {
                 const label = genomeData.get_pipeline_label(pipeline);
                 const snpPct = ((snpCount / refLength / kpis.samples) * 100).toFixed(2);
                 html += `<div class="kpi"><div class="label">${label} ${infoIcon('snps')}</div><div class="value">${snpCount.toLocaleString()} (${snpPct}%)</div></div>`;
             }
 
-            // === SECTION 3: Gaps ===
-            html += sectionHeader('Gaps');
+            // Gaps
+            html += subLabel('Gaps');
             for (const [pipeline, gapCount] of Object.entries(kpis.gaps)) {
                 const label = genomeData.get_pipeline_label(pipeline);
                 const gapPct = ((gapCount / refLength / kpis.samples) * 100).toFixed(1);
                 html += `<div class="kpi"><div class="label">${label} ${infoIcon('gaps')}</div><div class="value">${gapCount.toLocaleString()} bp (${gapPct}%)</div></div>`;
             }
 
-            // === SECTION 4: MNPs (if any) ===
+            // MNPs (if any)
             const mnpStats = JSON.parse(genomeData.get_mnp_stats());
             const hasMnps = mnpStats && Object.values(mnpStats).some(s => s && s.mnps_found > 0);
             if (hasMnps) {
-                html += sectionHeader('MNPs');
+                html += subLabel('MNPs');
                 for (const [pipeline, mStats] of Object.entries(mnpStats)) {
                     if (mStats && mStats.mnps_found > 0) {
                         const label = genomeData.get_pipeline_label(pipeline);
@@ -1943,7 +1956,7 @@
                 }
             }
 
-            // === SECTION 5: Ground Truth Comparison (only if GT exists) ===
+            // === SECTION 3: Ground Truth Comparison (only if GT exists) ===
             if (gtPipelineId) {
                 html += sectionHeader('Ground Truth Comparison');
 

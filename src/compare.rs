@@ -140,6 +140,9 @@ pub struct Summary {
     /// Ground truth pileup SNP statistics (raw count from BAM without variant calling)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ground_truth_pileup: Option<GroundTruthPileupStats>,
+    /// Per-pipeline MNP decomposition statistics
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mnp_stats: Option<HashMap<String, MnpStats>>,
 }
 
 /// Ground truth SNP count from BAM pileup (without variant calling)
@@ -173,6 +176,15 @@ pub struct SnpsInGapsStats {
     pub total_snps: usize,
     pub snps_in_gaps: usize,
     pub percentage: f64,
+}
+
+/// MNP (Multi-Nucleotide Polymorphism) statistics per pipeline
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MnpStats {
+    /// Number of MNPs found and decomposed
+    pub mnps_found: usize,
+    /// Total individual SNPs resulting from MNP decomposition
+    pub snps_from_mnps: usize,
 }
 
 impl CompareReport {
@@ -231,6 +243,8 @@ impl CompareReport {
         let mut data: HashMap<String, HashMap<String, PipelineData>> = HashMap::new();
         let mut total_mnps_found = 0;
         let mut total_snps_from_mnps = 0;
+        // Per-pipeline MNP stats
+        let mut pipeline_mnp_stats: HashMap<String, MnpStats> = HashMap::new();
 
         for sample_id in &sample_ids {
             let mut sample_data: HashMap<String, PipelineData> = HashMap::new();
@@ -274,6 +288,13 @@ impl CompareReport {
                             pipeline_data.vcf_path = Some(vcf_path.clone());
                             total_mnps_found += result.mnps_found;
                             total_snps_from_mnps += result.snps_from_mnps;
+                            // Track per-pipeline MNP stats
+                            let entry = pipeline_mnp_stats.entry(pipeline_id.clone()).or_insert(MnpStats {
+                                mnps_found: 0,
+                                snps_from_mnps: 0,
+                            });
+                            entry.mnps_found += result.mnps_found;
+                            entry.snps_from_mnps += result.snps_from_mnps;
                             log::info!("  Found {} SNPs", pipeline_data.snps.len());
                         } else if pipeline.ground_truth && files.bam.is_some() {
                             // For ground truth without VCF, load SNPs from BAM pileup
@@ -489,6 +510,13 @@ impl CompareReport {
         };
 
         // Build summary
+        // Only include MNP stats if any MNPs were found
+        let mnp_stats = if pipeline_mnp_stats.values().any(|s| s.mnps_found > 0) {
+            Some(pipeline_mnp_stats)
+        } else {
+            None
+        };
+
         let summary = Summary {
             total_samples: sample_ids.len(),
             total_pipelines: pipeline_ids.len(),
@@ -497,6 +525,7 @@ impl CompareReport {
             warnings,
             snps_in_gt_gaps,
             ground_truth_pileup,
+            mnp_stats,
         };
 
         Ok(CompareReport {

@@ -135,6 +135,8 @@ struct JsonSummary {
     snps_in_gt_gaps: Option<HashMap<String, JsonSnpsInGapsStats>>,
     #[serde(default)]
     ground_truth_pileup: Option<JsonGroundTruthPileupStats>,
+    #[serde(default)]
+    mnp_stats: Option<HashMap<String, JsonMnpStats>>,
 }
 
 /// Ground truth pileup statistics from BAM (without variant calling)
@@ -160,6 +162,12 @@ struct JsonSnpsInGapsStats {
     total_snps: usize,
     snps_in_gaps: usize,
     percentage: f64,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct JsonMnpStats {
+    mnps_found: usize,
+    snps_from_mnps: usize,
 }
 
 /// Allele data at a polymorphic site for a specific sample
@@ -193,6 +201,8 @@ pub struct GenomeData {
     snps_in_gt_gaps: Option<HashMap<String, JsonSnpsInGapsStats>>,
     /// Ground truth pileup statistics (SNP count from BAM without variant calling)
     ground_truth_pileup: Option<JsonGroundTruthPileupStats>,
+    /// MNP decomposition statistics per pipeline
+    mnp_stats: Option<HashMap<String, JsonMnpStats>>,
     /// Polymorphic sites for distance matrix calculation (per pipeline)
     /// Key: pipeline_id -> position -> sample_id -> allele data
     polymorphic_sites: HashMap<String, HashMap<u32, HashMap<String, AlleleData>>>,
@@ -221,6 +231,7 @@ impl GenomeData {
             warnings: Vec::new(),
             snps_in_gt_gaps: None,
             ground_truth_pileup: None,
+            mnp_stats: None,
             polymorphic_sites: HashMap::new(),
             polymorphic_refs: HashMap::new(),
         }
@@ -250,6 +261,7 @@ impl GenomeData {
         self.warnings = report.summary.warnings;
         self.snps_in_gt_gaps = report.summary.snps_in_gt_gaps;
         self.ground_truth_pileup = report.summary.ground_truth_pileup;
+        self.mnp_stats = report.summary.mnp_stats;
 
         // Load sample labels
         for (id, info) in &report.samples {
@@ -491,6 +503,16 @@ impl GenomeData {
     #[wasm_bindgen]
     pub fn get_ground_truth_pileup(&self) -> String {
         match &self.ground_truth_pileup {
+            Some(stats) => serde_json::to_string(stats).unwrap_or_else(|_| "{}".to_string()),
+            None => "null".to_string(),
+        }
+    }
+
+    /// Get MNP (Multi-Nucleotide Polymorphism) statistics per pipeline
+    /// Returns: { pipeline_id: { mnps_found, snps_from_mnps } }
+    #[wasm_bindgen]
+    pub fn get_mnp_stats(&self) -> String {
+        match &self.mnp_stats {
             Some(stats) => serde_json::to_string(stats).unwrap_or_else(|_| "{}".to_string()),
             None => "null".to_string(),
         }
@@ -870,6 +892,77 @@ impl GenomeData {
             }
 
             result.insert(pipeline_a.clone(), inner);
+        }
+
+        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Get per-sample SNP intersection with GT
+    /// Returns: { sample_id: { pipeline_id: { intersection, pipeline_snps, gt_snps, pct_of_pipeline, pct_of_gt } } }
+    #[wasm_bindgen]
+    pub fn get_per_sample_intersection_with_gt(&self) -> String {
+        #[derive(Serialize)]
+        struct SampleIntersection {
+            intersection: u32,
+            pipeline_snps: u32,
+            gt_snps: u32,
+            pct_of_pipeline: f64,
+            pct_of_gt: f64,
+        }
+
+        let mut result: HashMap<String, HashMap<String, SampleIntersection>> = HashMap::new();
+
+        let gt_pipeline = match &self.ground_truth_pipeline {
+            Some(gt) => gt,
+            None => return "{}".to_string(),
+        };
+
+        for (sample_id, sample_data) in &self.samples {
+            let mut sample_intersections: HashMap<String, SampleIntersection> = HashMap::new();
+
+            // Get GT SNPs for this sample
+            let gt_snps: std::collections::HashSet<u32> = sample_data.pipelines.get(gt_pipeline)
+                .map(|pd| pd.snps.iter().map(|s| s.pos).collect())
+                .unwrap_or_default();
+            let gt_count = gt_snps.len() as u32;
+
+            // Calculate intersection with each non-GT pipeline
+            for pipeline_id in &self.pipeline_ids {
+                if pipeline_id == gt_pipeline {
+                    continue;
+                }
+
+                if let Some(pipeline_data) = sample_data.pipelines.get(pipeline_id) {
+                    let pipeline_snps: std::collections::HashSet<u32> = pipeline_data.snps.iter()
+                        .map(|s| s.pos)
+                        .collect();
+                    let pipeline_count = pipeline_snps.len() as u32;
+
+                    let intersection = pipeline_snps.intersection(&gt_snps).count() as u32;
+
+                    let pct_of_pipeline = if pipeline_count > 0 {
+                        (intersection as f64 / pipeline_count as f64) * 100.0
+                    } else {
+                        0.0
+                    };
+
+                    let pct_of_gt = if gt_count > 0 {
+                        (intersection as f64 / gt_count as f64) * 100.0
+                    } else {
+                        0.0
+                    };
+
+                    sample_intersections.insert(pipeline_id.clone(), SampleIntersection {
+                        intersection,
+                        pipeline_snps: pipeline_count,
+                        gt_snps: gt_count,
+                        pct_of_pipeline,
+                        pct_of_gt,
+                    });
+                }
+            }
+
+            result.insert(sample_id.clone(), sample_intersections);
         }
 
         serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())

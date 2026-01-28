@@ -1628,13 +1628,52 @@
                 showLoader('Parsing JSON...', `${(text.length / 1024 / 1024).toFixed(1)} MB uncompressed`);
                 await new Promise(r => requestAnimationFrame(r));
 
-                showLoader('Initializing WASM...', 'Processing data');
-                await new Promise(r => requestAnimationFrame(r));
+                showLoader('Loading data into viewer...', '');
+                genomeData.load_json(text);
 
-                const result = genomeData.load_json(text);
-                if (result) throw new Error(result);
+                samples = JSON.parse(genomeData.get_sample_ids());
+                pipelines = JSON.parse(genomeData.get_pipeline_ids());
 
-                initializeViewer();
+                document.getElementById('header-info').textContent =
+                    `${genomeData.get_ref_name()} (${genomeData.get_ref_length().toLocaleString()} bp) | ${samples.length} samples | ${pipelines.length} pipelines`;
+
+                // Set timestamp in footer
+                const timestamp = genomeData.get_generated_at();
+                if (timestamp) {
+                    const date = new Date(timestamp);
+                    const dd = String(date.getDate()).padStart(2, '0');
+                    const mm = String(date.getMonth() + 1).padStart(2, '0');
+                    const yyyy = date.getFullYear();
+                    const hh = String(date.getHours()).padStart(2, '0');
+                    const mi = String(date.getMinutes()).padStart(2, '0');
+                    const ss = String(date.getSeconds()).padStart(2, '0');
+                    const formattedDate = `${dd}/${mm}/${yyyy} ${hh}:${mi}:${ss}`;
+                    document.getElementById('report-timestamp').textContent =
+                        `Report generated: ${formattedDate}`;
+                }
+
+                document.getElementById('drop-zone').classList.add('hidden');
+                document.getElementById('viewer').classList.remove('hidden');
+
+                showLoader('Calculating KPIs...', '');
+                updateKPIs();
+                displayWarnings();
+                populatePipelineInfo();
+                populatePerSampleStats();
+                populateReproducibilityCommands();
+                createFilterButtons(pipelines);
+                createVisibilityControls(pipelines);
+
+                showLoader('Drawing genome overview...', '');
+                drawGenomeOverview();
+                populateMatrixPipelineSelector();
+                populateCoverageStats();
+
+                showLoader('Loading positions...', '');
+                loadPositions();
+
+                hideLoader();
+
             } catch (error) {
                 hideLoader();
                 alert('Error loading demo: ' + error.message);

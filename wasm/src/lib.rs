@@ -98,6 +98,8 @@ struct JsonPipelineInfo {
     has_bam: bool,
     #[serde(default)]
     ground_truth: bool,
+    #[serde(default)]
+    from_bam_pileup: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -188,6 +190,8 @@ pub struct GenomeData {
     pipeline_ids: Vec<String>,  // Ordered list of pipelines
     pipeline_labels: HashMap<String, String>,
     pipeline_commands: HashMap<String, String>,
+    /// Pipelines where SNPs come from BAM pileup (no variant calling)
+    pipelines_from_bam_pileup: std::collections::HashSet<String>,
     /// Ground truth pipeline ID (if any) - used as baseline for comparison
     ground_truth_pipeline: Option<String>,
     ref_seq: String,
@@ -221,6 +225,7 @@ impl GenomeData {
             pipeline_ids: Vec::new(),
             pipeline_labels: HashMap::new(),
             pipeline_commands: HashMap::new(),
+            pipelines_from_bam_pileup: std::collections::HashSet::new(),
             ground_truth_pipeline: None,
             ref_seq: String::new(),
             ref_name: String::new(),
@@ -265,6 +270,7 @@ impl GenomeData {
         self.pipeline_ids.clear();
         self.pipeline_labels.clear();
         self.pipeline_commands.clear();
+        self.pipelines_from_bam_pileup.clear();
         self.ground_truth_pipeline = None;
 
         // Load reference
@@ -312,6 +318,9 @@ impl GenomeData {
                 }
                 if let Some(command) = &info.command {
                     self.pipeline_commands.insert(id.clone(), command.clone());
+                }
+                if info.from_bam_pileup {
+                    self.pipelines_from_bam_pileup.insert(id.clone());
                 }
             }
         }
@@ -489,6 +498,12 @@ impl GenomeData {
     #[wasm_bindgen]
     pub fn is_ground_truth(&self, pipeline_id: &str) -> bool {
         self.ground_truth_pipeline.as_ref().map(|gt| gt == pipeline_id).unwrap_or(false)
+    }
+
+    /// Check if a pipeline's SNPs come from BAM pileup (no variant calling)
+    #[wasm_bindgen]
+    pub fn is_from_bam_pileup(&self, pipeline_id: &str) -> bool {
+        self.pipelines_from_bam_pileup.contains(pipeline_id)
     }
 
     /// Get pipelines that have VCF data (used for consensus/discordant)

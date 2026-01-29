@@ -1995,26 +1995,20 @@
 
         function populatePipelineInfo() {
             const pipelineIds = JSON.parse(genomeData.get_pipeline_ids());
-            const vcfPipelines = JSON.parse(genomeData.get_vcf_pipelines());
             const container = document.getElementById('pipelines-info');
-
-            console.log('Pipeline IDs:', pipelineIds);
-            console.log('VCF Pipelines:', vcfPipelines);
-            console.log('GT Pipeline:', genomeData.get_ground_truth_pipeline());
 
             let html = '';
             for (const pipelineId of pipelineIds) {
                 const label = genomeData.get_pipeline_label(pipelineId);
                 const command = genomeData.get_pipeline_command(pipelineId);
                 const isGroundTruth = genomeData.is_ground_truth(pipelineId);
-                const hasVcf = vcfPipelines.includes(pipelineId);
-                console.log(`Pipeline ${pipelineId}: isGT=${isGroundTruth}, hasVcf=${hasVcf}`);
+                const isFromBamPileup = genomeData.is_from_bam_pileup(pipelineId);
 
                 html += `<div class="pipeline-info-item">`;
                 html += `<div class="pipeline-name">${label}`;
                 if (isGroundTruth) {
                     html += `<span class="pipeline-badge">Ground Truth</span>`;
-                    if (!hasVcf) {
+                    if (isFromBamPileup) {
                         html += `<span class="pipeline-badge" style="background:#ff9800;" title="SNPs derived from BAM pileup, no variant calling filters applied">BAM pileup</span>`;
                     }
                 }
@@ -2022,7 +2016,7 @@
                 if (command) {
                     html += `<div class="pipeline-command">${command}</div>`;
                 }
-                if (isGroundTruth && !hasVcf) {
+                if (isGroundTruth && isFromBamPileup) {
                     html += `<div style="color:#ff9800;font-size:10px;margin-top:4px;">⚠️ SNPs from BAM pileup - no variant calling performed</div>`;
                 }
                 html += `</div>`;

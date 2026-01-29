@@ -539,6 +539,17 @@ export class GenomeData {
         }
     }
     /**
+     * Check if a pipeline's SNPs come from BAM pileup (no variant calling)
+     * @param {string} pipeline_id
+     * @returns {boolean}
+     */
+    is_from_bam_pileup(pipeline_id) {
+        const ptr0 = passStringToWasm0(pipeline_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.genomedata_is_from_bam_pileup(this.__wbg_ptr, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
      * Check if position is in a gap for a sample/pipeline
      * @param {string} sample
      * @param {string} pipeline

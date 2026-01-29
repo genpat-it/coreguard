@@ -149,6 +149,10 @@ export class GenomeData {
      */
     get_warnings(): string;
     /**
+     * Check if a pipeline's SNPs come from BAM pileup (no variant calling)
+     */
+    is_from_bam_pileup(pipeline_id: string): boolean;
+    /**
      * Check if position is in a gap for a sample/pipeline
      */
     is_gap(sample: string, pipeline: string, pos: number): boolean;
@@ -156,6 +160,10 @@ export class GenomeData {
      * Check if a pipeline is the ground truth
      */
     is_ground_truth(pipeline_id: string): boolean;
+    /**
+     * Load data from binary (bincode) report - faster than JSON
+     */
+    load_binary(data: Uint8Array): void;
     /**
      * Load data from JSON report (the main entry point)
      */
@@ -186,6 +194,7 @@ export interface InitOutput {
     readonly __wbg_genomedata_free: (a: number, b: number) => void;
     readonly genomedata_new: () => number;
     readonly genomedata_load_json: (a: number, b: number, c: number) => [number, number];
+    readonly genomedata_load_binary: (a: number, b: number, c: number) => [number, number];
     readonly genomedata_get_ref_length: (a: number) => number;
     readonly genomedata_get_ref_name: (a: number) => [number, number];
     readonly genomedata_get_sample_ids: (a: number) => [number, number];
@@ -195,6 +204,7 @@ export interface InitOutput {
     readonly genomedata_get_pipeline_command: (a: number, b: number, c: number) => [number, number];
     readonly genomedata_get_ground_truth_pipeline: (a: number) => [number, number];
     readonly genomedata_is_ground_truth: (a: number, b: number, c: number) => number;
+    readonly genomedata_is_from_bam_pileup: (a: number, b: number, c: number) => number;
     readonly genomedata_get_vcf_pipelines: (a: number) => [number, number];
     readonly genomedata_get_generated_at: (a: number) => [number, number];
     readonly genomedata_get_warnings: (a: number) => [number, number];

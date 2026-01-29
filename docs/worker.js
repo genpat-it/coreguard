@@ -1,15 +1,16 @@
 // CoreGuard Web Worker - handles all heavy WASM operations off the main thread
+// This is a MODULE worker - must be loaded with { type: 'module' }
 
-let wasm = null;
+import init, { GenomeData } from './coreguard_wasm.js';
+
 let genomeData = null;
-
-// Import WASM module
-importScripts('./coreguard_wasm.js');
+let wasmReady = false;
 
 // Initialize WASM
 async function initWasm() {
     try {
-        wasm = await wasm_bindgen('./coreguard_wasm_bg.wasm');
+        await init();
+        wasmReady = true;
         console.log('[Worker] WASM initialized');
         return true;
     } catch (err) {
@@ -32,7 +33,7 @@ self.onmessage = async function(e) {
                 break;
 
             case 'loadBinary':
-                genomeData = new wasm_bindgen.GenomeData();
+                genomeData = new GenomeData();
                 genomeData.load_binary(new Uint8Array(payload.data));
                 const pIds = JSON.parse(genomeData.get_pipeline_ids());
                 const sIds = JSON.parse(genomeData.get_sample_ids());
@@ -66,7 +67,7 @@ self.onmessage = async function(e) {
                 break;
 
             case 'loadJson':
-                genomeData = new wasm_bindgen.GenomeData();
+                genomeData = new GenomeData();
                 genomeData.load_json(payload.json);
                 const pIdsJ = JSON.parse(genomeData.get_pipeline_ids());
                 const sIdsJ = JSON.parse(genomeData.get_sample_ids());

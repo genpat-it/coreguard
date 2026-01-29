@@ -82,6 +82,10 @@ struct CompareArgs {
     #[arg(long)]
     gzip: bool,
 
+    /// Use binary format (bincode) instead of JSON (~10x faster to parse)
+    #[arg(long)]
+    binary: bool,
+
     /// Start web server to view the report in browser
     #[cfg(feature = "serve")]
     #[arg(long)]
@@ -263,7 +267,30 @@ fn run_compare(args: CompareArgs) -> Result<()> {
     let report = compare::CompareReport::from_config(&config)?;
 
     // Save report
-    if args.gzip {
+    if args.binary {
+        // Binary format (bincode)
+        let output_path = if args.gzip {
+            if args.output.extension().map(|e| e == "gz").unwrap_or(false) {
+                args.output.clone()
+            } else {
+                args.output.with_extension("bin.gz")
+            }
+        } else {
+            if args.output.extension().map(|e| e == "bin").unwrap_or(false) {
+                args.output.clone()
+            } else {
+                args.output.with_extension("bin")
+            }
+        };
+
+        if args.gzip {
+            report.save_binary_gzip(&output_path)?;
+            info!("Gzipped binary report saved to: {}", output_path.display());
+        } else {
+            report.save_binary(&output_path)?;
+            info!("Binary report saved to: {}", output_path.display());
+        }
+    } else if args.gzip {
         // Add .gz extension if not present
         let output_path = if args.output.extension().map(|e| e == "gz").unwrap_or(false) {
             args.output.clone()
@@ -289,7 +316,19 @@ fn run_compare(args: CompareArgs) -> Result<()> {
     // Start web server if requested
     #[cfg(feature = "serve")]
     if args.serve {
-        let output_path = if args.gzip {
+        let output_path = if args.binary {
+            if args.gzip {
+                if args.output.extension().map(|e| e == "gz").unwrap_or(false) {
+                    args.output.clone()
+                } else {
+                    args.output.with_extension("bin.gz")
+                }
+            } else if args.output.extension().map(|e| e == "bin").unwrap_or(false) {
+                args.output.clone()
+            } else {
+                args.output.with_extension("bin")
+            }
+        } else if args.gzip {
             if args.output.extension().map(|e| e == "gz").unwrap_or(false) {
                 args.output.clone()
             } else {

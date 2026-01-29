@@ -42,6 +42,10 @@ pub struct CompareReport {
     /// Description (markdown content)
     #[serde(default)]
     pub description: Option<String>,
+
+    /// Pre-computed distance matrices from pipelines (pipeline_id -> matrix data)
+    #[serde(default)]
+    pub pipeline_distance_matrices: HashMap<String, PipelineDistanceMatrix>,
 }
 
 /// Allele information at a polymorphic site
@@ -195,6 +199,15 @@ pub struct MnpStats {
     pub mnps_found: usize,
     /// Total individual SNPs resulting from MNP decomposition
     pub snps_from_mnps: usize,
+}
+
+/// Pre-computed distance matrix from a pipeline
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PipelineDistanceMatrix {
+    /// Sample IDs in order (matches row/column order in matrix)
+    pub samples: Vec<String>,
+    /// Distance matrix (row-major, samples[i] vs samples[j])
+    pub matrix: Vec<Vec<i64>>,
 }
 
 impl CompareReport {
@@ -567,6 +580,22 @@ impl CompareReport {
         // Get description content (from file or inline)
         let description = config.get_description_content();
 
+        // Load pre-computed distance matrices from pipelines
+        let mut pipeline_distance_matrices: HashMap<String, PipelineDistanceMatrix> = HashMap::new();
+        for (pipeline_id, pipeline_config) in &config.pipelines {
+            if let Some(matrix_path) = &pipeline_config.distance_matrix {
+                match parse_distance_matrix_tsv(matrix_path) {
+                    Ok(matrix) => {
+                        log::info!("Loaded distance matrix for pipeline '{}' from {}", pipeline_id, matrix_path);
+                        pipeline_distance_matrices.insert(pipeline_id.clone(), matrix);
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to load distance matrix for pipeline '{}': {}", pipeline_id, e);
+                    }
+                }
+            }
+        }
+
         Ok(CompareReport {
             version: "1.0".to_string(),
             reference: ReferenceInfo {
@@ -581,6 +610,7 @@ impl CompareReport {
             polymorphic_sites,
             summary,
             description,
+            pipeline_distance_matrices,
         })
     }
 
@@ -655,6 +685,69 @@ fn parse_fasta(content: &str) -> (String, String) {
     }
 
     (name, seq)
+}
+
+/// Parse TSV distance matrix file
+/// Format: header row with sample names, then matrix rows
+/// Example:
+///     sample1 sample2 sample3
+/// sample1 0   5   10
+/// sample2 5   0   8
+/// sample3 10  8   0
+fn parse_distance_matrix_tsv(path: &str) -> Result<PipelineDistanceMatrix> {
+    let content = std::fs::read_to_string(path)
+        .with_context(|| format!("Failed to read distance matrix file: {}", path))?;
+
+    let mut lines = content.lines().peekable();
+
+    // Parse header to get sample order
+    let header = lines.next()
+        .ok_or_else(|| anyhow::anyhow!("Empty distance matrix file"))?;
+
+    let samples: Vec<String> = header
+        .split('\t')
+        .skip(1) // Skip first column (row labels)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.trim().to_string())
+        .collect();
+
+    if samples.is_empty() {
+        anyhow::bail!("No sample names found in distance matrix header");
+    }
+
+    // Parse matrix rows
+    let mut matrix: Vec<Vec<i64>> = Vec::new();
+    for line in lines {
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let parts: Vec<&str> = line.split('\t').collect();
+        if parts.len() < 2 {
+            continue;
+        }
+
+        // Skip row label, parse distances
+        let row: Vec<i64> = parts[1..]
+            .iter()
+            .filter(|s| !s.is_empty())
+            .map(|s| s.trim().parse::<i64>().unwrap_or(0))
+            .collect();
+
+        if row.len() == samples.len() {
+            matrix.push(row);
+        }
+    }
+
+    if matrix.len() != samples.len() {
+        anyhow::bail!(
+            "Matrix dimensions mismatch: {} samples but {} rows",
+            samples.len(),
+            matrix.len()
+        );
+    }
+
+    Ok(PipelineDistanceMatrix { samples, matrix })
 }
 
 /// Load gaps from BAM using samtools depth

@@ -1141,12 +1141,17 @@
         <details class="collapsible-panel" id="distance-matrix-panel">
             <summary>SNP Distance Matrix <span id="matrix-info"></span></summary>
             <div class="distance-matrix-content" id="distance-matrix-content">
-                <div style="display:flex;align-items:center;gap:15px;margin:10px 0;">
+                <div style="display:flex;align-items:center;gap:15px;margin:10px 0;flex-wrap:wrap;">
                     <label style="color:var(--text-secondary);font-size:11px;">Pipeline:
-                        <select id="matrix-pipeline" style="margin-left:5px;background:var(--btn-bg);color:var(--text-primary);border:1px solid var(--btn-border);padding:4px 8px;border-radius:4px;font-size:11px;">
+                        <select id="matrix-pipeline" onchange="onMatrixPipelineChange()" style="margin-left:5px;background:var(--btn-bg);color:var(--text-primary);border:1px solid var(--btn-border);padding:4px 8px;border-radius:4px;font-size:11px;">
                         </select>
                     </label>
-                    <label style="color:var(--text-secondary);font-size:11px;">Mode:
+                    <label style="color:var(--text-secondary);font-size:11px;">Source:
+                        <select id="matrix-source" onchange="onMatrixSourceChange()" style="margin-left:5px;background:var(--btn-bg);color:var(--text-primary);border:1px solid var(--btn-border);padding:4px 8px;border-radius:4px;font-size:11px;">
+                            <option value="coreguard">CoreGuard (calculated)</option>
+                        </select>
+                    </label>
+                    <label id="matrix-mode-label" style="color:var(--text-secondary);font-size:11px;">Mode:
                         <select id="matrix-mode" style="margin-left:5px;background:var(--btn-bg);color:var(--text-primary);border:1px solid var(--btn-border);padding:4px 8px;border-radius:4px;font-size:11px;">
                             <option value="vcf_ref">VCF + Reference</option>
                             <option value="vcf_bam">VCF + BAM pileup</option>
@@ -1154,7 +1159,7 @@
                         </select>
                     </label>
                 </div>
-                <div style="display:flex;align-items:center;gap:15px;margin:10px 0;flex-wrap:wrap;">
+                <div id="matrix-calculate-row" style="display:flex;align-items:center;gap:15px;margin:10px 0;flex-wrap:wrap;">
                     <button onclick="calculateDistanceMatrix()" style="padding:8px 16px;background:var(--accent);color:white;border:none;border-radius:4px;cursor:pointer;">Calculate</button>
                     <span style="color:var(--text-secondary);font-size:11px;">(Uses global quality filters above)</span>
                 </div>
@@ -3239,15 +3244,120 @@
             }
         }
 
+        // Store pipeline distance matrices
+        let pipelineDistanceMatrices = {};
+
         function populateMatrixPipelineSelector() {
             const select = document.getElementById('matrix-pipeline');
             if (!select) return;
+
+            // Load pipeline distance matrices
+            try {
+                pipelineDistanceMatrices = JSON.parse(genomeData.get_pipeline_distance_matrices());
+                console.log('Pipeline distance matrices:', pipelineDistanceMatrices);
+            } catch (e) {
+                pipelineDistanceMatrices = {};
+            }
 
             select.innerHTML = '';
             for (const p of pipelines) {
                 const label = genomeData.get_pipeline_label(p);
                 select.innerHTML += `<option value="${p}">${label}</option>`;
             }
+
+            // Initialize source selector for first pipeline
+            onMatrixPipelineChange();
+        }
+
+        function onMatrixPipelineChange() {
+            const pipelineSelect = document.getElementById('matrix-pipeline');
+            const sourceSelect = document.getElementById('matrix-source');
+            if (!pipelineSelect || !sourceSelect) return;
+
+            const pipelineId = pipelineSelect.value;
+
+            // Reset source options
+            sourceSelect.innerHTML = '<option value="coreguard">CoreGuard (calculated)</option>';
+
+            // Add pipeline original if available
+            if (pipelineDistanceMatrices[pipelineId]) {
+                sourceSelect.innerHTML += `<option value="pipeline">Pipeline original</option>`;
+            }
+
+            onMatrixSourceChange();
+        }
+
+        function onMatrixSourceChange() {
+            const sourceSelect = document.getElementById('matrix-source');
+            const modeLabel = document.getElementById('matrix-mode-label');
+            const calculateRow = document.getElementById('matrix-calculate-row');
+            const matrixResult = document.getElementById('distance-matrix-result');
+
+            if (!sourceSelect) return;
+
+            const source = sourceSelect.value;
+
+            if (source === 'pipeline') {
+                // Hide mode and calculate button for pipeline matrices
+                if (modeLabel) modeLabel.style.display = 'none';
+                if (calculateRow) calculateRow.style.display = 'none';
+                // Show pipeline matrix immediately
+                showPipelineMatrix();
+            } else {
+                // Show mode and calculate button for CoreGuard
+                if (modeLabel) modeLabel.style.display = '';
+                if (calculateRow) calculateRow.style.display = '';
+                // Clear result to prompt calculation
+                if (matrixResult) matrixResult.innerHTML = '<p style="color:var(--text-secondary);font-size:11px;">Click "Calculate" to compute distance matrix.</p>';
+            }
+        }
+
+        function showPipelineMatrix() {
+            const pipelineSelect = document.getElementById('matrix-pipeline');
+            const matrixResult = document.getElementById('distance-matrix-result');
+            if (!pipelineSelect || !matrixResult) return;
+
+            const pipelineId = pipelineSelect.value;
+            const pipelineLabel = genomeData.get_pipeline_label(pipelineId);
+            const matrixData = pipelineDistanceMatrices[pipelineId];
+
+            if (!matrixData) {
+                matrixResult.innerHTML = '<p style="color:var(--text-secondary);font-size:11px;">No pipeline distance matrix available.</p>';
+                return;
+            }
+
+            const { samples: matrixSamples, matrix } = matrixData;
+
+            // Get sample labels
+            const labels = matrixSamples.map(s => genomeData.get_sample_label(s));
+
+            // Build table HTML
+            let html = `<p style="color:var(--accent);font-size:11px;margin-bottom:8px;">
+                <strong>Source:</strong> Pre-computed by ${pipelineLabel} pipeline
+            </p>`;
+            html += '<div class="table-wrapper"><table class="distance-matrix-table"><thead><tr><th></th>';
+            for (const label of labels) {
+                html += `<th>${label}</th>`;
+            }
+            html += '</tr></thead><tbody>';
+
+            for (let i = 0; i < matrixSamples.length; i++) {
+                html += `<tr><th>${labels[i]}</th>`;
+                for (let j = 0; j < matrixSamples.length; j++) {
+                    const dist = matrix[i][j];
+                    let cellClass = 'diagonal';
+                    if (i !== j) {
+                        if (dist <= 5) cellClass = 'low-dist';
+                        else if (dist <= 20) cellClass = 'medium-dist';
+                        else cellClass = 'high-dist';
+                    }
+                    html += `<td class="${cellClass}">${dist}</td>`;
+                }
+                html += '</tr>';
+            }
+            html += '</tbody></table></div>';
+
+            matrixResult.innerHTML = html;
         }
 
         function populateCoverageStats() {

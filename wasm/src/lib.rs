@@ -57,6 +57,16 @@ struct JsonReport {
     /// Description (markdown content)
     #[serde(default)]
     description: Option<String>,
+    /// Pre-computed distance matrices from pipelines
+    #[serde(default)]
+    pipeline_distance_matrices: HashMap<String, JsonPipelineDistanceMatrix>,
+}
+
+/// Pre-computed distance matrix from a pipeline
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct JsonPipelineDistanceMatrix {
+    samples: Vec<String>,
+    matrix: Vec<Vec<i64>>,
 }
 
 /// Polymorphic site data for distance matrix calculation
@@ -222,6 +232,8 @@ pub struct GenomeData {
     polymorphic_refs: HashMap<String, HashMap<u32, char>>,
     /// Description (markdown content)
     description: Option<String>,
+    /// Pre-computed distance matrices from pipelines
+    pipeline_distance_matrices: HashMap<String, JsonPipelineDistanceMatrix>,
 }
 
 #[wasm_bindgen]
@@ -251,6 +263,7 @@ impl GenomeData {
             polymorphic_sites: HashMap::new(),
             polymorphic_refs: HashMap::new(),
             description: None,
+            pipeline_distance_matrices: HashMap::new(),
         }
     }
 
@@ -298,6 +311,7 @@ impl GenomeData {
         self.ground_truth_pileup = report.summary.ground_truth_pileup;
         self.mnp_stats = report.summary.mnp_stats;
         self.description = report.description;
+        self.pipeline_distance_matrices = report.pipeline_distance_matrices;
 
         // Load sample labels
         for (id, info) in &report.samples {
@@ -593,6 +607,18 @@ impl GenomeData {
         match &self.description {
             Some(desc) => desc.clone(),
             None => "".to_string(),
+        }
+    }
+
+    /// Get pre-computed distance matrices from pipelines
+    /// Returns: JSON object { pipeline_id: { samples: [...], matrix: [[...], ...] } }
+    #[wasm_bindgen]
+    pub fn get_pipeline_distance_matrices(&self) -> String {
+        if self.pipeline_distance_matrices.is_empty() {
+            "{}".to_string()
+        } else {
+            serde_json::to_string(&self.pipeline_distance_matrices)
+                .unwrap_or_else(|_| "{}".to_string())
         }
     }
 

@@ -445,6 +445,15 @@
         .stats-table .good { color: #81c784; }
         .stats-table .warning { color: #ffd54f; }
         .stats-table .bad { color: #e57373; }
+        .stats-table .info-icon {
+            cursor: pointer;
+            opacity: 0.5;
+            font-size: 11px;
+            margin-left: 3px;
+        }
+        .stats-table .info-icon:hover {
+            opacity: 1;
+        }
         .filters {
             display: flex;
             gap: 8px;
@@ -1885,8 +1894,8 @@
             await new Promise(r => requestAnimationFrame(r));
 
             try {
-                // Try JSON format (more reliable than binary across versions)
-                const response = await fetch('demo.json.gz');
+                // Load binary format (faster than JSON)
+                const response = await fetch('demo.bin.gz');
                 if (!response.ok) throw new Error('Failed to fetch demo file');
 
                 const compressedSize = parseInt(response.headers.get('content-length') || '0');
@@ -1895,14 +1904,14 @@
                 const arrayBuffer = await response.arrayBuffer();
 
                 showLoader('Decompressing...', '0 MB');
-                const text = await decompressGzipWithProgress(arrayBuffer, (bytes) => {
+                const binaryData = await decompressGzipBinary(arrayBuffer, (bytes) => {
                     showLoader('Decompressing...', `${(bytes / 1024 / 1024).toFixed(1)} MB`);
                 });
 
-                showLoader('Parsing JSON...', `${(text.length / 1024 / 1024).toFixed(1)} MB`);
+                showLoader('Parsing binary...', `${(binaryData.length / 1024 / 1024).toFixed(0)} MB`);
                 await new Promise(r => setTimeout(r, 50));
 
-                genomeData.load_json(text);
+                genomeData.load_binary(binaryData);
 
                 showLoader('Preparing view...', '');
                 await new Promise(r => requestAnimationFrame(r));
@@ -2512,19 +2521,20 @@
                 const allPipelines = sortedPipelineEntries(kpis.snps).map(([p]) => p);
                 const getShortLabel = (p) => genomeData.get_pipeline_label(p).split(' ')[0];
 
+                html += `<div style="font-size:11px;color:var(--text-secondary);margin-bottom:5px;">SNP positions shared between pipelines. % = shared / min(SNPs<sub>A</sub>, SNPs<sub>B</sub>)</div>`;
                 html += `<table class="kpi-table">
                     <thead>
                         <tr>
                             <th></th>
-                            <th colspan="2" style="text-align:center;">Concordance ${infoIcon('concordance')}</th>
-                            <th colspan="2" style="text-align:center;">Consensus ${infoIcon('consensus')}</th>
+                            <th colspan="2" style="text-align:center;">Concordance (same position) ${infoIcon('concordance')}</th>
+                            <th colspan="2" style="text-align:center;">Consensus (same allele) ${infoIcon('consensus')}</th>
                         </tr>
                         <tr>
                             <th>A ∩ B</th>
-                            <th style="text-align:center;" title="At least 1 sample has SNP in both pipelines. % relative to min(SNPs_A, SNPs_B)">Any</th>
-                            <th style="text-align:center;" title="ALL samples have SNP in both pipelines (Core ∩ Core). % relative to min(SNPs_A, SNPs_B)">All</th>
-                            <th style="text-align:center;" title="At least 1 sample has same allele in both pipelines. % relative to min(SNPs_A, SNPs_B)">Any</th>
-                            <th style="text-align:center;" title="ALL samples have same allele in both pipelines. % relative to min(SNPs_A, SNPs_B)">All</th>
+                            <th style="text-align:center;" title="At least 1 sample has SNP in both pipelines. % = shared / min(SNPs_A, SNPs_B)">Any</th>
+                            <th style="text-align:center;" title="ALL samples have SNP in both pipelines (Core ∩ Core). % = shared / min(SNPs_A, SNPs_B)">All</th>
+                            <th style="text-align:center;" title="At least 1 sample has same allele in both pipelines. % = shared / min(SNPs_A, SNPs_B)">Any</th>
+                            <th style="text-align:center;" title="ALL samples have same allele in both pipelines. % = shared / min(SNPs_A, SNPs_B)">All</th>
                         </tr>
                     </thead>
                     <tbody>`;

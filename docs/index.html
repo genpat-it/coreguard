@@ -3269,7 +3269,7 @@
             onMatrixPipelineChange();
         }
 
-        function onMatrixPipelineChange() {
+        window.onMatrixPipelineChange = function() {
             const pipelineSelect = document.getElementById('matrix-pipeline');
             const sourceSelect = document.getElementById('matrix-source');
             if (!pipelineSelect || !sourceSelect) return;
@@ -3287,7 +3287,7 @@
             onMatrixSourceChange();
         }
 
-        function onMatrixSourceChange() {
+        window.onMatrixSourceChange = function() {
             const sourceSelect = document.getElementById('matrix-source');
             const modeLabel = document.getElementById('matrix-mode-label');
             const calculateRow = document.getElementById('matrix-calculate-row');

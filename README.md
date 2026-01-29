@@ -4,7 +4,7 @@ Pipeline-agnostic SNP comparison tool for bacterial genomics.
 
 ## Overview
 
-CoreGuard compares SNP calls from multiple pipelines (Snippy, CFSAN, GATK, etc.), helping identify discrepancies and artifacts in variant calling. Optionally, a ground truth alignment can be used to detect coverage gaps.
+CoreGuard compares SNP calls from multiple pipelines (Snippy, CFSAN, GATK, etc.), helping identify discrepancies and artifacts in variant calling. Optionally, a ground truth alignment can be used to detect coverage gaps and validate SNP calls.
 
 **Live Viewer:** [https://genpat-it.github.io/coreguard/](https://genpat-it.github.io/coreguard/)
 
@@ -30,12 +30,35 @@ Different SNP pipelines can produce different results on the same data. This mat
 
 ## Features
 
-- **Multi-pipeline comparison**: Compare SNP calls from different pipelines side-by-side
-- **Ground truth support** (optional): Designate a baseline BAM alignment for gap detection
-- **Interactive viewer**: Navigate through genomic positions with zoom/pan
+### Core Features
+- **Multi-pipeline comparison**: Compare SNP calls from any number of pipelines side-by-side
+- **Ground truth support** (optional): Designate a baseline BAM alignment for gap detection and validation
+- **Interactive viewer**: Navigate through genomic positions with zoom/pan on HTML5 Canvas
+- **Client-side processing**: Viewer runs entirely in the browser via WebAssembly (no server needed)
+
+### SNP Analysis
 - **Smart filtering**: Filter by consensus, discordant calls, gaps, and pipeline-specific SNPs
-- **Distance matrix**: Calculate pairwise SNP distances between samples
-- **Client-side processing**: Viewer runs entirely in the browser via WebAssembly
+- **MNP decomposition**: Multi-nucleotide polymorphisms (e.g., `TTGGCG→CCGGCT`) are automatically decomposed into individual SNPs
+- **Distance matrix**: Calculate pairwise SNP distances between samples per pipeline
+- **Polymorphic sites**: Identify positions where samples differ from each other
+
+### Statistics & KPIs
+- **Per-Pipeline Statistics**: SNPs, gaps, #All (core), #Consensus counts per pipeline
+- **Per-Sample Statistics**: Detailed breakdown per sample with agreement metrics
+- **Cross-Pipeline Concordance**: Pairwise comparison of SNP positions between pipelines
+- **Cross-Pipeline Gap Analysis**: SNPs from each pipeline falling in gap regions of other pipelines
+- **Coverage Statistics**: Depth, quality, and consensus metrics per sample/pipeline
+
+### Ground Truth Comparison
+- **SNPs in GT Gaps**: Detect SNPs called in low-coverage regions of the ground truth
+- **GT SNPs Filtered**: Identify ground truth SNPs missed by other pipelines
+- **BAM Pileup Warning**: Visual indicator when GT SNPs come from BAM pileup (no variant calling)
+
+### User Interface
+- **Dark/Light theme**: Toggle between themes
+- **Collapsible panels**: Organize information in expandable sections
+- **Info icons**: Hover/click for detailed explanations of each metric
+- **Export options**: Download distance matrices and statistics
 
 ## Installation
 
@@ -94,7 +117,7 @@ pipelines:
         vcf: snippy/sample3/snps.vcf
         bam: snippy/sample3/snps.bam
 
-  # Another pipeline (VCF only)
+  # Another pipeline (VCF only - no gap info)
   cfsan:
     label: "CFSAN SNP Pipeline"
     command: "cfsan_snp_pipeline run -m soft -o output reference.fasta"
@@ -115,12 +138,21 @@ options:
 ### 2. Generate the comparison report
 
 ```bash
+# JSON format (human-readable)
 coreguard compare --config project.yaml -o report.json
+
+# Binary format with gzip compression (recommended for large datasets, ~10x faster loading)
+coreguard compare --config project.yaml -o report.bin.gz --binary --gzip
+
+# Compact JSON with gzip
+coreguard compare --config project.yaml -o report.json.gz --gzip --compact
 ```
 
 ### 3. Visualize the results
 
-Open [https://genpat-it.github.io/coreguard/](https://genpat-it.github.io/coreguard/) and load your `report.json` file.
+Open [https://genpat-it.github.io/coreguard/](https://genpat-it.github.io/coreguard/) and drag & drop your report file.
+
+Supported formats: `.json`, `.json.gz`, `.bin`, `.bin.gz`
 
 ## Configuration Options
 
@@ -129,23 +161,54 @@ Open [https://genpat-it.github.io/coreguard/](https://genpat-it.github.io/coregu
 | `min_depth` | Minimum read depth to consider position covered | 1 |
 | `min_qual` | Minimum SNP quality score to include | 20 |
 | `include_indels` | Include insertions/deletions | false |
+
+### Pipeline Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
 | `ground_truth` | Mark pipeline as ground truth (BAM-only baseline) | false |
-| `command` | Command line used to run the pipeline (shown in viewer) | - |
+| `label` | Display name in the viewer | pipeline ID |
+| `command` | Command line used (shown in viewer for reproducibility) | - |
+
+### Per-Sample Options
+
+| Option | Description |
+|--------|-------------|
+| `vcf` | Path to VCF file with SNP calls |
+| `bam` | Path to BAM file for coverage/gap detection |
+
+## Output Formats
+
+| Format | Extension | Pros | Cons |
+|--------|-----------|------|------|
+| JSON | `.json` | Human-readable, debuggable | Large files, slower parsing |
+| JSON gzip | `.json.gz` | Smaller download | Still slower parsing |
+| Binary | `.bin` | Fast parsing (~10x) | Not human-readable |
+| Binary gzip | `.bin.gz` | Fast + small | Not human-readable |
+
+**Recommendation**: Use `--binary --gzip` for production, JSON for debugging.
 
 ## Technology
 
-- **CLI**: Rust
+- **CLI**: Rust (fast VCF/BAM processing)
 - **Viewer**: Vanilla JavaScript + HTML5 Canvas
-- **Computation**: Rust compiled to WebAssembly (runs in browser)
+- **Computation**: Rust compiled to WebAssembly (runs entirely in browser)
+- **No backend required**: All processing happens client-side
+
+## Dependencies
+
+The CLI requires `samtools` to be installed and available in PATH for BAM depth calculation.
 
 ## Citation
 
-*Paper in progress*
+*Paper in preparation*
 
 ## License
 
-MIT License
+MIT License - see [LICENSE](LICENSE)
 
 ## Author
 
-GenPat Team - genpat@izs.it
+Andrea De Ruvo - GenPat Team, IZSNT
+
+Contact: genpat@izs.it

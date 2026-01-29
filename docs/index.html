@@ -1998,12 +1998,17 @@
             const vcfPipelines = JSON.parse(genomeData.get_vcf_pipelines());
             const container = document.getElementById('pipelines-info');
 
+            console.log('Pipeline IDs:', pipelineIds);
+            console.log('VCF Pipelines:', vcfPipelines);
+            console.log('GT Pipeline:', genomeData.get_ground_truth_pipeline());
+
             let html = '';
             for (const pipelineId of pipelineIds) {
                 const label = genomeData.get_pipeline_label(pipelineId);
                 const command = genomeData.get_pipeline_command(pipelineId);
                 const isGroundTruth = genomeData.is_ground_truth(pipelineId);
                 const hasVcf = vcfPipelines.includes(pipelineId);
+                console.log(`Pipeline ${pipelineId}: isGT=${isGroundTruth}, hasVcf=${hasVcf}`);
 
                 html += `<div class="pipeline-info-item">`;
                 html += `<div class="pipeline-name">${label}`;

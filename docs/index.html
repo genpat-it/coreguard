@@ -1814,7 +1814,7 @@
         // Worker API - promise-based interface to the worker
         class WorkerAPI {
             constructor() {
-                this.worker = new Worker('./worker.js');
+                this.worker = new Worker('./worker.js', { type: 'module' });
                 this.pending = new Map();
                 this.nextId = 0;
                 this.ready = false;

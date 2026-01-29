@@ -1685,6 +1685,19 @@
             });
         }
 
+        // Fast decompression using native DecompressionStream API (fallback to pako)
+        async function decompressGzip(arrayBuffer) {
+            // Try native DecompressionStream first (much faster)
+            if (typeof DecompressionStream !== 'undefined') {
+                const stream = new Response(arrayBuffer).body
+                    .pipeThrough(new DecompressionStream('gzip'));
+                return await new Response(stream).text();
+            }
+            // Fallback to pako for older browsers
+            const compressed = new Uint8Array(arrayBuffer);
+            return pako.inflate(compressed, { to: 'string' });
+        }
+
         async function loadDemo() {
             showLoader('Loading demo...', 'Fetching demo data');
             await new Promise(r => requestAnimationFrame(r));
@@ -1693,14 +1706,11 @@
                 const response = await fetch('demo.json.gz');
                 if (!response.ok) throw new Error('Failed to fetch demo file');
 
-                showLoader('Decompressing...', 'Reading gzipped data');
+                showLoader('Decompressing...', 'Using native decoder');
                 await new Promise(r => requestAnimationFrame(r));
                 const arrayBuffer = await response.arrayBuffer();
-                const compressed = new Uint8Array(arrayBuffer);
 
-                showLoader('Decompressing...', 'Inflating');
-                const decompressed = pako.inflate(compressed, { to: 'string' });
-                const text = decompressed;
+                const text = await decompressGzip(arrayBuffer);
 
                 showLoader('Parsing JSON...', `${(text.length / 1024 / 1024).toFixed(1)} MB uncompressed`);
                 await new Promise(r => requestAnimationFrame(r));
@@ -1769,14 +1779,11 @@
                 const isGzip = file.name.endsWith('.gz');
 
                 if (isGzip) {
-                    showLoader('Decompressing...', 'Reading gzipped data');
+                    showLoader('Decompressing...', 'Using native decoder');
                     await new Promise(r => requestAnimationFrame(r));
                     const arrayBuffer = await file.arrayBuffer();
-                    const compressed = new Uint8Array(arrayBuffer);
 
-                    showLoader('Decompressing...', 'Inflating');
-                    const decompressed = pako.inflate(compressed, { to: 'string' });
-                    text = decompressed;
+                    text = await decompressGzip(arrayBuffer);
                     showLoader('Parsing JSON...', `${(text.length / 1024 / 1024).toFixed(1)} MB uncompressed`);
                 } else {
                     showLoader('Reading file...', '');
@@ -2267,11 +2274,12 @@
                 html += `<table class="kpi-table">
                     <thead>
                         <tr>
-                            <th rowspan="2">A ∩ B</th>
-                            <th colspan="2" style="text-align:center;border-bottom:1px solid var(--border-color);">Concordance ${infoIcon('concordance')}</th>
-                            <th colspan="2" style="text-align:center;border-bottom:1px solid var(--border-color);">Consensus ${infoIcon('consensus')}</th>
+                            <th></th>
+                            <th colspan="2" style="text-align:center;">Concordance ${infoIcon('concordance')}</th>
+                            <th colspan="2" style="text-align:center;">Consensus ${infoIcon('consensus')}</th>
                         </tr>
                         <tr>
+                            <th>A ∩ B</th>
                             <th title="At least 1 sample has SNP in both pipelines">Any</th>
                             <th title="ALL samples have SNP in both pipelines (Core ∩ Core)">All</th>
                             <th title="At least 1 sample has same allele in both pipelines">Any</th>

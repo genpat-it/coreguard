@@ -50,7 +50,7 @@ struct JsonReport {
     samples: HashMap<String, JsonSampleInfo>,
     pipelines: HashMap<String, JsonPipelineInfo>,
     data: HashMap<String, HashMap<String, JsonPipelineData>>,
-    /// Polymorphic sites per pipeline: pipeline_id -> position -> site data
+    /// Polymorphic sites per pipeline: pipeline_id -> position (as string) -> site data
     #[serde(default)]
     polymorphic_sites: HashMap<String, HashMap<String, JsonPolymorphicSite>>,
     summary: JsonSummary,

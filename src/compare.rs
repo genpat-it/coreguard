@@ -32,9 +32,9 @@ pub struct CompareReport {
     pub data: HashMap<String, HashMap<String, PipelineData>>,
 
     /// Polymorphic sites for distance matrix calculation (per pipeline)
-    /// Key: pipeline_id -> position (0-based) -> allele data per sample
+    /// Key: pipeline_id -> position (as string for JSON compatibility) -> allele data per sample
     #[serde(skip_serializing_if = "HashMap::is_empty", default)]
-    pub polymorphic_sites: HashMap<String, HashMap<u32, PolymorphicSite>>,
+    pub polymorphic_sites: HashMap<String, HashMap<String, PolymorphicSite>>,
 
     /// Summary statistics
     pub summary: Summary,
@@ -831,7 +831,7 @@ fn build_polymorphic_sites(
     config: &Config,
     ref_name: &str,
     ref_seq: &str,
-) -> Result<HashMap<String, HashMap<u32, PolymorphicSite>>> {
+) -> Result<HashMap<String, HashMap<String, PolymorphicSite>>> {
     use std::collections::HashSet;
 
     // Step 1: Collect SNP positions PER PIPELINE (not across all pipelines)
@@ -861,7 +861,7 @@ fn build_polymorphic_sites(
     }
 
     // Step 2: Build polymorphic sites for EACH pipeline using only THAT pipeline's positions
-    let mut result: HashMap<String, HashMap<u32, PolymorphicSite>> = HashMap::new();
+    let mut result: HashMap<String, HashMap<String, PolymorphicSite>> = HashMap::new();
 
     for pipeline_id in pipeline_ids {
         // Get positions for THIS pipeline only
@@ -922,7 +922,7 @@ fn build_polymorphic_sites(
         }
 
         // Build sites and filter to core polymorphic positions
-        let mut pipeline_sites: HashMap<u32, PolymorphicSite> = HashMap::new();
+        let mut pipeline_sites: HashMap<String, PolymorphicSite> = HashMap::new();
         let mut core_count = 0u32;
 
         for &pos in &positions {
@@ -1038,7 +1038,7 @@ fn build_polymorphic_sites(
             };
 
             if is_polymorphic {
-                pipeline_sites.insert(pos, PolymorphicSite {
+                pipeline_sites.insert(pos.to_string(), PolymorphicSite {
                     ref_allele: ref_char,
                     alleles,
                 });

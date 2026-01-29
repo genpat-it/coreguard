@@ -1191,18 +1191,10 @@ impl GenomeData {
 
                     match (samples_a, samples_b) {
                         (Some(sa), Some(sb)) => {
-                            // Position exists in both pipelines
-                            concordance_any += 1;
-
-                            // Check if ALL samples have this position in both
-                            if sa.len() == num_samples && sb.len() == num_samples {
-                                concordance_all += 1;
-                            }
-
-                            // Check consensus (same allele)
+                            // Count samples that have SNP in BOTH pipelines at this position
+                            let mut samples_with_both = 0;
                             let mut any_same_allele = false;
                             let mut all_same_allele = true;
-                            let mut samples_with_both = 0;
 
                             for (sample_id, alt_a) in sa {
                                 if let Some(alt_b) = sb.get(sample_id) {
@@ -1215,11 +1207,22 @@ impl GenomeData {
                                 }
                             }
 
+                            // concordance_any: at least 1 sample has SNP in BOTH pipelines
+                            if samples_with_both > 0 {
+                                concordance_any += 1;
+                            }
+
+                            // concordance_all: ALL samples have SNP in BOTH pipelines
+                            if samples_with_both == num_samples {
+                                concordance_all += 1;
+                            }
+
+                            // consensus_any: at least 1 sample has SAME allele in both
                             if any_same_allele {
                                 consensus_any += 1;
                             }
 
-                            // For consensus_all, ALL samples must have same allele in both pipelines
+                            // consensus_all: ALL samples have SAME allele in both pipelines
                             if samples_with_both == num_samples && all_same_allele {
                                 consensus_all += 1;
                             }

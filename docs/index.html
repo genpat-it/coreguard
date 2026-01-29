@@ -1018,13 +1018,13 @@
         <div style="max-width: 700px; text-align: left;">
             <h2 style="text-align: center; margin-bottom: 1.5rem;">SNP Pipeline Comparison Viewer</h2>
 
-            <div style="display: flex; gap: 2rem; margin-bottom: 1.5rem;">
-                <div style="flex: 1;">
+            <div style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="background: var(--bg-tertiary); padding: 1rem; border-radius: 8px; border-left: 3px solid var(--accent);">
                     <div style="color: var(--accent); font-weight: bold; margin-bottom: 0.5rem;">1. Generate a report</div>
                     <p style="font-size: 12px; margin: 0 0 0.5rem 0;">Create a YAML config with your VCF/BAM files, then run:</p>
-                    <code style="display: block; background: var(--bg-tertiary); padding: 8px 12px; border-radius: 4px; font-size: 11px; white-space: nowrap; overflow-x: auto;">coreguard compare --config project.yaml -o report.bin.gz --binary --gzip</code>
+                    <code style="display: block; background: var(--bg-primary); padding: 8px 12px; border-radius: 4px; font-size: 11px; overflow-x: auto;">coreguard compare --config project.yaml -o report.bin.gz --binary --gzip</code>
                 </div>
-                <div style="flex: 1;">
+                <div style="background: var(--bg-tertiary); padding: 1rem; border-radius: 8px; border-left: 3px solid var(--accent);">
                     <div style="color: var(--accent); font-weight: bold; margin-bottom: 0.5rem;">2. Upload and visualize</div>
                     <p style="font-size: 12px; margin: 0 0 0.5rem 0;">Drop your report file here or click to browse:</p>
                     <div style="display: flex; gap: 0.5rem; align-items: center;">

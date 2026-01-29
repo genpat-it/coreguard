@@ -948,9 +948,11 @@
             margin-top: 10px;
             font-size: 10px;
             border-collapse: collapse;
-            max-width: 100%;
+            width: 100%;
+        }
+        .table-wrapper {
             overflow-x: auto;
-            display: block;
+            width: 100%;
         }
         .distance-matrix-table th,
         .distance-matrix-table td {
@@ -3149,7 +3151,7 @@
                     return `${(min*100).toFixed(0)}-${(max*100).toFixed(0)}% (${(avg*100).toFixed(1)}%)`;
                 };
 
-                let html = '<table class="distance-matrix-table" style="font-size:10px;width:100%;">';
+                let html = '<div class="table-wrapper"><table class="distance-matrix-table" style="font-size:10px;">';
                 html += '<thead><tr><th>Sample</th>';
                 for (const p of pipelines) {
                     const label = genomeData.get_pipeline_label(p);
@@ -3192,7 +3194,7 @@
                     }
                     html += '</tr>';
                 }
-                html += '</tbody></table>';
+                html += '</tbody></table></div>';
 
                 html += '<p style="color:var(--text-secondary);font-size:10px;margin-top:8px;">';
                 html += 'Values show min-max (avg). Depth color: <span style="color:var(--snp-consensus);">≥20x</span> | <span style="color:var(--snp-uncertain);">10-20x</span> | <span style="color:var(--snp-discord);">&lt;10x</span>';

@@ -577,6 +577,28 @@ impl CompareReport {
         encoder.finish()?;
         Ok(())
     }
+
+    /// Save report to binary format (bincode) - ~10x faster to parse
+    pub fn save_binary<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        let binary = bincode::serialize(self)?;
+        std::fs::write(path.as_ref(), binary)?;
+        Ok(())
+    }
+
+    /// Save report to gzipped binary format (bincode)
+    pub fn save_binary_gzip<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        use flate2::write::GzEncoder;
+        use flate2::Compression;
+        use std::io::Write;
+
+        let file = std::fs::File::create(path.as_ref())?;
+        let mut encoder = GzEncoder::new(file, Compression::default());
+
+        let binary = bincode::serialize(self)?;
+        encoder.write_all(&binary)?;
+        encoder.finish()?;
+        Ok(())
+    }
 }
 
 /// Parse FASTA file, return (name, sequence)

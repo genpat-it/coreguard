@@ -42,7 +42,7 @@ struct SampleData {
 }
 
 /// Report schema matching the JSON from `coreguard compare`
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct JsonReport {
     #[serde(rename = "_version")]
     version: String,
@@ -57,7 +57,7 @@ struct JsonReport {
 }
 
 /// Polymorphic site data for distance matrix calculation
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct JsonPolymorphicSite {
     #[serde(rename = "ref")]
     ref_allele: char,
@@ -65,7 +65,7 @@ struct JsonPolymorphicSite {
 }
 
 /// Sample allele at a polymorphic site
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct JsonSampleAllele {
     base: char,
     source: String,
@@ -77,7 +77,7 @@ struct JsonSampleAllele {
     consensus: Option<f64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct JsonReference {
     name: String,
     label: Option<String>,
@@ -85,12 +85,12 @@ struct JsonReference {
     sequence: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct JsonSampleInfo {
     label: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct JsonPipelineInfo {
     label: Option<String>,
     command: Option<String>,
@@ -100,7 +100,7 @@ struct JsonPipelineInfo {
     ground_truth: bool,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 struct JsonPipelineData {
     #[serde(default)]
     gaps: Vec<[usize; 2]>,
@@ -112,7 +112,7 @@ struct JsonPipelineData {
     bam_path: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct JsonSnp {
     pos: usize,
     #[serde(rename = "ref")]
@@ -122,7 +122,7 @@ struct JsonSnp {
     dp: usize,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[allow(dead_code)]
 struct JsonSummary {
     total_samples: usize,
@@ -243,6 +243,20 @@ impl GenomeData {
         let report: JsonReport = serde_json::from_str(json)
             .map_err(|e| JsValue::from_str(&format!("JSON parse error: {}", e)))?;
 
+        self.load_report(report)
+    }
+
+    /// Load data from binary (bincode) report - faster than JSON
+    #[wasm_bindgen]
+    pub fn load_binary(&mut self, data: &[u8]) -> Result<(), JsValue> {
+        let report: JsonReport = bincode::deserialize(data)
+            .map_err(|e| JsValue::from_str(&format!("Bincode parse error: {}", e)))?;
+
+        self.load_report(report)
+    }
+
+    /// Common logic for loading a parsed report (used by both load_json and load_binary)
+    fn load_report(&mut self, report: JsonReport) -> Result<(), JsValue> {
         // Clear existing data
         self.samples.clear();
         self.sample_labels.clear();

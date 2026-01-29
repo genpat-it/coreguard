@@ -35,6 +35,7 @@ pipelines:
   snippy:
     label: "Snippy"
     command: "snippy --reference ref.fa --R1 reads_1.fq.gz --R2 reads_2.fq.gz --outdir out"
+    distance_matrix: /home/IZSNT/a.deruvo/snps-study/results/analysis_outputs/snippy_snp_distance_matrix.tsv
     samples:
       TE15676:
         vcf: /home/IZSNT/a.deruvo/snps-study/results/TE15676_snippy/TE15676_snippy.vcf
@@ -52,6 +53,7 @@ pipelines:
   cfsan:
     label: "CFSAN"
     command: "cfsan_snp_pipeline run -s samples/ -o output/ reference.fasta"
+    distance_matrix: /home/IZSNT/a.deruvo/snps-study/results/cfsan/snp_distance_matrix.tsv
     samples:
       TE15676:
         vcf: /home/IZSNT/a.deruvo/snps-study/results/cfsan/samples/TE15676/var.flt.vcf

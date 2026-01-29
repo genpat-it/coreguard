@@ -1375,6 +1375,18 @@
                        <p>This is a raw count of positions where the consensus base from read alignments differs from the reference.</p>
                        <p><strong>Purpose:</strong> Provides a baseline for comparing how many potential variants each pipeline reports vs. the raw signal in the data.</p>`
             },
+            'bam_pileup': {
+                title: 'BAM Pileup Warning',
+                body: `<p>⚠️ <strong>These SNPs were derived from BAM pileup analysis</strong>, not from a variant calling pipeline.</p>
+                       <p><strong>What this means:</strong></p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li>No variant calling filters were applied (QUAL, depth, etc.)</li>
+                           <li>SNPs are raw differences between reads and reference</li>
+                           <li>May include sequencing errors and low-confidence calls</li>
+                           <li>Counts are typically higher than filtered VCF pipelines</li>
+                       </ul>
+                       <p><strong>Use case:</strong> Ground truth baseline for comparing pipeline filtering behavior.</p>`
+            },
             'vs_gt': {
                 title: 'Pipeline vs Ground Truth',
                 body: `<p>Comparison of this pipeline's SNP count against the Ground Truth pileup count.</p>
@@ -2354,6 +2366,7 @@
                 const consCount = kpis.consensus_snps ? (kpis.consensus_snps[pipeline] || 0) : 0;
                 const mStats = mnpStats ? mnpStats[pipeline] : null;
                 const mnpCount = mStats ? mStats.mnps_found : 0;
+                const isFromBamPileup = genomeData.is_from_bam_pileup(pipeline);
 
                 // Calculate percentages
                 const totalBases = refLength * kpis.samples;
@@ -2384,10 +2397,12 @@
 
                 // Warning icon for MNPs
                 const mnpWarning = mnpCount > 0 ? `<span class="mnp-warning" onclick="event.stopPropagation();showKpiInfo('mnp')" title="Click for MNP info">⚠️</span>` : '';
+                // Warning icon for BAM pileup (no variant calling)
+                const bamPileupWarning = isFromBamPileup ? `<span class="mnp-warning" style="color:#ff9800;" onclick="event.stopPropagation();showKpiInfo('bam_pileup')" title="SNPs from BAM pileup - no variant calling">⚠️</span>` : '';
 
                 html += `<tr>
                     <td>${label}</td>
-                    <td>${snpCount.toLocaleString()}<span class="pct">(${snpPct}%)</span>${snpDiff}</td>
+                    <td>${snpCount.toLocaleString()}<span class="pct">(${snpPct}%)</span>${bamPileupWarning}${snpDiff}</td>
                     <td>${gapCount.toLocaleString()}<span class="pct">(${gapPct}%)</span>${gapDiff}</td>
                     <td>${mnpCount.toLocaleString()}${mnpWarning}</td>
                     <td>${coreCount.toLocaleString()}<span class="pct">(${corePct}%)</span></td>

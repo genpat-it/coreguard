@@ -1384,7 +1384,7 @@ pipelines:
         </div>
 
         <div class="footer" id="footer">
-            <span>CoreGuard SNP Comparison Viewer</span>
+            <span onclick="goToLanding()" style="cursor: pointer;" title="Back to home">CoreGuard SNP Comparison Viewer</span>
             <span id="report-timestamp"></span>
             <a href="https://github.com/genpat-it/coreguard" target="_blank" style="color: inherit; text-decoration: none; margin-left: 1rem;" title="View on GitHub">
                 <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor" style="vertical-align: middle;">
@@ -2058,6 +2058,11 @@ pipelines:
 
         function hideLoader() {
             document.getElementById('loader').classList.remove('active');
+        }
+
+        function goToLanding() {
+            document.getElementById('viewer').classList.add('hidden');
+            document.getElementById('drop-zone').classList.remove('hidden');
         }
 
         // Progressive loading helpers

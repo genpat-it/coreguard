@@ -2084,6 +2084,7 @@ options:
             setSectionLoading('per-sample-stats', true, 'Building statistics...');
             setSectionLoading('coverage-stats-content', true, 'Loading coverage data...');
             setSectionLoading('matrix-result', true, 'Ready to calculate');
+            setSectionLoading('alignment', true, 'Positions will load after statistics...');
 
             // Phase 2: Quick stuff first (instant)
             await nextFrame();
@@ -2128,17 +2129,14 @@ options:
             await drawGenomeOverview();
             console.log(`Phase 7 (genome): ${(performance.now() - t0).toFixed(0)}ms`);
 
-            // Phase 8: Don't load positions automatically - too heavy
-            // Show a load button instead
-            document.getElementById('status').textContent = 'Click "Load Positions" or select a filter to view data';
-            document.getElementById('alignment').innerHTML =
-                `<div style="text-align:center;padding:40px;">
-                    <p style="color:var(--text-secondary);margin-bottom:16px;">Position data is not loaded by default (can be slow with large datasets).</p>
-                    <button onclick="loadAllPositions()" style="padding:8px 16px;background:var(--accent-color);color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;">
-                        Load All Positions
-                    </button>
-                </div>`;
-            console.log(`Phase 8 (positions deferred): ${(performance.now() - t0).toFixed(0)}ms`);
+            // Phase 8: Load positions in idle time (after UI is responsive)
+            setSectionLoading('alignment', true, 'Loading positions...');
+            document.getElementById('status').textContent = 'Loading positions...';
+            scheduleIdleTask(async () => {
+                await loadAllPositions();
+                console.log(`Phase 8 (positions): ${(performance.now() - t0).toFixed(0)}ms`);
+            });
+            console.log(`Phase 8 (positions scheduled): ${(performance.now() - t0).toFixed(0)}ms`);
 
             // Clear matrix placeholder
             document.getElementById('matrix-result').innerHTML =

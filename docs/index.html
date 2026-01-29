@@ -1685,13 +1685,30 @@
             });
         }
 
-        // Fast decompression using native DecompressionStream API (fallback to pako)
-        async function decompressGzip(arrayBuffer) {
-            // Try native DecompressionStream first (much faster)
+        // Streaming decompression with progress updates
+        async function decompressGzipWithProgress(arrayBuffer, onProgress) {
             if (typeof DecompressionStream !== 'undefined') {
+                // Native streaming decompression
                 const stream = new Response(arrayBuffer).body
                     .pipeThrough(new DecompressionStream('gzip'));
-                return await new Response(stream).text();
+                const reader = stream.getReader();
+                const decoder = new TextDecoder();
+                const chunks = [];
+                let totalBytes = 0;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    chunks.push(decoder.decode(value, { stream: true }));
+                    totalBytes += value.length;
+                    onProgress(totalBytes);
+                    // Yield to UI every few MB
+                    if (totalBytes % (2 * 1024 * 1024) < value.length) {
+                        await new Promise(r => requestAnimationFrame(r));
+                    }
+                }
+                chunks.push(decoder.decode()); // Flush
+                return chunks.join('');
             }
             // Fallback to pako for older browsers
             const compressed = new Uint8Array(arrayBuffer);
@@ -1706,13 +1723,17 @@
                 const response = await fetch('demo.json.gz');
                 if (!response.ok) throw new Error('Failed to fetch demo file');
 
-                showLoader('Decompressing...', 'Using native decoder');
+                const compressedSize = parseInt(response.headers.get('content-length') || '0');
+                showLoader('Downloading...', `${(compressedSize / 1024 / 1024).toFixed(1)} MB compressed`);
                 await new Promise(r => requestAnimationFrame(r));
                 const arrayBuffer = await response.arrayBuffer();
 
-                const text = await decompressGzip(arrayBuffer);
+                showLoader('Decompressing...', '0 MB');
+                const text = await decompressGzipWithProgress(arrayBuffer, (bytes) => {
+                    showLoader('Decompressing...', `${(bytes / 1024 / 1024).toFixed(1)} MB`);
+                });
 
-                showLoader('Parsing JSON...', `${(text.length / 1024 / 1024).toFixed(1)} MB uncompressed`);
+                showLoader('Parsing JSON...', `${(text.length / 1024 / 1024).toFixed(1)} MB`);
                 await new Promise(r => requestAnimationFrame(r));
 
                 showLoader('Loading data into viewer...', '');
@@ -1779,12 +1800,14 @@
                 const isGzip = file.name.endsWith('.gz');
 
                 if (isGzip) {
-                    showLoader('Decompressing...', 'Using native decoder');
+                    showLoader('Decompressing...', '0 MB');
                     await new Promise(r => requestAnimationFrame(r));
                     const arrayBuffer = await file.arrayBuffer();
 
-                    text = await decompressGzip(arrayBuffer);
-                    showLoader('Parsing JSON...', `${(text.length / 1024 / 1024).toFixed(1)} MB uncompressed`);
+                    text = await decompressGzipWithProgress(arrayBuffer, (bytes) => {
+                        showLoader('Decompressing...', `${(bytes / 1024 / 1024).toFixed(1)} MB`);
+                    });
+                    showLoader('Parsing JSON...', `${(text.length / 1024 / 1024).toFixed(1)} MB`);
                 } else {
                     showLoader('Reading file...', '');
                     text = await file.text();

@@ -3798,7 +3798,8 @@
             const snpColor = '#4ec9b0';  // Teal for SNPs
             const gapColor = 'rgba(244, 71, 71, 0.7)';  // Red for gaps
 
-            pipelines.forEach((pipeline, idx) => {
+            for (let idx = 0; idx < pipelines.length; idx++) {
+                const pipeline = pipelines[idx];
                 const y = (idx + 1) * (trackHeight + trackSpacing);
 
                 // Draw track background
@@ -3871,7 +3872,7 @@
                         ctx.fillRect(x, y + 1, width / binCount + 1, h);
                     }
                 }
-            });
+            }
 
             // Draw genome ruler
             ctx.fillStyle = textSecondary;

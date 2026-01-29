@@ -1885,8 +1885,8 @@
             await new Promise(r => requestAnimationFrame(r));
 
             try {
-                // Load binary format directly (10x faster than JSON)
-                const response = await fetch('demo.bin.gz');
+                // Try JSON format (more reliable than binary across versions)
+                const response = await fetch('demo.json.gz');
                 if (!response.ok) throw new Error('Failed to fetch demo file');
 
                 const compressedSize = parseInt(response.headers.get('content-length') || '0');
@@ -1895,14 +1895,14 @@
                 const arrayBuffer = await response.arrayBuffer();
 
                 showLoader('Decompressing...', '0 MB');
-                const binaryData = await decompressGzipBinary(arrayBuffer, (bytes) => {
+                const text = await decompressGzipWithProgress(arrayBuffer, (bytes) => {
                     showLoader('Decompressing...', `${(bytes / 1024 / 1024).toFixed(1)} MB`);
                 });
 
-                showLoader('Parsing binary...', `${(binaryData.length / 1024 / 1024).toFixed(0)} MB`);
+                showLoader('Parsing JSON...', `${(text.length / 1024 / 1024).toFixed(1)} MB`);
                 await new Promise(r => setTimeout(r, 50));
 
-                genomeData.load_binary(binaryData);
+                genomeData.load_json(text);
 
                 showLoader('Preparing view...', '');
                 await new Promise(r => requestAnimationFrame(r));

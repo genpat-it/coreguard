@@ -68,6 +68,10 @@ pub struct PipelineConfig {
     #[serde(default)]
     pub ground_truth: bool,
 
+    /// Path to pre-computed SNP distance matrix (TSV format, optional)
+    #[serde(default)]
+    pub distance_matrix: Option<String>,
+
     /// Sample files for this pipeline
     #[serde(default)]
     pub samples: HashMap<String, PipelineSampleFiles>,

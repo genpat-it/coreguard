@@ -1912,6 +1912,9 @@
             populatePerSampleStats();
             console.log(`Phase 5 (per-sample): ${(performance.now() - t0).toFixed(0)}ms`);
 
+            // Hide loader - core UI is now visible
+            hideLoader();
+
             // Phase 6: Heavy stuff in idle time
             scheduleIdleTask(() => {
                 populateCoverageStats();
@@ -1928,11 +1931,17 @@
             drawGenomeOverview();
             console.log(`Phase 7 (genome): ${(performance.now() - t0).toFixed(0)}ms`);
 
-            // Phase 8: Positions (can be deferred)
-            scheduleIdleTask(() => {
-                loadPositions();
-                console.log(`Phase 8 (positions): ${(performance.now() - t0).toFixed(0)}ms`);
-            });
+            // Phase 8: Don't load positions automatically - too heavy
+            // Show a load button instead
+            document.getElementById('status').textContent = 'Click "Load Positions" or select a filter to view data';
+            document.getElementById('alignment').innerHTML =
+                `<div style="text-align:center;padding:40px;">
+                    <p style="color:var(--text-secondary);margin-bottom:16px;">Position data is not loaded by default (can be slow with large datasets).</p>
+                    <button onclick="loadAllPositions()" style="padding:8px 16px;background:var(--accent-color);color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;">
+                        Load All Positions
+                    </button>
+                </div>`;
+            console.log(`Phase 8 (positions deferred): ${(performance.now() - t0).toFixed(0)}ms`);
 
             // Clear matrix placeholder
             document.getElementById('matrix-result').innerHTML =
@@ -2110,8 +2119,7 @@
                         `Report generated: ${formattedDate}`;
                 }
 
-                // Hide loader and build UI progressively
-                hideLoader();
+                // Build UI progressively (loader hidden inside after core UI ready)
                 await buildUIProgressively();
 
             } catch (error) {
@@ -2120,6 +2128,15 @@
                 console.error(error);
             }
         }
+        // Load all positions on demand
+        async function loadAllPositions() {
+            showLoader('Loading positions...', 'This may take a moment');
+            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+            loadPositions();
+            hideLoader();
+        }
+        window.loadAllPositions = loadAllPositions;
+
         // Expose to global scope for onclick
         window.loadDemo = loadDemo;
 
@@ -2197,8 +2214,7 @@
                         `Report generated: ${formattedDate}`;
                 }
 
-                // Hide loader and build UI progressively
-                hideLoader();
+                // Build UI progressively (loader hidden inside after core UI ready)
                 await buildUIProgressively();
 
             } catch (err) {

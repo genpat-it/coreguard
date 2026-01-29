@@ -1123,6 +1123,129 @@ impl GenomeData {
         serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
     }
 
+    /// Get detailed pipeline concordance statistics
+    /// Returns 4 metrics for each pipeline pair:
+    /// - concordance_any: positions where at least 1 sample has SNP in both pipelines
+    /// - concordance_all: positions where ALL samples have SNP in both pipelines
+    /// - consensus_any: positions where at least 1 sample has same allele in both pipelines
+    /// - consensus_all: positions where ALL samples have same allele in both pipelines
+    #[wasm_bindgen]
+    pub fn get_pipeline_concordance(&self) -> String {
+        #[derive(Serialize)]
+        struct ConcordanceStats {
+            concordance_any: u32,
+            concordance_all: u32,
+            consensus_any: u32,
+            consensus_all: u32,
+            total_a: u32,
+            total_b: u32,
+        }
+
+        let mut result: HashMap<String, HashMap<String, ConcordanceStats>> = HashMap::new();
+        let num_samples = self.samples.len();
+
+        // For each pipeline, collect per-sample SNP data: position -> (sample_id -> alt_allele)
+        let mut pipeline_sample_snps: HashMap<String, HashMap<u32, HashMap<String, u8>>> = HashMap::new();
+
+        for pipeline_id in &self.pipeline_ids {
+            let mut pos_to_samples: HashMap<u32, HashMap<String, u8>> = HashMap::new();
+            for (sample_id, sample_data) in &self.samples {
+                if let Some(pipeline_data) = sample_data.pipelines.get(pipeline_id) {
+                    for snp in &pipeline_data.snps {
+                        pos_to_samples
+                            .entry(snp.pos)
+                            .or_insert_with(HashMap::new)
+                            .insert(sample_id.clone(), snp.alt_allele);
+                    }
+                }
+            }
+            pipeline_sample_snps.insert(pipeline_id.clone(), pos_to_samples);
+        }
+
+        // Calculate concordance between all pairs
+        for pipeline_a in &self.pipeline_ids {
+            let mut inner: HashMap<String, ConcordanceStats> = HashMap::new();
+            let snps_a = pipeline_sample_snps.get(pipeline_a).unwrap();
+            let total_a = snps_a.len() as u32;
+
+            for pipeline_b in &self.pipeline_ids {
+                if pipeline_a >= pipeline_b {
+                    continue; // Only compute each pair once (avoid duplicates)
+                }
+
+                let snps_b = pipeline_sample_snps.get(pipeline_b).unwrap();
+                let total_b = snps_b.len() as u32;
+
+                let mut concordance_any = 0u32;
+                let mut concordance_all = 0u32;
+                let mut consensus_any = 0u32;
+                let mut consensus_all = 0u32;
+
+                // Get all positions present in either pipeline
+                let all_positions: std::collections::HashSet<u32> =
+                    snps_a.keys().chain(snps_b.keys()).cloned().collect();
+
+                for pos in all_positions {
+                    let samples_a = snps_a.get(&pos);
+                    let samples_b = snps_b.get(&pos);
+
+                    match (samples_a, samples_b) {
+                        (Some(sa), Some(sb)) => {
+                            // Position exists in both pipelines
+                            concordance_any += 1;
+
+                            // Check if ALL samples have this position in both
+                            if sa.len() == num_samples && sb.len() == num_samples {
+                                concordance_all += 1;
+                            }
+
+                            // Check consensus (same allele)
+                            let mut any_same_allele = false;
+                            let mut all_same_allele = true;
+                            let mut samples_with_both = 0;
+
+                            for (sample_id, alt_a) in sa {
+                                if let Some(alt_b) = sb.get(sample_id) {
+                                    samples_with_both += 1;
+                                    if alt_a == alt_b {
+                                        any_same_allele = true;
+                                    } else {
+                                        all_same_allele = false;
+                                    }
+                                }
+                            }
+
+                            if any_same_allele {
+                                consensus_any += 1;
+                            }
+
+                            // For consensus_all, ALL samples must have same allele in both pipelines
+                            if samples_with_both == num_samples && all_same_allele {
+                                consensus_all += 1;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+                inner.insert(pipeline_b.clone(), ConcordanceStats {
+                    concordance_any,
+                    concordance_all,
+                    consensus_any,
+                    consensus_all,
+                    total_a,
+                    total_b,
+                });
+            }
+
+            if !inner.is_empty() {
+                result.insert(pipeline_a.clone(), inner);
+            }
+        }
+
+        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
+    }
+
     /// Get per-sample SNP intersection with GT
     /// Returns: { sample_id: { pipeline_id: { intersection, pipeline_snps, gt_snps, pct_of_pipeline, pct_of_gt } } }
     #[wasm_bindgen]

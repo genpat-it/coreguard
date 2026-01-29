@@ -3,6 +3,11 @@
   "type": "module",
   "description": "WASM module for coreguard nucleotide viewer",
   "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/genpat-it/coreguard"
+  },
   "files": [
     "coreguard_wasm_bg.wasm",
     "coreguard_wasm.js",

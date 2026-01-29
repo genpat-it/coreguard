@@ -240,6 +240,51 @@
             padding: 6px 0 2px 0;
             opacity: 0.7;
         }
+        .kpi-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            margin: 8px 0;
+        }
+        .kpi-table th, .kpi-table td {
+            padding: 6px 10px;
+            text-align: right;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .kpi-table th {
+            font-size: 10px;
+            font-weight: normal;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            background: var(--bg-secondary);
+        }
+        .kpi-table th:first-child, .kpi-table td:first-child {
+            text-align: left;
+        }
+        .kpi-table td:first-child {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        .kpi-table td {
+            color: var(--snp-consensus);
+        }
+        .kpi-table tr:hover {
+            background: var(--bg-secondary);
+        }
+        .kpi-table .pct {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-left: 4px;
+        }
+        .kpi-table .info-icon {
+            cursor: pointer;
+            opacity: 0.5;
+            font-size: 11px;
+            margin-left: 3px;
+        }
+        .kpi-table .info-icon:hover {
+            opacity: 1;
+        }
         .kpi.kpi-gt {
             border-color: #7cb342;
         }
@@ -2102,69 +2147,52 @@
                 html += `<div class="kpi"><div class="label">Filtered Positions ${infoIcon('filtered')}</div><div class="value">${filteredCount.toLocaleString()}</div></div>`;
             }
 
-            // === SECTION 2: Per-Pipeline Statistics ===
+            // === SECTION 2: Per-Pipeline Statistics (Pivot Table) ===
             html += sectionHeader('Per-Pipeline Statistics');
 
             // Helper for subsection labels
             const subLabel = (title) => `<div class="kpi-sub-label">${title}</div>`;
 
-            // SNPs
-            html += subLabel('SNPs');
-            for (const [pipeline, snpCount] of sortedPipelineEntries(kpis.snps)) {
-                const label = genomeData.get_pipeline_label(pipeline);
-                const snpPct = ((snpCount / refLength / kpis.samples) * 100).toFixed(2);
-                html += `<div class="kpi"><div class="label">${label} ${infoIcon('snps')}</div><div class="value">${snpCount.toLocaleString()} (${snpPct}%)</div></div>`;
-            }
-
-            // Gaps
-            html += subLabel('Gaps');
-            for (const [pipeline, gapCount] of sortedPipelineEntries(kpis.gaps)) {
-                const label = genomeData.get_pipeline_label(pipeline);
-                const gapPct = ((gapCount / refLength / kpis.samples) * 100).toFixed(1);
-                html += `<div class="kpi"><div class="label">${label} ${infoIcon('gaps')}</div><div class="value">${gapCount.toLocaleString()} bp (${gapPct}%)</div></div>`;
-            }
-
-            // MNPs
+            // Get MNP stats for table
             const mnpStats = JSON.parse(genomeData.get_mnp_stats());
-            html += subLabel('MNPs');
+
+            // Build pivot table: rows = pipelines, columns = metrics
+            html += `<table class="kpi-table">
+                <thead>
+                    <tr>
+                        <th>Pipeline</th>
+                        <th>SNPs ${infoIcon('snps')}</th>
+                        <th>Gaps ${infoIcon('gaps')}</th>
+                        <th>MNPs ${infoIcon('mnps')}</th>
+                        <th>Core ${infoIcon('core_snps')}</th>
+                        <th>Consensus ${infoIcon('consensus_snps')}</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
             for (const [pipeline, snpCount] of sortedPipelineEntries(kpis.snps)) {
-                const label = genomeData.get_pipeline_label(pipeline);
+                const label = genomeData.get_pipeline_label(pipeline).split(' ')[0]; // Short label
+                const gapCount = kpis.gaps[pipeline] || 0;
+                const coreCount = kpis.core_snps ? (kpis.core_snps[pipeline] || 0) : 0;
+                const consCount = kpis.consensus_snps ? (kpis.consensus_snps[pipeline] || 0) : 0;
                 const mStats = mnpStats ? mnpStats[pipeline] : null;
                 const mnpCount = mStats ? mStats.mnps_found : 0;
-                const snpsFromMnps = mStats ? mStats.snps_from_mnps : 0;
-                html += `<div class="kpi" title="${mnpCount.toLocaleString()} MNPs decomposed into ${snpsFromMnps.toLocaleString()} individual SNPs">
-                    <div class="label">${label} ${infoIcon('mnps')}</div>
-                    <div class="value">${mnpCount.toLocaleString()} → ${snpsFromMnps.toLocaleString()} SNPs</div>
-                </div>`;
+
+                // Calculate percentages
+                const corePct = snpCount > 0 ? ((coreCount / snpCount) * 100).toFixed(0) : 0;
+                const consPct = snpCount > 0 ? ((consCount / snpCount) * 100).toFixed(0) : 0;
+
+                html += `<tr>
+                    <td>${label}</td>
+                    <td>${snpCount.toLocaleString()}</td>
+                    <td>${gapCount.toLocaleString()}</td>
+                    <td>${mnpCount.toLocaleString()}</td>
+                    <td>${coreCount.toLocaleString()}<span class="pct">(${corePct}%)</span></td>
+                    <td>${consCount.toLocaleString()}<span class="pct">(${consPct}%)</span></td>
+                </tr>`;
             }
 
-            // Core SNPs (positions in ALL samples of a pipeline)
-            if (kpis.core_snps) {
-                html += subLabel('Core SNPs');
-                for (const [pipeline, coreCount] of sortedPipelineEntries(kpis.core_snps)) {
-                    const label = genomeData.get_pipeline_label(pipeline);
-                    const totalSnps = kpis.snps[pipeline] || 0;
-                    const corePct = totalSnps > 0 ? ((coreCount / totalSnps) * 100).toFixed(1) : 0;
-                    html += `<div class="kpi" title="SNP positions present in ALL samples for this pipeline">
-                        <div class="label">${label} ${infoIcon('core_snps')}</div>
-                        <div class="value">${coreCount.toLocaleString()} (${corePct}% of total)</div>
-                    </div>`;
-                }
-            }
-
-            // Consensus SNPs (positions where ALL samples within pipeline have SAME alt)
-            if (kpis.consensus_snps) {
-                html += subLabel('Consensus SNPs');
-                for (const [pipeline, consCount] of sortedPipelineEntries(kpis.consensus_snps)) {
-                    const label = genomeData.get_pipeline_label(pipeline);
-                    const totalSnps = kpis.snps[pipeline] || 0;
-                    const consPct = totalSnps > 0 ? ((consCount / totalSnps) * 100).toFixed(1) : 0;
-                    html += `<div class="kpi" title="SNP positions where ALL samples have the SAME alt allele">
-                        <div class="label">${label} ${infoIcon('consensus_snps')}</div>
-                        <div class="value">${consCount.toLocaleString()} (${consPct}% of total)</div>
-                    </div>`;
-                }
-            }
+            html += `</tbody></table>`;
 
             // === SECTION 3: Cross-Pipeline Consensus (only if GT exists and we have VCF pipelines) ===
             const consensusStats = JSON.parse(genomeData.get_consensus_stats());
@@ -2248,89 +2276,71 @@
                     }
                 }
 
-                // SNPs in ground truth gaps statistics (Total, Core, Consensus)
+                // SNPs in GT Gaps - consolidated table
                 if (kpis.snps_in_gt_gaps_total && Object.keys(kpis.snps_in_gt_gaps_total).length > 0) {
-                    html += subLabel('SNPs in GT Gaps (Total)');
-                    for (const [pipeline, count] of sortedPipelineEntries(kpis.snps_in_gt_gaps_total)) {
-                        const label = genomeData.get_pipeline_label(pipeline);
+                    html += subLabel(`SNPs in ${gtShortLabel} Gaps`);
+                    html += `<table class="kpi-table">
+                        <thead>
+                            <tr>
+                                <th>Pipeline</th>
+                                <th>Total ${infoIcon('snps_in_gt_gaps')}</th>
+                                <th>Core</th>
+                                <th>Consensus</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+                    for (const [pipeline, totalCount] of sortedPipelineEntries(kpis.snps_in_gt_gaps_total)) {
+                        const label = genomeData.get_pipeline_label(pipeline).split(' ')[0];
+                        const coreCount = kpis.snps_in_gt_gaps_core ? (kpis.snps_in_gt_gaps_core[pipeline] || 0) : 0;
+                        const consCount = kpis.snps_in_gt_gaps_consensus ? (kpis.snps_in_gt_gaps_consensus[pipeline] || 0) : 0;
                         const totalSnps = kpis.snps[pipeline] || 1;
-                        const pct = ((count / totalSnps) * 100).toFixed(2);
-                        html += `<div class="kpi kpi-gt" title="${count.toLocaleString()} SNPs fall within GT gap regions">
-                            <div class="label">${label} in ${gtShortLabel} Gaps ${infoIcon('snps_in_gt_gaps')}</div>
-                            <div class="value">${count.toLocaleString()} (${pct}%)</div>
-                        </div>`;
+                        const coreSnps = kpis.core_snps ? (kpis.core_snps[pipeline] || 1) : 1;
+                        const consSnps = kpis.consensus_snps ? (kpis.consensus_snps[pipeline] || 1) : 1;
+                        const totalPct = ((totalCount / totalSnps) * 100).toFixed(1);
+                        const corePct = ((coreCount / coreSnps) * 100).toFixed(1);
+                        const consPct = ((consCount / consSnps) * 100).toFixed(1);
+
+                        html += `<tr>
+                            <td>${label}</td>
+                            <td>${totalCount.toLocaleString()}<span class="pct">(${totalPct}%)</span></td>
+                            <td>${coreCount.toLocaleString()}<span class="pct">(${corePct}%)</span></td>
+                            <td>${consCount.toLocaleString()}<span class="pct">(${consPct}%)</span></td>
+                        </tr>`;
                     }
+                    html += `</tbody></table>`;
                 }
 
-                if (kpis.snps_in_gt_gaps_core && Object.keys(kpis.snps_in_gt_gaps_core).length > 0) {
-                    html += subLabel('Core SNPs in GT Gaps');
-                    for (const [pipeline, count] of sortedPipelineEntries(kpis.snps_in_gt_gaps_core)) {
-                        const label = genomeData.get_pipeline_label(pipeline);
-                        const coreSnps = kpis.core_snps[pipeline] || 1;
-                        const pct = ((count / coreSnps) * 100).toFixed(2);
-                        html += `<div class="kpi kpi-gt" title="${count.toLocaleString()} core SNPs fall within GT gap regions">
-                            <div class="label">Core ${label} in ${gtShortLabel} Gaps ${infoIcon('snps_in_gt_gaps')}</div>
-                            <div class="value">${count.toLocaleString()} (${pct}%)</div>
-                        </div>`;
-                    }
-                }
-
-                if (kpis.snps_in_gt_gaps_consensus && Object.keys(kpis.snps_in_gt_gaps_consensus).length > 0) {
-                    html += subLabel('Consensus SNPs in GT Gaps');
-                    for (const [pipeline, count] of sortedPipelineEntries(kpis.snps_in_gt_gaps_consensus)) {
-                        const label = genomeData.get_pipeline_label(pipeline);
-                        const consSnps = kpis.consensus_snps[pipeline] || 1;
-                        const pct = ((count / consSnps) * 100).toFixed(2);
-                        html += `<div class="kpi kpi-gt" title="${count.toLocaleString()} consensus SNPs fall within GT gap regions">
-                            <div class="label">Cons ${label} in ${gtShortLabel} Gaps ${infoIcon('snps_in_gt_gaps')}</div>
-                            <div class="value">${count.toLocaleString()} (${pct}%)</div>
-                        </div>`;
-                    }
-                }
-
-                // GT SNPs missing per pipeline (GT positions not called by pipeline)
+                // GT SNPs Filtered - consolidated table
                 if (kpis.gt_snps_missing && kpis.gt_total_snps > 0) {
-                    html += subLabel('GT SNPs Filtered (Total)');
-                    for (const [pipeline, missingCount] of sortedPipelineEntries(kpis.gt_snps_missing)) {
-                        const label = genomeData.get_pipeline_label(pipeline);
-                        const shortLabel = label.split(' ')[0];
-                        const calledCount = kpis.gt_snps_called[pipeline] || 0;
-                        const missingPct = ((missingCount / kpis.gt_total_snps) * 100).toFixed(1);
-                        html += `<div class="kpi kpi-gt" title="${calledCount.toLocaleString()} GT SNP positions called by ${shortLabel}\n${missingCount.toLocaleString()} GT SNP positions NOT called">
-                            <div class="label">${gtShortLabel} - (${gtShortLabel} ∩ ${shortLabel}) ${infoIcon('gt_snps_missing')}</div>
-                            <div class="value">${missingCount.toLocaleString()} / ${kpis.gt_total_snps.toLocaleString()} (${missingPct}%)</div>
-                        </div>`;
-                    }
-                }
+                    html += subLabel(`${gtShortLabel} SNPs Filtered by Pipeline`);
+                    html += `<table class="kpi-table">
+                        <thead>
+                            <tr>
+                                <th>Pipeline</th>
+                                <th>Total (/${kpis.gt_total_snps.toLocaleString()}) ${infoIcon('gt_snps_missing')}</th>
+                                <th>Core (/${(kpis.core_gt_total || 0).toLocaleString()})</th>
+                                <th>Consensus (/${(kpis.consensus_gt_total || 0).toLocaleString()})</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
 
-                // Core GT SNPs missing per pipeline
-                if (kpis.core_gt_missing && kpis.core_gt_total > 0) {
-                    html += subLabel('Core GT SNPs Filtered');
-                    for (const [pipeline, missingCount] of sortedPipelineEntries(kpis.core_gt_missing)) {
-                        const label = genomeData.get_pipeline_label(pipeline);
-                        const shortLabel = label.split(' ')[0];
-                        const missingPct = ((missingCount / kpis.core_gt_total) * 100).toFixed(1);
-                        const calledCount = kpis.core_gt_total - missingCount;
-                        html += `<div class="kpi kpi-gt" title="Core ${gtShortLabel}: ${kpis.core_gt_total.toLocaleString()} positions\nCore ${shortLabel} match: ${calledCount.toLocaleString()}\nMissing: ${missingCount.toLocaleString()}">
-                            <div class="label">Core ${gtShortLabel} - Core ${shortLabel} ${infoIcon('core_gt_missing')}</div>
-                            <div class="value">${missingCount.toLocaleString()} / ${kpis.core_gt_total.toLocaleString()} (${missingPct}%)</div>
-                        </div>`;
-                    }
-                }
+                    for (const [pipeline, totalMissing] of sortedPipelineEntries(kpis.gt_snps_missing)) {
+                        const label = genomeData.get_pipeline_label(pipeline).split(' ')[0];
+                        const coreMissing = kpis.core_gt_missing ? (kpis.core_gt_missing[pipeline] || 0) : 0;
+                        const consMissing = kpis.consensus_gt_missing ? (kpis.consensus_gt_missing[pipeline] || 0) : 0;
+                        const totalPct = ((totalMissing / kpis.gt_total_snps) * 100).toFixed(1);
+                        const corePct = kpis.core_gt_total > 0 ? ((coreMissing / kpis.core_gt_total) * 100).toFixed(1) : '0';
+                        const consPct = kpis.consensus_gt_total > 0 ? ((consMissing / kpis.consensus_gt_total) * 100).toFixed(1) : '0';
 
-                // Consensus GT SNPs missing per pipeline
-                if (kpis.consensus_gt_missing && kpis.consensus_gt_total > 0) {
-                    html += subLabel('Consensus GT SNPs Filtered');
-                    for (const [pipeline, missingCount] of sortedPipelineEntries(kpis.consensus_gt_missing)) {
-                        const label = genomeData.get_pipeline_label(pipeline);
-                        const shortLabel = label.split(' ')[0];
-                        const missingPct = ((missingCount / kpis.consensus_gt_total) * 100).toFixed(1);
-                        const calledCount = kpis.consensus_gt_total - missingCount;
-                        html += `<div class="kpi kpi-gt" title="Consensus ${gtShortLabel}: ${kpis.consensus_gt_total.toLocaleString()} positions (same alt in all samples)\nConsensus ${shortLabel} match: ${calledCount.toLocaleString()}\nMissing: ${missingCount.toLocaleString()}">
-                            <div class="label">Cons ${gtShortLabel} - Cons ${shortLabel} ${infoIcon('consensus_gt_missing')}</div>
-                            <div class="value">${missingCount.toLocaleString()} / ${kpis.consensus_gt_total.toLocaleString()} (${missingPct}%)</div>
-                        </div>`;
+                        html += `<tr>
+                            <td>${label}</td>
+                            <td>${totalMissing.toLocaleString()}<span class="pct">(${totalPct}%)</span></td>
+                            <td>${coreMissing.toLocaleString()}<span class="pct">(${corePct}%)</span></td>
+                            <td>${consMissing.toLocaleString()}<span class="pct">(${consPct}%)</span></td>
+                        </tr>`;
                     }
+                    html += `</tbody></table>`;
                 }
             }
 

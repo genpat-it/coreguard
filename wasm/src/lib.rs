@@ -54,6 +54,9 @@ struct JsonReport {
     #[serde(default)]
     polymorphic_sites: HashMap<String, HashMap<String, JsonPolymorphicSite>>,
     summary: JsonSummary,
+    /// Description (markdown content)
+    #[serde(default)]
+    description: Option<String>,
 }
 
 /// Polymorphic site data for distance matrix calculation
@@ -217,6 +220,8 @@ pub struct GenomeData {
     polymorphic_sites: HashMap<String, HashMap<u32, HashMap<String, AlleleData>>>,
     /// Reference allele at each polymorphic site (per pipeline)
     polymorphic_refs: HashMap<String, HashMap<u32, char>>,
+    /// Description (markdown content)
+    description: Option<String>,
 }
 
 #[wasm_bindgen]
@@ -245,6 +250,7 @@ impl GenomeData {
             mnp_stats: None,
             polymorphic_sites: HashMap::new(),
             polymorphic_refs: HashMap::new(),
+            description: None,
         }
     }
 
@@ -291,6 +297,7 @@ impl GenomeData {
         self.snps_in_gaps = report.summary.snps_in_gaps;
         self.ground_truth_pileup = report.summary.ground_truth_pileup;
         self.mnp_stats = report.summary.mnp_stats;
+        self.description = report.description;
 
         // Load sample labels
         for (id, info) in &report.samples {
@@ -576,6 +583,16 @@ impl GenomeData {
         match &self.mnp_stats {
             Some(stats) => serde_json::to_string(stats).unwrap_or_else(|_| "{}".to_string()),
             None => "null".to_string(),
+        }
+    }
+
+    /// Get report description (markdown content)
+    /// Returns: description string or null if not available
+    #[wasm_bindgen]
+    pub fn get_description(&self) -> String {
+        match &self.description {
+            Some(desc) => desc.clone(),
+            None => "".to_string(),
         }
     }
 

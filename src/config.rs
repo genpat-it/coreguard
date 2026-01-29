@@ -24,6 +24,10 @@ pub struct Config {
     /// Optional settings
     #[serde(default)]
     pub options: Options,
+
+    /// Description (markdown) - can be a file path or inline text
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 /// Reference genome configuration
@@ -219,6 +223,27 @@ impl Config {
             .get(pipeline_id)
             .map(|p| p.ground_truth)
             .unwrap_or(false)
+    }
+
+    /// Get description content (reads from file if path, otherwise returns inline text)
+    pub fn get_description_content(&self) -> Option<String> {
+        self.description.as_ref().map(|desc| {
+            // Check if it looks like a file path (ends with .md or contains path separators)
+            let is_file_path = desc.ends_with(".md")
+                || desc.ends_with(".txt")
+                || (desc.contains('/') && !desc.contains('\n'));
+
+            if is_file_path && Path::new(desc).exists() {
+                // Read from file
+                std::fs::read_to_string(desc).unwrap_or_else(|e| {
+                    log::warn!("Failed to read description file '{}': {}", desc, e);
+                    desc.clone()
+                })
+            } else {
+                // Use as inline text
+                desc.clone()
+            }
+        })
     }
 }
 

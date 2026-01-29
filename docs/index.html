@@ -2160,8 +2160,9 @@
             // Get MNP stats for table
             const mnpStats = JSON.parse(genomeData.get_mnp_stats());
 
-            // Get GT SNP count for diff calculation
+            // Get GT counts for diff calculation
             const gtSnpCount = gtPipelineId ? (kpis.snps[gtPipelineId] || 0) : null;
+            const gtGapCount = gtPipelineId ? (kpis.gaps[gtPipelineId] || 0) : null;
 
             // Build pivot table: rows = pipelines, columns = metrics
             html += `<table class="kpi-table">
@@ -2194,12 +2195,22 @@
 
                 // Calculate diff vs GT for non-GT pipelines
                 let snpDiff = '';
-                if (gtPipelineId && pipeline !== gtPipelineId && gtSnpCount !== null) {
-                    const diff = snpCount - gtSnpCount;
-                    const diffSign = diff >= 0 ? '+' : '';
-                    const diffPct = gtSnpCount > 0 ? ((diff / gtSnpCount) * 100).toFixed(1) : 0;
-                    const diffPctSign = diff >= 0 ? '+' : '';
-                    snpDiff = `<span class="pct" style="color:${diff < 0 ? '#e57373' : '#81c784'}">${diffSign}${diff.toLocaleString()} (${diffPctSign}${diffPct}%)</span>`;
+                let gapDiff = '';
+                if (gtPipelineId && pipeline !== gtPipelineId) {
+                    if (gtSnpCount !== null) {
+                        const diff = snpCount - gtSnpCount;
+                        const diffSign = diff >= 0 ? '+' : '';
+                        const diffPct = gtSnpCount > 0 ? ((diff / gtSnpCount) * 100).toFixed(1) : 0;
+                        const diffPctSign = diff >= 0 ? '+' : '';
+                        snpDiff = `<span class="pct" style="color:${diff < 0 ? '#e57373' : '#81c784'}">${diffSign}${diff.toLocaleString()} (${diffPctSign}${diffPct}%)</span>`;
+                    }
+                    if (gtGapCount !== null) {
+                        const diff = gapCount - gtGapCount;
+                        const diffSign = diff >= 0 ? '+' : '';
+                        const diffPct = gtGapCount > 0 ? ((diff / gtGapCount) * 100).toFixed(1) : 0;
+                        const diffPctSign = diff >= 0 ? '+' : '';
+                        gapDiff = `<span class="pct" style="color:${diff > 0 ? '#e57373' : '#81c784'}">${diffSign}${diff.toLocaleString()} (${diffPctSign}${diffPct}%)</span>`;
+                    }
                 }
 
                 // Warning icon for MNPs
@@ -2208,7 +2219,7 @@
                 html += `<tr>
                     <td>${label}</td>
                     <td>${snpCount.toLocaleString()}<span class="pct">(${snpPct}%)</span>${snpDiff}</td>
-                    <td>${gapCount.toLocaleString()}<span class="pct">(${gapPct}%)</span></td>
+                    <td>${gapCount.toLocaleString()}<span class="pct">(${gapPct}%)</span>${gapDiff}</td>
                     <td>${mnpCount.toLocaleString()}${mnpWarning}</td>
                     <td>${coreCount.toLocaleString()}<span class="pct">(${corePct}%)</span></td>
                     <td>${consCount.toLocaleString()}<span class="pct">(${consPct}%)</span></td>

@@ -257,6 +257,8 @@ impl GenomeData {
 
     /// Common logic for loading a parsed report (used by both load_json and load_binary)
     fn load_report(&mut self, report: JsonReport) -> Result<(), JsValue> {
+        let t0 = js_sys::Date::now();
+
         // Clear existing data
         self.samples.clear();
         self.sample_labels.clear();
@@ -315,6 +317,9 @@ impl GenomeData {
         }
         self.pipeline_ids = pipeline_ids;
 
+        let t1 = js_sys::Date::now();
+        web_sys::console::log_1(&format!("Metadata loaded: {}ms", t1 - t0).into());
+
         // Load data for each sample
         for (sample_id, sample_pipelines) in &report.data {
             let mut sample_data = SampleData::default();
@@ -359,8 +364,14 @@ impl GenomeData {
             self.samples.insert(sample_id.clone(), sample_data);
         }
 
+        let t2 = js_sys::Date::now();
+        web_sys::console::log_1(&format!("Data loaded: {}ms", t2 - t1).into());
+
         // Finalize (sort for binary search)
         self.finalize();
+
+        let t3 = js_sys::Date::now();
+        web_sys::console::log_1(&format!("Finalized: {}ms", t3 - t2).into());
 
         // Load polymorphic sites for distance matrix calculation (per pipeline)
         self.polymorphic_sites.clear();
@@ -393,6 +404,10 @@ impl GenomeData {
             self.polymorphic_sites.insert(pipeline_id.clone(), sites_map);
             self.polymorphic_refs.insert(pipeline_id.clone(), refs_map);
         }
+
+        let t4 = js_sys::Date::now();
+        web_sys::console::log_1(&format!("Polymorphic sites: {}ms", t4 - t3).into());
+        web_sys::console::log_1(&format!("TOTAL: {}ms", t4 - t0).into());
 
         web_sys::console::log_1(&format!(
             "Loaded report v{}: {} samples, {} pipelines, {} bp reference, {} polymorphic sites per pipeline",

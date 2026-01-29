@@ -209,6 +209,6 @@ MIT License - see [LICENSE](LICENSE)
 
 ## Author
 
-Andrea De Ruvo - GenPat Team, IZSNT
+GenPat Team
 
 Contact: genpat@izs.it

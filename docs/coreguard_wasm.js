@@ -102,6 +102,23 @@ export class GenomeData {
         }
     }
     /**
+     * Get report description (markdown content)
+     * Returns: description string or null if not available
+     * @returns {string}
+     */
+    get_description() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_description(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get file paths for reproducibility (sample -> pipeline -> {vcf_path, bam_path})
      * @returns {string}
      */
@@ -317,6 +334,23 @@ export class GenomeData {
         let deferred1_1;
         try {
             const ret = wasm.genomedata_get_pipeline_concordance(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Get pre-computed distance matrices from pipelines
+     * Returns: JSON object { pipeline_id: { samples: [...], matrix: [[...], ...] } }
+     * @returns {string}
+     */
+    get_pipeline_distance_matrices() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_pipeline_distance_matrices(this.__wbg_ptr);
             deferred1_0 = ret[0];
             deferred1_1 = ret[1];
             return getStringFromWasm0(ret[0], ret[1]);

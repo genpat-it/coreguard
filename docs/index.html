@@ -187,6 +187,42 @@
             color: var(--text-secondary);
             font-size: 12px;
         }
+        /* Skeleton loading styles */
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--bg-secondary) 50%, var(--bg-tertiary) 75%);
+            background-size: 200% 100%;
+            animation: skeleton-pulse 1.5s ease-in-out infinite;
+            border-radius: 4px;
+        }
+        @keyframes skeleton-pulse {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .skeleton-text {
+            height: 12px;
+            margin: 8px 0;
+        }
+        .skeleton-box {
+            height: 80px;
+            margin: 10px 0;
+        }
+        .section-loading {
+            padding: 15px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+        .section-loading .mini-spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
         .drop-zone p {
             color: var(--text-muted);
             margin: 5px 0;
@@ -1820,6 +1856,95 @@
             document.getElementById('loader').classList.remove('active');
         }
 
+        // Progressive loading helpers
+        function setSectionLoading(containerId, isLoading, message = 'Loading...') {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            if (isLoading) {
+                container.innerHTML = `<div class="section-loading"><span class="mini-spinner"></span>${message}</div>`;
+            }
+        }
+
+        function scheduleIdleTask(callback, timeout = 2000) {
+            if ('requestIdleCallback' in window) {
+                requestIdleCallback(callback, { timeout });
+            } else {
+                setTimeout(callback, 10);
+            }
+        }
+
+        // Progressive UI builder - shows UI immediately, then populates sections
+        async function buildUIProgressively() {
+            const t0 = performance.now();
+
+            // Phase 1: Show viewer immediately with loading states
+            document.getElementById('drop-zone').classList.add('hidden');
+            document.getElementById('viewer').classList.remove('hidden');
+
+            // Set loading placeholders for all sections
+            setSectionLoading('pipelines-info', true, 'Loading pipelines...');
+            setSectionLoading('kpis', true, 'Calculating statistics...');
+            setSectionLoading('per-sample-stats', true, 'Building statistics...');
+            setSectionLoading('coverage-stats-content', true, 'Loading coverage data...');
+            setSectionLoading('matrix-result', true, 'Ready to calculate');
+
+            // Phase 2: Quick stuff first (instant)
+            await nextFrame();
+            populateDescription();
+            displayWarnings();
+            console.log(`Phase 2 (description): ${(performance.now() - t0).toFixed(0)}ms`);
+
+            // Phase 3: Pipeline info (fast)
+            await nextFrame();
+            populatePipelineInfo();
+            populateMatrixPipelineSelector();
+            console.log(`Phase 3 (pipelines): ${(performance.now() - t0).toFixed(0)}ms`);
+
+            // Phase 4: KPIs (medium)
+            await nextFrame();
+            updateKPIs();
+            createFilterButtons(pipelines);
+            createVisibilityControls(pipelines);
+            console.log(`Phase 4 (KPIs): ${(performance.now() - t0).toFixed(0)}ms`);
+
+            // Phase 5: Per-sample stats (can be slow)
+            await nextFrame();
+            populatePerSampleStats();
+            console.log(`Phase 5 (per-sample): ${(performance.now() - t0).toFixed(0)}ms`);
+
+            // Phase 6: Heavy stuff in idle time
+            scheduleIdleTask(() => {
+                populateCoverageStats();
+                console.log(`Phase 6 (coverage): ${(performance.now() - t0).toFixed(0)}ms`);
+            });
+
+            scheduleIdleTask(() => {
+                populateReproducibilityCommands();
+                console.log(`Phase 6b (reproducibility): ${(performance.now() - t0).toFixed(0)}ms`);
+            });
+
+            // Phase 7: Genome overview (heavy, but visible)
+            await nextFrame();
+            drawGenomeOverview();
+            console.log(`Phase 7 (genome): ${(performance.now() - t0).toFixed(0)}ms`);
+
+            // Phase 8: Positions (can be deferred)
+            scheduleIdleTask(() => {
+                loadPositions();
+                console.log(`Phase 8 (positions): ${(performance.now() - t0).toFixed(0)}ms`);
+            });
+
+            // Clear matrix placeholder
+            document.getElementById('matrix-result').innerHTML =
+                '<p style="color:var(--text-secondary);font-size:11px;">Select options and click "Calculate" to compute distance matrix.</p>';
+
+            console.log(`UI build complete: ${(performance.now() - t0).toFixed(0)}ms`);
+        }
+
+        function nextFrame() {
+            return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        }
+
         async function main() {
             await init();
             genomeData = new GenomeData();
@@ -1985,34 +2110,9 @@
                         `Report generated: ${formattedDate}`;
                 }
 
-                document.getElementById('drop-zone').classList.add('hidden');
-                document.getElementById('viewer').classList.remove('hidden');
-
-                showLoader('Calculating KPIs...', '');
-                await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-                updateKPIs();
-
-                showLoader('Building UI...', '');
-                await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-                populateDescription();
-                displayWarnings();
-                populatePipelineInfo();
-                populatePerSampleStats();
-                populateReproducibilityCommands();
-                createFilterButtons(pipelines);
-                createVisibilityControls(pipelines);
-
-                showLoader('Drawing genome overview...', '');
-                await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-                drawGenomeOverview();
-                populateMatrixPipelineSelector();
-                populateCoverageStats();
-
-                showLoader('Loading positions...', '');
-                await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-                loadPositions();
-
+                // Hide loader and build UI progressively
                 hideLoader();
+                await buildUIProgressively();
 
             } catch (error) {
                 hideLoader();
@@ -2097,34 +2197,9 @@
                         `Report generated: ${formattedDate}`;
                 }
 
-                document.getElementById('drop-zone').classList.add('hidden');
-                document.getElementById('viewer').classList.remove('hidden');
-
-                showLoader('Calculating KPIs...', '');
-                await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-                updateKPIs();
-
-                showLoader('Building UI...', '');
-                await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-                populateDescription();
-                displayWarnings();
-                populatePipelineInfo();
-                populatePerSampleStats();
-                populateReproducibilityCommands();
-                createFilterButtons(pipelines);
-                createVisibilityControls(pipelines);
-
-                showLoader('Drawing genome overview...', '');
-                await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-                drawGenomeOverview();
-                populateMatrixPipelineSelector();
-                populateCoverageStats();
-
-                showLoader('Loading positions...', '');
-                await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-                loadPositions();
-
+                // Hide loader and build UI progressively
                 hideLoader();
+                await buildUIProgressively();
 
             } catch (err) {
                 hideLoader();

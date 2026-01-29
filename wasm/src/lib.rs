@@ -135,6 +135,9 @@ struct JsonSummary {
     warnings: Vec<String>,
     #[serde(default)]
     snps_in_gt_gaps: Option<HashMap<String, JsonSnpsInGapsStats>>,
+    /// SNPs in gaps for ALL pipeline pairs (gap_pipeline -> snp_pipeline -> stats)
+    #[serde(default)]
+    snps_in_gaps: Option<HashMap<String, HashMap<String, JsonSnpsInGapsStats>>>,
     #[serde(default)]
     ground_truth_pileup: Option<JsonGroundTruthPileupStats>,
     #[serde(default)]
@@ -201,8 +204,10 @@ pub struct GenomeData {
     report_version: String,
     generated_at: String,
     warnings: Vec<String>,
-    /// SNPs in ground truth gaps statistics
+    /// SNPs in ground truth gaps statistics (DEPRECATED - use snps_in_gaps)
     snps_in_gt_gaps: Option<HashMap<String, JsonSnpsInGapsStats>>,
+    /// SNPs in gaps for ALL pipeline pairs (gap_pipeline -> snp_pipeline -> stats)
+    snps_in_gaps: Option<HashMap<String, HashMap<String, JsonSnpsInGapsStats>>>,
     /// Ground truth pileup statistics (SNP count from BAM without variant calling)
     ground_truth_pileup: Option<JsonGroundTruthPileupStats>,
     /// MNP decomposition statistics per pipeline
@@ -235,6 +240,7 @@ impl GenomeData {
             generated_at: String::new(),
             warnings: Vec::new(),
             snps_in_gt_gaps: None,
+            snps_in_gaps: None,
             ground_truth_pileup: None,
             mnp_stats: None,
             polymorphic_sites: HashMap::new(),
@@ -282,6 +288,7 @@ impl GenomeData {
         self.generated_at = report.summary.generated_at;
         self.warnings = report.summary.warnings;
         self.snps_in_gt_gaps = report.summary.snps_in_gt_gaps;
+        self.snps_in_gaps = report.summary.snps_in_gaps;
         self.ground_truth_pileup = report.summary.ground_truth_pileup;
         self.mnp_stats = report.summary.mnp_stats;
 
@@ -533,10 +540,20 @@ impl GenomeData {
         serde_json::to_string(&self.warnings).unwrap_or_else(|_| "[]".to_string())
     }
 
-    /// Get SNPs in ground truth gaps statistics as JSON
+    /// Get SNPs in ground truth gaps statistics as JSON (DEPRECATED - use get_snps_in_gaps)
     #[wasm_bindgen]
     pub fn get_snps_in_gt_gaps(&self) -> String {
         match &self.snps_in_gt_gaps {
+            Some(stats) => serde_json::to_string(stats).unwrap_or_else(|_| "{}".to_string()),
+            None => "null".to_string(),
+        }
+    }
+
+    /// Get SNPs in gaps for ALL pipeline pairs as JSON
+    /// Returns: { gap_pipeline: { snp_pipeline: { total_snps, snps_in_gaps, percentage } } }
+    #[wasm_bindgen]
+    pub fn get_snps_in_gaps(&self) -> String {
+        match &self.snps_in_gaps {
             Some(stats) => serde_json::to_string(stats).unwrap_or_else(|_| "{}".to_string()),
             None => "null".to_string(),
         }

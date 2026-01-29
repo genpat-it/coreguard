@@ -2156,6 +2156,9 @@
             // Get MNP stats for table
             const mnpStats = JSON.parse(genomeData.get_mnp_stats());
 
+            // Get GT SNP count for diff calculation
+            const gtSnpCount = gtPipelineId ? (kpis.snps[gtPipelineId] || 0) : null;
+
             // Build pivot table: rows = pipelines, columns = metrics
             html += `<table class="kpi-table">
                 <thead>
@@ -2185,9 +2188,19 @@
                 const corePct = snpCount > 0 ? ((coreCount / snpCount) * 100).toFixed(0) : 0;
                 const consPct = snpCount > 0 ? ((consCount / snpCount) * 100).toFixed(0) : 0;
 
+                // Calculate diff vs GT for non-GT pipelines
+                let snpDiff = '';
+                if (gtPipelineId && pipeline !== gtPipelineId && gtSnpCount !== null) {
+                    const diff = snpCount - gtSnpCount;
+                    const diffSign = diff >= 0 ? '+' : '';
+                    const diffPct = gtSnpCount > 0 ? ((diff / gtSnpCount) * 100).toFixed(1) : 0;
+                    const diffPctSign = diff >= 0 ? '+' : '';
+                    snpDiff = `<span class="pct" style="color:${diff < 0 ? '#e57373' : '#81c784'}">${diffSign}${diff.toLocaleString()} (${diffPctSign}${diffPct}%)</span>`;
+                }
+
                 html += `<tr>
                     <td>${label}</td>
-                    <td>${snpCount.toLocaleString()}<span class="pct">(${snpPct}%)</span></td>
+                    <td>${snpCount.toLocaleString()}<span class="pct">(${snpPct}%)</span>${snpDiff}</td>
                     <td>${gapCount.toLocaleString()}<span class="pct">(${gapPct}%)</span></td>
                     <td>${mnpCount.toLocaleString()}</td>
                     <td>${coreCount.toLocaleString()}<span class="pct">(${corePct}%)</span></td>
@@ -2248,19 +2261,6 @@
                         <div class="label">${gtLabel} Pileup SNPs ${infoIcon('gt_pileup')}</div>
                         <div class="value">${gtPileup.total_snps.toLocaleString()} (${pileupPct}%)</div>
                     </div>`;
-
-                    // Show comparison with VCF pipelines
-                    if (gtPileup.pipeline_comparison) {
-                        for (const [pipeline, comp] of Object.entries(gtPileup.pipeline_comparison)) {
-                            const label = genomeData.get_pipeline_label(pipeline);
-                            const diffSign = comp.difference > 0 ? '+' : '';
-                            const pctSign = comp.percentage_diff > 0 ? '+' : '';
-                            html += `<div class="kpi kpi-gt" title="${label}: ${comp.pipeline_snps.toLocaleString()} SNPs vs GT: ${comp.ground_truth_snps.toLocaleString()} SNPs">
-                                <div class="label">${label} vs ${gtShortLabel} ${infoIcon('vs_gt')}</div>
-                                <div class="value">${diffSign}${comp.difference.toLocaleString()} (${pctSign}${comp.percentage_diff.toFixed(1)}%)</div>
-                            </div>`;
-                        }
-                    }
                 }
 
                 // SNP intersection between pipelines

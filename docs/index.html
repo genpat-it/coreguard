@@ -2179,13 +2179,16 @@
                 const mnpCount = mStats ? mStats.mnps_found : 0;
 
                 // Calculate percentages
+                const totalBases = refLength * kpis.samples;
+                const snpPct = ((snpCount / totalBases) * 100).toFixed(2);
+                const gapPct = ((gapCount / totalBases) * 100).toFixed(2);
                 const corePct = snpCount > 0 ? ((coreCount / snpCount) * 100).toFixed(0) : 0;
                 const consPct = snpCount > 0 ? ((consCount / snpCount) * 100).toFixed(0) : 0;
 
                 html += `<tr>
                     <td>${label}</td>
-                    <td>${snpCount.toLocaleString()}</td>
-                    <td>${gapCount.toLocaleString()}</td>
+                    <td>${snpCount.toLocaleString()}<span class="pct">(${snpPct}%)</span></td>
+                    <td>${gapCount.toLocaleString()}<span class="pct">(${gapPct}%)</span></td>
                     <td>${mnpCount.toLocaleString()}</td>
                     <td>${coreCount.toLocaleString()}<span class="pct">(${corePct}%)</span></td>
                     <td>${consCount.toLocaleString()}<span class="pct">(${consPct}%)</span></td>

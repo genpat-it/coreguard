@@ -25,3 +25,10 @@ docs/*.synctex.gz
 
 # Claude
 CLAUDE.md
+
+# Config with local paths (use template instead)
+testdata/demo_config.yaml
+
+# But keep these docs files
+!docs/index.html
+!docs/worker.js

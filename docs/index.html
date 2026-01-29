@@ -1035,7 +1035,7 @@
     </div>
 
     <div id="viewer" class="main-content hidden">
-        <details class="collapsible-panel" id="pipelines-panel">
+        <details class="collapsible-panel" id="pipelines-panel" open>
             <summary>Pipelines</summary>
             <div id="pipelines-info">
                 <p style="color:var(--text-secondary);font-size:11px;">Pipeline information will be shown here after loading data.</p>
@@ -2202,11 +2202,11 @@
                     html += `<th>∩ ${psInfoIcon('ps_intersection')}</th>`;
                 }
             }
-            // Add Consensus sub-headers
+            // Add Consensus sub-headers with explicit % labels
             if (gtPipeline && consensusStats?.per_sample) {
-                html += `<th>SNPs ${psInfoIcon('ps_vcf_consensus')}</th>`;
-                html += `<th>in GT ${psInfoIcon('ps_consensus_in_gt')}</th>`;
-                html += `<th>All ${psInfoIcon('ps_all_consensus')}</th>`;
+                html += `<th>SNPs<br><span style="font-size:9px;color:var(--text-secondary);">% of ref</span> ${psInfoIcon('ps_vcf_consensus')}</th>`;
+                html += `<th>in GT<br><span style="font-size:9px;color:var(--text-secondary);">% of cons</span> ${psInfoIcon('ps_consensus_in_gt')}</th>`;
+                html += `<th>All<br><span style="font-size:9px;color:var(--text-secondary);">% of ref</span> ${psInfoIcon('ps_all_consensus')}</th>`;
             }
             html += '</tr>';
 
@@ -3130,7 +3130,7 @@
                     return `${(min*100).toFixed(0)}-${(max*100).toFixed(0)}% (${(avg*100).toFixed(1)}%)`;
                 };
 
-                let html = '<table class="distance-matrix-table" style="font-size:10px;">';
+                let html = '<table class="distance-matrix-table" style="font-size:10px;width:100%;">';
                 html += '<thead><tr><th>Sample</th>';
                 for (const p of pipelines) {
                     const label = genomeData.get_pipeline_label(p);

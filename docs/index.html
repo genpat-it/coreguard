@@ -1807,12 +1807,170 @@
         });
     </script>
 
-    <script type="module">
-        // When served locally, the WASM module is at wasm/pkg/
-        // Adjust path if needed for your deployment
-        import init, { GenomeData } from './wasm/coreguard_wasm.js';
+    <script>
+        // Worker-based architecture for non-blocking UI
+        // All heavy WASM operations run in a separate thread
 
-        let genomeData = null;
+        // Worker API - promise-based interface to the worker
+        class WorkerAPI {
+            constructor() {
+                this.worker = new Worker('./worker.js');
+                this.pending = new Map();
+                this.nextId = 0;
+                this.ready = false;
+                this.cachedData = {}; // Cache for frequently accessed data
+
+                this.worker.onmessage = (e) => {
+                    const { id, success, result, error } = e.data;
+                    const resolver = this.pending.get(id);
+                    if (resolver) {
+                        this.pending.delete(id);
+                        if (success) {
+                            resolver.resolve(result);
+                        } else {
+                            resolver.reject(new Error(error));
+                        }
+                    }
+                };
+            }
+
+            send(action, payload = {}) {
+                return new Promise((resolve, reject) => {
+                    const id = this.nextId++;
+                    this.pending.set(id, { resolve, reject });
+                    this.worker.postMessage({ id, action, payload });
+                });
+            }
+
+            async init() {
+                const result = await this.send('init');
+                this.ready = result.success;
+                return this.ready;
+            }
+
+            async loadBinary(data) {
+                const result = await this.send('loadBinary', { data });
+                this.cachedData = result; // Cache all the basic info
+                return result;
+            }
+
+            async loadJson(json) {
+                const result = await this.send('loadJson', { json });
+                this.cachedData = result;
+                return result;
+            }
+
+            async getPipelineInfo(pipelineIds) {
+                return await this.send('getPipelineInfo', { pipelineIds });
+            }
+
+            async getSampleLabel(sampleId) {
+                return (await this.send('getSampleLabel', { sampleId })).label;
+            }
+
+            async getPipelineLabel(pipelineId) {
+                return (await this.send('getPipelineLabel', { pipelineId })).label;
+            }
+
+            async getPerSampleStats() {
+                return (await this.send('getPerSampleStats')).stats;
+            }
+
+            async getCoverageStats() {
+                return (await this.send('getCoverageStats')).stats;
+            }
+
+            async getFilteredPositions(samples, filterStr, filterMode, sampleMode) {
+                return (await this.send('getFilteredPositions', {
+                    samples, filterStr, filterMode, sampleMode
+                })).positions;
+            }
+
+            async renderFiltered(samples, positions, offset, limit) {
+                return (await this.send('renderFiltered', {
+                    samples, positions, offset, limit
+                })).html;
+            }
+
+            async calculateDistanceMatrix(pipeline, mode, minDepth, minConsensus, minQual) {
+                return (await this.send('calculateDistanceMatrix', {
+                    pipeline, mode, minDepth, minConsensus, minQual
+                })).matrix;
+            }
+
+            async getKpiData() {
+                return await this.send('getKpiData');
+            }
+
+            async getReproducibilityCommands(pipelineIds) {
+                return (await this.send('getReproducibilityCommands', { pipelineIds })).commands;
+            }
+
+            async getConsensusStats() {
+                return (await this.send('getConsensusStats')).stats;
+            }
+
+            async getPerSampleIntersectionWithGt() {
+                return (await this.send('getPerSampleIntersectionWithGt')).intersection;
+            }
+
+            async getFilePaths() {
+                return (await this.send('getFilePaths')).paths;
+            }
+
+            async getKpis() {
+                return (await this.send('getKpis')).kpis;
+            }
+
+            async getMnpStats() {
+                return (await this.send('getMnpStats')).stats;
+            }
+
+            async getPipelineConcordance() {
+                return (await this.send('getPipelineConcordance')).concordance;
+            }
+
+            async getSnpsInGaps() {
+                return (await this.send('getSnpsInGaps')).snpsInGaps;
+            }
+
+            async getSnp(sample, pipeline, pos) {
+                return (await this.send('getSnp', { sample, pipeline, pos })).snp;
+            }
+
+            // Cached accessors (no worker call needed after load)
+            get refName() { return this.cachedData.refName; }
+            get refLength() { return this.cachedData.refLength; }
+            get sampleIds() { return this.cachedData.sampleIds; }
+            get pipelineIds() { return this.cachedData.pipelineIds; }
+            get generatedAt() { return this.cachedData.generatedAt; }
+            get description() { return this.cachedData.description; }
+            get warnings() { return this.cachedData.warnings; }
+            get vcfPipelines() { return this.cachedData.vcfPipelines; }
+            get groundTruthPipeline() { return this.cachedData.groundTruthPipeline; }
+            get pipelineDistanceMatrices() { return this.cachedData.pipelineDistanceMatrices; }
+            get pipelineInfo() { return this.cachedData.pipelineInfo; }
+            get sampleLabels() { return this.cachedData.sampleLabels; }
+
+            // Helper methods for cached data
+            getPipelineLabel(pipelineId) {
+                return this.cachedData.pipelineInfo?.[pipelineId]?.label || pipelineId;
+            }
+            getPipelineCommand(pipelineId) {
+                return this.cachedData.pipelineInfo?.[pipelineId]?.command || '';
+            }
+            isGroundTruth(pipelineId) {
+                return this.cachedData.pipelineInfo?.[pipelineId]?.isGroundTruth || false;
+            }
+            isFromBamPileup(pipelineId) {
+                return this.cachedData.pipelineInfo?.[pipelineId]?.isFromBamPileup || false;
+            }
+            getSampleLabel(sampleId) {
+                return this.cachedData.sampleLabels?.[sampleId] || sampleId;
+            }
+        }
+
+        let workerApi = null;
         let samples = [];
         let positions = [];
         let currentPage = 0;
@@ -1837,9 +1995,9 @@
         window.setAllRowVisibility = setAllRowVisibility;
         window.filterVisibilityCheckboxes = filterVisibilityCheckboxes;
         window.toggleRowVisibility = toggleRowVisibility;
-        window.redrawGenomeOverview = () => {
-            if (genomeData && samples.length > 0) {
-                drawGenomeOverview();
+        window.redrawGenomeOverview = async () => {
+            if (workerApi && workerApi.ready && samples.length > 0) {
+                await drawGenomeOverview();
             }
         };
 
@@ -1902,33 +2060,33 @@
 
             // Phase 4: KPIs (medium)
             await nextFrame();
-            updateKPIs();
+            await updateKPIs();
             createFilterButtons(pipelines);
             createVisibilityControls(pipelines);
             console.log(`Phase 4 (KPIs): ${(performance.now() - t0).toFixed(0)}ms`);
 
             // Phase 5: Per-sample stats (can be slow)
             await nextFrame();
-            populatePerSampleStats();
+            await populatePerSampleStats();
             console.log(`Phase 5 (per-sample): ${(performance.now() - t0).toFixed(0)}ms`);
 
             // Hide loader - core UI is now visible
             hideLoader();
 
             // Phase 6: Heavy stuff in idle time
-            scheduleIdleTask(() => {
-                populateCoverageStats();
+            scheduleIdleTask(async () => {
+                await populateCoverageStats();
                 console.log(`Phase 6 (coverage): ${(performance.now() - t0).toFixed(0)}ms`);
             });
 
-            scheduleIdleTask(() => {
-                populateReproducibilityCommands();
+            scheduleIdleTask(async () => {
+                await populateReproducibilityCommands();
                 console.log(`Phase 6b (reproducibility): ${(performance.now() - t0).toFixed(0)}ms`);
             });
 
             // Phase 7: Genome overview (heavy, but visible)
             await nextFrame();
-            drawGenomeOverview();
+            await drawGenomeOverview();
             console.log(`Phase 7 (genome): ${(performance.now() - t0).toFixed(0)}ms`);
 
             // Phase 8: Don't load positions automatically - too heavy
@@ -1955,9 +2113,15 @@
         }
 
         async function main() {
-            await init();
-            genomeData = new GenomeData();
-            console.log('WASM initialized');
+            workerApi = new WorkerAPI();
+            showLoader('Initializing...', 'Loading WASM module');
+            const success = await workerApi.init();
+            if (!success) {
+                alert('Failed to initialize WASM module');
+                return;
+            }
+            hideLoader();
+            console.log('Worker + WASM initialized');
             setupDropZone();
             setupFileInput();
         }
@@ -2090,22 +2254,24 @@
                     showLoader('Decompressing...', `${(bytes / 1024 / 1024).toFixed(1)} MB`);
                 });
 
-                showLoader('Parsing binary...', `${(binaryData.length / 1024 / 1024).toFixed(0)} MB`);
-                await new Promise(r => setTimeout(r, 50));
+                showLoader('Loading data...', `${(binaryData.length / 1024 / 1024).toFixed(0)} MB (in background)`);
+                await new Promise(r => requestAnimationFrame(r));
 
-                genomeData.load_binary(binaryData);
+                // Load in worker - UI stays responsive!
+                await workerApi.loadBinary(binaryData.buffer);
 
                 showLoader('Preparing view...', '');
                 await new Promise(r => requestAnimationFrame(r));
 
-                samples = JSON.parse(genomeData.get_sample_ids());
-                pipelines = JSON.parse(genomeData.get_pipeline_ids());
+                // Use cached data from worker
+                samples = workerApi.sampleIds;
+                pipelines = workerApi.pipelineIds;
 
                 document.getElementById('header-info').textContent =
-                    `${genomeData.get_ref_name()} (${genomeData.get_ref_length().toLocaleString()} bp) | ${samples.length} samples | ${pipelines.length} pipelines`;
+                    `${workerApi.refName} (${workerApi.refLength.toLocaleString()} bp) | ${samples.length} samples | ${pipelines.length} pipelines`;
 
                 // Set timestamp in footer
-                const timestamp = genomeData.get_generated_at();
+                const timestamp = workerApi.generatedAt;
                 if (timestamp) {
                     const date = new Date(timestamp);
                     const dd = String(date.getDate()).padStart(2, '0');
@@ -2132,7 +2298,7 @@
         async function loadAllPositions() {
             showLoader('Loading positions...', 'This may take a moment');
             await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-            loadPositions();
+            await loadPositions();
             hideLoader();
         }
         window.loadAllPositions = loadAllPositions;
@@ -2163,10 +2329,11 @@
                         binaryData = new Uint8Array(arrayBuffer);
                     }
 
-                    showLoader('Parsing binary...', `${(binaryData.length / 1024 / 1024).toFixed(0)} MB`);
-                    await new Promise(r => setTimeout(r, 50)); // Allow UI to update
+                    showLoader('Loading data...', `${(binaryData.length / 1024 / 1024).toFixed(0)} MB (in background)`);
+                    await new Promise(r => requestAnimationFrame(r));
 
-                    genomeData.load_binary(binaryData);
+                    // Load in worker - UI stays responsive!
+                    await workerApi.loadBinary(binaryData.buffer);
                 } else {
                     // JSON format
                     let text;
@@ -2178,29 +2345,30 @@
                         text = await decompressGzipWithProgress(arrayBuffer, (bytes) => {
                             showLoader('Decompressing...', `${(bytes / 1024 / 1024).toFixed(1)} MB`);
                         });
-                        showLoader('Parsing JSON...', `${(text.length / 1024 / 1024).toFixed(1)} MB`);
                     } else {
                         showLoader('Reading file...', '');
                         text = await file.text();
                     }
 
-                    showLoader('Parsing JSON...', `${(text.length / 1024 / 1024).toFixed(0)} MB`);
-                    await new Promise(r => setTimeout(r, 50)); // Allow UI to update
+                    showLoader('Loading data...', `${(text.length / 1024 / 1024).toFixed(0)} MB (in background)`);
+                    await new Promise(r => requestAnimationFrame(r));
 
-                    genomeData.load_json(text);
+                    // Load in worker - UI stays responsive!
+                    await workerApi.loadJson(text);
                 }
 
                 showLoader('Preparing view...', '');
                 await new Promise(r => requestAnimationFrame(r));
 
-                samples = JSON.parse(genomeData.get_sample_ids());
-                pipelines = JSON.parse(genomeData.get_pipeline_ids());
+                // Use cached data from worker
+                samples = workerApi.sampleIds;
+                pipelines = workerApi.pipelineIds;
 
                 document.getElementById('header-info').textContent =
-                    `${genomeData.get_ref_name()} (${genomeData.get_ref_length().toLocaleString()} bp) | ${samples.length} samples | ${pipelines.length} pipelines`;
+                    `${workerApi.refName} (${workerApi.refLength.toLocaleString()} bp) | ${samples.length} samples | ${pipelines.length} pipelines`;
 
                 // Set timestamp in footer (format: dd/mm/yyyy hh:mi:ss)
-                const timestamp = genomeData.get_generated_at();
+                const timestamp = workerApi.generatedAt;
                 if (timestamp) {
                     const date = new Date(timestamp);
                     const dd = String(date.getDate()).padStart(2, '0');
@@ -2225,8 +2393,7 @@
         }
 
         function displayWarnings() {
-            const warningsJson = genomeData.get_warnings();
-            const warnings = JSON.parse(warningsJson);
+            const warnings = workerApi.warnings || [];
             const container = document.getElementById('warnings');
 
             if (warnings.length === 0) {
@@ -2334,7 +2501,7 @@
             const panel = document.getElementById('description-panel');
             const view = document.getElementById('description-view');
 
-            const description = genomeData.get_description();
+            const description = workerApi.description;
 
             if (description && description.trim()) {
                 panel.style.display = 'block';
@@ -2347,15 +2514,15 @@
         }
 
         function populatePipelineInfo() {
-            const pipelineIds = JSON.parse(genomeData.get_pipeline_ids());
+            const pipelineIds = workerApi.pipelineIds;
             const container = document.getElementById('pipelines-info');
 
             let html = '';
             for (const pipelineId of pipelineIds) {
-                const label = genomeData.get_pipeline_label(pipelineId);
-                const command = genomeData.get_pipeline_command(pipelineId);
-                const isGroundTruth = genomeData.is_ground_truth(pipelineId);
-                const isFromBamPileup = genomeData.is_from_bam_pileup(pipelineId);
+                const label = workerApi.getPipelineLabel(pipelineId);
+                const command = workerApi.getPipelineCommand(pipelineId);
+                const isGroundTruth = workerApi.isGroundTruth(pipelineId);
+                const isFromBamPileup = workerApi.isFromBamPileup(pipelineId);
 
                 html += `<div class="pipeline-info-item">`;
                 html += `<div class="pipeline-name">${label}`;
@@ -2382,14 +2549,14 @@
             container.innerHTML = html;
         }
 
-        function populatePerSampleStats() {
+        async function populatePerSampleStats() {
             const container = document.getElementById('per-sample-stats');
-            const stats = JSON.parse(genomeData.get_per_sample_stats());
-            const sampleIds = JSON.parse(genomeData.get_sample_ids());
-            const pipelineIds = JSON.parse(genomeData.get_pipeline_ids());
-            const gtPipeline = genomeData.get_ground_truth_pipeline();
-            const refLength = genomeData.get_ref_length();
-            const consensusStats = JSON.parse(genomeData.get_consensus_stats());
+            const stats = await workerApi.getPerSampleStats();
+            const sampleIds = workerApi.sampleIds;
+            const pipelineIds = workerApi.pipelineIds;
+            const gtPipeline = workerApi.groundTruthPipeline;
+            const refLength = workerApi.refLength;
+            const consensusStats = await workerApi.getConsensusStats();
 
             if (Object.keys(stats).length === 0) {
                 container.innerHTML = '<p style="color:var(--text-secondary);font-size:11px;">No per-sample statistics available.</p>';
@@ -2402,26 +2569,26 @@
             // Header row
             html += '<tr><th rowspan="2">Sample</th>';
             for (const pipelineId of pipelineIds) {
-                const label = genomeData.get_pipeline_label(pipelineId);
+                const label = workerApi.getPipelineLabel(pipelineId);
                 const isGT = pipelineId === gtPipeline;
                 const colspan = isGT ? 2 : 4;
                 html += `<th colspan="${colspan}" class="pipeline-header">${label}${isGT ? ' (GT)' : ''}</th>`;
             }
             // Add per-pipeline intersection with GT columns
-            const perSampleIntersection = gtPipeline ? JSON.parse(genomeData.get_per_sample_intersection_with_gt()) : null;
-            const vcfPipelines = JSON.parse(genomeData.get_vcf_pipelines());
+            const perSampleIntersection = gtPipeline ? await workerApi.getPerSampleIntersectionWithGt() : null;
+            const vcfPipelines = workerApi.vcfPipelines;
             const nonGtPipelines = vcfPipelines.filter(p => p !== gtPipeline);
             if (gtPipeline && perSampleIntersection && Object.keys(perSampleIntersection).length > 0) {
-                const gtLabel = genomeData.get_pipeline_label(gtPipeline).split(' ')[0];
+                const gtLabel = workerApi.getPipelineLabel(gtPipeline).split(' ')[0];
                 for (const pipelineId of nonGtPipelines) {
-                    const pLabel = genomeData.get_pipeline_label(pipelineId).split(' ')[0];
+                    const pLabel = workerApi.getPipelineLabel(pipelineId).split(' ')[0];
                     html += `<th class="pipeline-header" style="background:#1565c0;" title="SNP intersection: ${pLabel} ∩ ${gtLabel}">${pLabel} ∩ ${gtLabel}</th>`;
                 }
             }
             // Add Consensus columns if we have GT
             if (gtPipeline && consensusStats?.per_sample) {
-                const pipelineNames = nonGtPipelines.map(p => genomeData.get_pipeline_label(p).split(' ')[0]).join(' ∩ ');
-                const gtLabel = genomeData.get_pipeline_label(gtPipeline).split(' ')[0];
+                const pipelineNames = nonGtPipelines.map(p => workerApi.getPipelineLabel(p).split(' ')[0]).join(' ∩ ');
+                const gtLabel = workerApi.getPipelineLabel(gtPipeline).split(' ')[0];
                 html += `<th colspan="2" class="pipeline-header" style="background:#4a4a4a;" title="Positions where VCF pipelines agree">${pipelineNames}</th>`;
                 html += `<th class="pipeline-header" style="background:#6a1b9a;" title="Positions where ALL pipelines (incl. GT) agree">${gtLabel} ∩ ${pipelineNames}</th>`;
             }
@@ -2454,7 +2621,7 @@
 
             // Data rows
             for (const sampleId of sampleIds) {
-                const sampleLabel = genomeData.get_sample_label(sampleId) || sampleId;
+                const sampleLabel = workerApi.getSampleLabel(sampleId) || sampleId;
                 const sampleStats = stats[sampleId];
                 if (!sampleStats) continue;
 
@@ -2499,8 +2666,8 @@
                         const iStats = sampleInt[pipelineId];
                         if (iStats) {
                             const intClass = iStats.pct_of_gt >= 90 ? 'good' : iStats.pct_of_gt >= 70 ? 'warning' : 'bad';
-                            const gtLabel = genomeData.get_pipeline_label(gtPipeline).split(' ')[0];
-                            const pLabel = genomeData.get_pipeline_label(pipelineId).split(' ')[0];
+                            const gtLabel = workerApi.getPipelineLabel(gtPipeline).split(' ')[0];
+                            const pLabel = workerApi.getPipelineLabel(pipelineId).split(' ')[0];
                             html += `<td class="${intClass}" title="${iStats.intersection.toLocaleString()} SNPs shared\n${pLabel}: ${iStats.pipeline_snps.toLocaleString()} SNPs\n${gtLabel}: ${iStats.gt_snps.toLocaleString()} SNPs\n${iStats.pct_of_pipeline.toFixed(1)}% of ${pLabel}, ${iStats.pct_of_gt.toFixed(1)}% of ${gtLabel}">${iStats.intersection.toLocaleString()} (${iStats.pct_of_gt.toFixed(1)}%)</td>`;
                         } else {
                             html += '<td>-</td>';
@@ -2551,12 +2718,12 @@
             container.innerHTML = html;
         }
 
-        function populateReproducibilityCommands() {
+        async function populateReproducibilityCommands() {
             const container = document.getElementById('reproducibility-content');
-            const filePaths = JSON.parse(genomeData.get_file_paths());
-            const kpis = JSON.parse(genomeData.get_kpis());
-            const pipelineIds = JSON.parse(genomeData.get_pipeline_ids());
-            const groundTruthPipeline = genomeData.get_ground_truth_pipeline();
+            const filePaths = await workerApi.getFilePaths();
+            const kpis = await workerApi.getKpis();
+            const pipelineIds = workerApi.pipelineIds;
+            const groundTruthPipeline = workerApi.groundTruthPipeline;
 
             if (Object.keys(filePaths).length === 0) {
                 container.innerHTML = '<p style="color:var(--text-secondary);font-size:11px;">No file paths available in report.</p>';
@@ -2569,7 +2736,7 @@
             html += '<div class="repro-section"><h4>SNP Counts (bcftools)</h4>';
             for (const pipeline of pipelineIds) {
                 if (!kpis.snps[pipeline]) continue;
-                const label = genomeData.get_pipeline_label(pipeline);
+                const label = workerApi.getPipelineLabel(pipeline);
                 // Get first sample's VCF path as example
                 for (const [sample, pipelines] of Object.entries(filePaths)) {
                     if (pipelines[pipeline]?.vcf) {
@@ -2587,7 +2754,7 @@
             html += '<div class="repro-section"><h4>Gap Regions (samtools depth)</h4>';
             for (const pipeline of pipelineIds) {
                 if (!kpis.gaps[pipeline]) continue;
-                const label = genomeData.get_pipeline_label(pipeline);
+                const label = workerApi.getPipelineLabel(pipeline);
                 for (const [sample, pipelines] of Object.entries(filePaths)) {
                     if (pipelines[pipeline]?.bam) {
                         const bam = pipelines[pipeline].bam;
@@ -2615,7 +2782,7 @@
                             if (pipeline === groundTruthPipeline) continue;
                             if (pipelines[pipeline]?.vcf) {
                                 const vcf = pipelines[pipeline].vcf;
-                                const label = genomeData.get_pipeline_label(pipeline);
+                                const label = workerApi.getPipelineLabel(pipeline);
                                 const cmd2 = `bedtools intersect -a "${vcf}" -b gt_gaps.bed | wc -l`;
                                 html += `<div class="repro-cmd"><code>${cmd2}</code><button onclick="copyToClipboard(this, \`${cmd2.replace(/`/g, '\\`')}\`)">Copy</button></div>`;
                                 html += `<div class="repro-note">${label} SNPs in GT gaps (${sample})</div>`;
@@ -2638,11 +2805,10 @@
             });
         }
 
-        function updateKPIs(filteredCount = null) {
-            const kpisJson = genomeData.get_kpis();
-            const kpis = JSON.parse(kpisJson);
-            const refLength = genomeData.get_ref_length();
-            const gtPipelineId = genomeData.get_ground_truth_pipeline();
+        async function updateKPIs(filteredCount = null) {
+            const kpis = await workerApi.getKpis();
+            const refLength = workerApi.refLength;
+            const gtPipelineId = workerApi.groundTruthPipeline;
 
             // Helper to sort pipeline entries with GT always first, then alphabetically
             const sortedPipelineEntries = (obj) => {
@@ -2681,7 +2847,7 @@
             const subLabel = (title) => `<div class="kpi-sub-label">${title}</div>`;
 
             // Get MNP stats for table
-            const mnpStats = JSON.parse(genomeData.get_mnp_stats());
+            const mnpStats = await workerApi.getMnpStats();
 
             // Get GT counts for diff calculation
             const gtSnpCount = gtPipelineId ? (kpis.snps[gtPipelineId] || 0) : null;
@@ -2702,13 +2868,13 @@
                 <tbody>`;
 
             for (const [pipeline, snpCount] of sortedPipelineEntries(kpis.snps)) {
-                const label = genomeData.get_pipeline_label(pipeline).split(' ')[0]; // Short label
+                const label = workerApi.getPipelineLabel(pipeline).split(' ')[0]; // Short label
                 const gapCount = kpis.gaps[pipeline] || 0;
                 const coreCount = kpis.core_snps ? (kpis.core_snps[pipeline] || 0) : 0;
                 const consCount = kpis.consensus_snps ? (kpis.consensus_snps[pipeline] || 0) : 0;
                 const mStats = mnpStats ? mnpStats[pipeline] : null;
                 const mnpCount = mStats ? mStats.mnps_found : 0;
-                const isFromBamPileup = genomeData.is_from_bam_pileup(pipeline);
+                const isFromBamPileup = workerApi.isFromBamPileup(pipeline);
 
                 // Calculate percentages
                 const totalBases = refLength * kpis.samples;
@@ -2755,13 +2921,13 @@
             html += `</tbody></table>`;
 
             // === SECTION 3: Cross-Pipeline Concordance ===
-            const concordance = JSON.parse(genomeData.get_pipeline_concordance());
+            const concordance = await workerApi.getPipelineConcordance();
             if (concordance && Object.keys(concordance).length > 0) {
                 html += sectionHeader('Cross-Pipeline Concordance');
 
                 // Build table with all pairwise concordance stats
                 const allPipelines = sortedPipelineEntries(kpis.snps).map(([p]) => p);
-                const getShortLabel = (p) => genomeData.get_pipeline_label(p).split(' ')[0];
+                const getShortLabel = (p) => workerApi.getPipelineLabel(p).split(' ')[0];
 
                 html += `<div style="font-size:11px;color:var(--text-secondary);margin-bottom:5px;">SNP positions shared between pipelines. % = shared / min(SNPs<sub>A</sub>, SNPs<sub>B</sub>)</div>`;
                 html += `<table class="kpi-table">
@@ -2819,7 +2985,7 @@
             if (gtPipelineId) {
                 html += sectionHeader('Ground Truth Comparison');
 
-                const gtLabel = genomeData.get_pipeline_label(gtPipelineId);
+                const gtLabel = workerApi.getPipelineLabel(gtPipelineId);
                 const gtShortLabel = gtLabel.split(' ')[0];
 
                 // SNPs in GT Gaps - consolidated table
@@ -2837,7 +3003,7 @@
                         <tbody>`;
 
                     for (const [pipeline, totalCount] of sortedPipelineEntries(kpis.snps_in_gt_gaps_total)) {
-                        const label = genomeData.get_pipeline_label(pipeline).split(' ')[0];
+                        const label = workerApi.getPipelineLabel(pipeline).split(' ')[0];
                         const coreCount = kpis.snps_in_gt_gaps_core ? (kpis.snps_in_gt_gaps_core[pipeline] || 0) : 0;
                         const consCount = kpis.snps_in_gt_gaps_consensus ? (kpis.snps_in_gt_gaps_consensus[pipeline] || 0) : 0;
                         const totalSnps = kpis.snps[pipeline] || 1;
@@ -2872,7 +3038,7 @@
                         <tbody>`;
 
                     for (const [pipeline, totalMissing] of sortedPipelineEntries(kpis.gt_snps_missing)) {
-                        const label = genomeData.get_pipeline_label(pipeline).split(' ')[0];
+                        const label = workerApi.getPipelineLabel(pipeline).split(' ')[0];
                         const coreMissing = kpis.core_gt_missing ? (kpis.core_gt_missing[pipeline] || 0) : 0;
                         const consMissing = kpis.consensus_gt_missing ? (kpis.consensus_gt_missing[pipeline] || 0) : 0;
                         const totalPct = ((totalMissing / kpis.gt_total_snps) * 100).toFixed(1);
@@ -2891,7 +3057,7 @@
             }
 
             // === SECTION 5: Cross-Pipeline Gap Analysis (all pairwise combinations) ===
-            const snpsInGapsJson = genomeData.get_snps_in_gaps();
+            const snpsInGapsJson = await workerApi.getSnpsInGaps();
             const snpsInGaps = snpsInGapsJson !== 'null' ? JSON.parse(snpsInGapsJson) : null;
 
             if (snpsInGaps && Object.keys(snpsInGaps).length > 0) {
@@ -2902,7 +3068,7 @@
                     const gapPipelineStats = snpsInGaps[gapPipeline];
                     if (!gapPipelineStats || Object.keys(gapPipelineStats).length === 0) continue;
 
-                    const gapLabel = genomeData.get_pipeline_label(gapPipeline).split(' ')[0];
+                    const gapLabel = workerApi.getPipelineLabel(gapPipeline).split(' ')[0];
 
                     html += subLabel(`SNPs in ${gapLabel} Gaps ${infoIcon('snps_in_pipeline_gaps')}`);
                     html += `<table class="kpi-table">
@@ -2921,7 +3087,7 @@
                         .sort((a, b) => a[0].localeCompare(b[0]));
 
                     for (const [snpPipeline, stats] of sortedSnpPipelines) {
-                        const snpLabel = genomeData.get_pipeline_label(snpPipeline).split(' ')[0];
+                        const snpLabel = workerApi.getPipelineLabel(snpPipeline).split(' ')[0];
                         const pct = stats.percentage.toFixed(2);
                         const pctClass = stats.percentage <= 1 ? 'good' : stats.percentage <= 5 ? 'warning' : 'bad';
 
@@ -2946,12 +3112,12 @@
             container.innerHTML = '<span style="color:#808080;margin-right:5px;">SNP Filters:</span>';
 
             // Get pipelines with VCF data (only these can have SNP filters)
-            const vcfPipelines = JSON.parse(genomeData.get_vcf_pipelines());
+            const vcfPipelines = workerApi.vcfPipelines;
 
             // Pipeline SNP filters - only for pipelines with VCF (with info icon inside)
             for (const p of pipelines) {
                 if (!vcfPipelines.includes(p)) continue;
-                const label = genomeData.get_pipeline_label(p);
+                const label = workerApi.getPipelineLabel(p);
                 container.innerHTML += `<button class="filter-btn" data-filter="${p}" onclick="toggleFilter('${p}')">${label} ${infoIcon('filter_pipeline')}</button>`;
             }
 
@@ -2964,7 +3130,7 @@
             // Gap filters - show all pipelines (with info icon inside)
             container.innerHTML += '<span style="color:#808080;margin-left:15px;margin-right:5px;">Gap Filters:</span>';
             for (const p of pipelines) {
-                const label = genomeData.get_pipeline_label(p);
+                const label = workerApi.getPipelineLabel(p);
                 container.innerHTML += `<button class="filter-btn gap-filter" data-filter="gaps:${p}" onclick="toggleFilter('gaps:${p}')">${label} Gaps ${infoIcon('filter_gaps')}</button>`;
             }
         }
@@ -2977,11 +3143,11 @@
             let html = '';
 
             // Get ground truth pipeline (if any) - it's hidden from individual rows
-            const groundTruthPipeline = genomeData.get_ground_truth_pipeline();
+            const groundTruthPipeline = workerApi.groundTruthPipeline;
 
             // Per-sample controls
             for (const sample of samples) {
-                const sampleLabel = genomeData.get_sample_label(sample);
+                const sampleLabel = workerApi.getSampleLabel(sample);
                 html += `<div class="vis-group">
                     <div class="vis-group-title">${sampleLabel}</div>
                     <div class="vis-item">
@@ -2994,7 +3160,7 @@
                     if (groundTruthPipeline && p === groundTruthPipeline) {
                         continue;
                     }
-                    const pipelineLabel = genomeData.get_pipeline_label(p);
+                    const pipelineLabel = workerApi.getPipelineLabel(p);
                     const rowId = `${sampleLabel}|${pipelineLabel}`;
                     html += `<div class="vis-item">
                         <input type="checkbox" id="vis-${sample}-${p}" checked onchange="toggleRowVisibility('${rowId}', this.checked)">
@@ -3086,7 +3252,7 @@
         }
         window.toggleNucleotideLetters = toggleNucleotideLetters;
 
-        function updateQualityFilter() {
+        async function updateQualityFilter() {
             const minQual = parseInt(document.getElementById('min-qual').value) || 0;
             const minDepth = parseInt(document.getElementById('min-depth').value) || 0;
             const minConsensus = parseInt(document.getElementById('min-consensus').value) || 50;
@@ -3097,10 +3263,10 @@
 
             // Reload positions with quality filtering
             currentPage = 0;
-            loadPositions();
+            await loadPositions();
         }
 
-        function resetQualityFilters() {
+        async function resetQualityFilters() {
             document.getElementById('min-qual').value = 0;
             document.getElementById('min-depth').value = 0;
             document.getElementById('min-consensus').value = 50;
@@ -3110,7 +3276,7 @@
             qualityFilters.minConsensus = 50;
 
             currentPage = 0;
-            loadPositions();
+            await loadPositions();
         }
 
         function filterByQuality(allPositions) {
@@ -3119,55 +3285,14 @@
                 return allPositions;
             }
 
-            // Filter positions by quality
-            // For each position, check if at least one sample/pipeline meets quality criteria
-            const filtered = [];
-            let checkedCount = 0;
-            let passedQualCount = 0;
-            let passedDepthCount = 0;
-
-            for (const pos of allPositions) {
-                let positionPasses = false;
-
-                for (const sample of samples) {
-                    for (const pipeline of pipelines) {
-                        // get_snp returns "ref,alt,qual,depth" or empty string
-                        const snpData = genomeData.get_snp(sample, pipeline, pos - 1); // 0-based
-                        if (snpData) {
-                            const parts = snpData.split(',');
-                            if (parts.length >= 4) {
-                                const qual = parseFloat(parts[2]) || 0;
-                                const depth = parseInt(parts[3]) || 0;
-                                checkedCount++;
-
-                                const qualPasses = qual >= qualityFilters.minQual;
-                                const depthPasses = depth >= qualityFilters.minDepth;
-
-                                if (qualPasses) passedQualCount++;
-                                if (depthPasses) passedDepthCount++;
-
-                                if (qualPasses && depthPasses) {
-                                    positionPasses = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    if (positionPasses) break;
-                }
-
-                if (positionPasses) {
-                    filtered.push(pos);
-                }
-            }
-
-            // Update quality stats display
+            // Quality filtering is disabled with worker architecture
+            // Would require O(positions * samples * pipelines) worker calls
+            console.warn('Quality filtering temporarily disabled with worker architecture');
             const statsEl = document.getElementById('quality-stats');
-            if (statsEl && checkedCount > 0) {
-                statsEl.textContent = `Checked ${checkedCount} SNPs: ${passedQualCount} passed QUAL filter, ${passedDepthCount} passed Depth filter`;
+            if (statsEl) {
+                statsEl.textContent = 'Quality filtering not available (worker mode)';
             }
-
-            return filtered;
+            return allPositions;
         }
 
         async function toggleFilter(filter) {
@@ -3211,11 +3336,11 @@
             showLoader('Applying filters...', '');
             // Allow UI to update before heavy computation
             await new Promise(r => setTimeout(r, 10));
-            loadPositions();
+            await loadPositions();
             hideLoader();
         }
 
-        function loadPositions() {
+        async function loadPositions() {
             const filterStr = activeFilters.join(',');
             const filterMode = document.getElementById('filter-mode').value;
             const sampleMode = document.getElementById('sample-mode').value;
@@ -3224,7 +3349,7 @@
             const pipelineFilters = activeFilters.filter(f =>
                 !f.startsWith('gaps:') && f !== 'consensus' && f !== 'discordant'
             );
-            const vcfPipelines = JSON.parse(genomeData.get_vcf_pipelines());
+            const vcfPipelines = workerApi.vcfPipelines;
             const hasConsensus = activeFilters.includes('consensus');
             const hasDiscordant = activeFilters.includes('discordant');
 
@@ -3235,13 +3360,12 @@
                 console.log(`🔍 ${hasConsensus ? 'Consensus' : 'Discordant'} scope: ${scopeInfo}`);
             }
 
-            const positionsJson = genomeData.get_filtered_positions_v2(
-                JSON.stringify(samples),
+            let allPositions = await workerApi.getFilteredPositions(
+                samples,
                 filterStr,
                 filterMode,
                 sampleMode
             );
-            let allPositions = JSON.parse(positionsJson);
             console.log(`📊 Filters: [${filterStr}] → ${allPositions.length} positions`);
 
             // Apply quality filters
@@ -3257,9 +3381,9 @@
 
             // Update KPIs with filtered count when filters are active
             const hasFilters = activeFilters.length > 0 || qualityFilters.minQual > 0 || qualityFilters.minDepth > 0;
-            updateKPIs(hasFilters ? positions.length : null);
+            await updateKPIs(hasFilters ? positions.length : null);
 
-            renderPage();
+            await renderPage();
         }
 
         async function onFilterConfigChange() {
@@ -3267,16 +3391,16 @@
                 showLoader('Applying filters...', '');
                 await new Promise(r => setTimeout(r, 10));
                 currentPage = 0;
-                loadPositions();
+                await loadPositions();
                 hideLoader();
             }
         }
 
-        function renderPage() {
+        async function renderPage() {
             const offset = currentPage * getPageSize();
-            const html = genomeData.render_filtered(
-                JSON.stringify(samples),
-                JSON.stringify(positions),
+            const html = await workerApi.renderFiltered(
+                samples,
+                positions,
                 offset,
                 getPageSize()
             );
@@ -3301,7 +3425,7 @@
                 showLoader('Loading page...', '');
                 await new Promise(r => setTimeout(r, 10));
                 currentPage++;
-                renderPage();
+                await renderPage();
                 hideLoader();
             }
         }
@@ -3311,7 +3435,7 @@
                 showLoader('Loading page...', '');
                 await new Promise(r => setTimeout(r, 10));
                 currentPage--;
-                renderPage();
+                await renderPage();
                 hideLoader();
             }
         }
@@ -3327,7 +3451,7 @@
             const idx = positions.findIndex(p => p >= pos);
             if (idx >= 0) {
                 currentPage = Math.floor(idx / getPageSize());
-                renderPage();
+                await renderPage();
                 hideLoader();
             } else {
                 hideLoader();
@@ -3344,7 +3468,7 @@
 
             // Load pipeline distance matrices
             try {
-                pipelineDistanceMatrices = JSON.parse(genomeData.get_pipeline_distance_matrices());
+                pipelineDistanceMatrices = workerApi.pipelineDistanceMatrices;
                 console.log('Pipeline distance matrices:', pipelineDistanceMatrices);
             } catch (e) {
                 pipelineDistanceMatrices = {};
@@ -3352,7 +3476,7 @@
 
             select.innerHTML = '';
             for (const p of pipelines) {
-                const label = genomeData.get_pipeline_label(p);
+                const label = workerApi.getPipelineLabel(p);
                 select.innerHTML += `<option value="${p}">${label}</option>`;
             }
 
@@ -3409,7 +3533,7 @@
             if (!pipelineSelect || !matrixResult) return;
 
             const pipelineId = pipelineSelect.value;
-            const pipelineLabel = genomeData.get_pipeline_label(pipelineId);
+            const pipelineLabel = workerApi.getPipelineLabel(pipelineId);
             const matrixData = pipelineDistanceMatrices[pipelineId];
 
             if (!matrixData) {
@@ -3420,7 +3544,7 @@
             const { samples: matrixSamples, matrix } = matrixData;
 
             // Get sample labels
-            const labels = matrixSamples.map(s => genomeData.get_sample_label(s));
+            const labels = matrixSamples.map(s => workerApi.getSampleLabel(s));
 
             // Build table HTML
             let html = `<p style="color:var(--accent);font-size:11px;margin-bottom:8px;">
@@ -3451,14 +3575,13 @@
             matrixResult.innerHTML = html;
         }
 
-        function populateCoverageStats() {
+        async function populateCoverageStats() {
             const container = document.getElementById('coverage-stats-content');
             if (!container) return;
 
             // Get coverage stats from WASM module
             try {
-                const statsJson = genomeData.get_coverage_stats();
-                const stats = JSON.parse(statsJson);
+                const stats = await workerApi.getCoverageStats();
                 console.log('Coverage stats:', stats);
 
                 if (!stats || Object.keys(stats).length === 0) {
@@ -3480,7 +3603,7 @@
                 let html = '<div class="table-wrapper"><table class="distance-matrix-table" style="font-size:10px;">';
                 html += '<thead><tr><th>Sample</th>';
                 for (const p of pipelines) {
-                    const label = genomeData.get_pipeline_label(p);
+                    const label = workerApi.getPipelineLabel(p);
                     html += `<th>${label}<br><small>SNPs</small></th>`;
                     html += `<th>${label}<br><small>Depth</small></th>`;
                     html += `<th>${label}<br><small>Qual</small></th>`;
@@ -3489,7 +3612,7 @@
                 html += '</tr></thead><tbody>';
 
                 for (const sample of samples) {
-                    const sampleLabel = genomeData.get_sample_label(sample);
+                    const sampleLabel = workerApi.getSampleLabel(sample);
                     html += `<tr><th>${sampleLabel}</th>`;
 
                     for (const p of pipelines) {
@@ -3548,11 +3671,10 @@
             console.log('Distance matrix params:', { selectedPipeline, selectedMode, minDepth, minConsensus, minQual });
 
             try {
-                const resultJson = genomeData.calculate_distance_matrix_filtered(
+                const result = await workerApi.calculateDistanceMatrix(
                     selectedPipeline, selectedMode, minDepth, minConsensus, minQual
                 );
-                console.log('Distance matrix result:', JSON.parse(resultJson));
-                const result = JSON.parse(resultJson);
+                console.log('Distance matrix result:', result);
 
                 if (!result.samples || result.samples.length === 0) {
                     document.getElementById('matrix-result').innerHTML = `
@@ -3577,7 +3699,7 @@
                 }
 
                 // Build table HTML
-                const pipelineLabel = result.pipeline ? genomeData.get_pipeline_label(result.pipeline) : 'Unknown';
+                const pipelineLabel = result.pipeline ? workerApi.getPipelineLabel(result.pipeline) : 'Unknown';
                 const modeLabels = {
                     'vcf_ref': 'VCF + Reference',
                     'vcf_bam': 'VCF + BAM pileup',
@@ -3636,10 +3758,10 @@
             hideLoader();
         }
 
-        function drawGenomeOverview() {
+        async function drawGenomeOverview() {
             const canvas = document.getElementById('genome-canvas');
             const ctx = canvas.getContext('2d');
-            const refLen = genomeData.get_ref_length();
+            const refLen = workerApi.refLength;
 
             // Get theme colors from CSS variables
             const styles = getComputedStyle(document.documentElement);
@@ -3670,7 +3792,7 @@
             ctx.fillRect(0, 0, width, trackHeight);
 
             // Draw pipeline tracks
-            const kpis = JSON.parse(genomeData.get_kpis());
+            const kpis = await workerApi.getKpis();
 
             // SNP and Gap colors matching legend
             const snpColor = '#4ec9b0';  // Teal for SNPs
@@ -3686,7 +3808,7 @@
                 // Draw pipeline label
                 ctx.fillStyle = textSecondary;
                 ctx.font = '9px monospace';
-                const label = genomeData.get_pipeline_label(pipeline);
+                const label = workerApi.getPipelineLabel(pipeline);
                 ctx.fillText(label.substring(0, 15), 5, y + trackHeight / 2 + 3);
 
                 // Draw SNP density (simplified - using bins)
@@ -3698,13 +3820,11 @@
                 // Collect data from all samples for this pipeline
                 for (const sample of samples) {
                     // Get SNP positions for this sample/pipeline
-                    const allPositions = JSON.parse(
-                        genomeData.get_filtered_positions_v2(
-                            JSON.stringify([sample]),
-                            pipeline,
-                            'and',
-                            'any'
-                        )
+                    const allPositions = await workerApi.getFilteredPositions(
+                        [sample],
+                        pipeline,
+                        'and',
+                        'any'
                     );
                     for (const pos of allPositions) {
                         const bin = Math.floor((pos - 1) / binSize);
@@ -3714,13 +3834,11 @@
                     }
 
                     // Get gap positions
-                    const gapPositions = JSON.parse(
-                        genomeData.get_filtered_positions_v2(
-                            JSON.stringify([sample]),
-                            `gaps:${pipeline}`,
-                            'and',
-                            'any'
-                        )
+                    const gapPositions = await workerApi.getFilteredPositions(
+                        [sample],
+                        `gaps:${pipeline}`,
+                        'and',
+                        'any'
                     );
                     for (const pos of gapPositions) {
                         const bin = Math.floor((pos - 1) / binSize);

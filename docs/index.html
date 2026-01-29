@@ -3291,7 +3291,7 @@
             const sourceSelect = document.getElementById('matrix-source');
             const modeLabel = document.getElementById('matrix-mode-label');
             const calculateRow = document.getElementById('matrix-calculate-row');
-            const matrixResult = document.getElementById('distance-matrix-result');
+            const matrixResult = document.getElementById('matrix-result');
 
             if (!sourceSelect) return;
 
@@ -3314,7 +3314,7 @@
 
         function showPipelineMatrix() {
             const pipelineSelect = document.getElementById('matrix-pipeline');
-            const matrixResult = document.getElementById('distance-matrix-result');
+            const matrixResult = document.getElementById('matrix-result');
             if (!pipelineSelect || !matrixResult) return;
 
             const pipelineId = pipelineSelect.value;

@@ -1004,12 +1004,6 @@
     </div>
 
     <div id="viewer" class="main-content hidden">
-        <details class="collapsible-panel" open>
-            <summary>Statistics</summary>
-            <div class="kpis" id="kpis"></div>
-            <div class="warnings-container" id="warnings"></div>
-        </details>
-
         <details class="collapsible-panel" id="pipelines-panel">
             <summary>Pipelines</summary>
             <div id="pipelines-info">
@@ -1017,7 +1011,13 @@
             </div>
         </details>
 
-        <details class="collapsible-panel" id="per-sample-panel">
+        <details class="collapsible-panel" open>
+            <summary>Statistics</summary>
+            <div class="kpis" id="kpis"></div>
+            <div class="warnings-container" id="warnings"></div>
+        </details>
+
+        <details class="collapsible-panel" id="per-sample-panel" open>
             <summary>Per-Sample Statistics</summary>
             <div id="per-sample-stats" style="overflow-x:auto;">
                 <p style="color:var(--text-secondary);font-size:11px;">Per-sample statistics will be shown here after loading data.</p>

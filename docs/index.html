@@ -2343,16 +2343,6 @@
                 const gtLabel = genomeData.get_pipeline_label(gtPipelineId);
                 const gtShortLabel = gtLabel.split(' ')[0];
 
-                // Ground truth pileup SNP statistics
-                const gtPileup = JSON.parse(genomeData.get_ground_truth_pileup());
-                if (gtPileup && typeof gtPileup === 'object') {
-                    const pileupPct = ((gtPileup.total_snps / refLength / kpis.samples) * 100).toFixed(2);
-                    html += `<div class="kpi kpi-gt" title="SNPs counted from BAM pileup without variant calling\n${gtPileup.covered_positions.toLocaleString()} covered positions">
-                        <div class="label">${gtLabel} Pileup SNPs ${infoIcon('gt_pileup')}</div>
-                        <div class="value">${gtPileup.total_snps.toLocaleString()} (${pileupPct}%)</div>
-                    </div>`;
-                }
-
                 // SNPs in GT Gaps - consolidated table
                 if (kpis.snps_in_gt_gaps_total && Object.keys(kpis.snps_in_gt_gaps_total).length > 0) {
                     html += subLabel(`SNPs in ${gtShortLabel} Gaps`);

@@ -1387,6 +1387,33 @@
                            <li><span style="color:#e57373;">Red (&lt;70%)</span>: Low agreement - investigate differences</li>
                        </ul>`
             },
+            'concordance': {
+                title: 'Position Concordance',
+                body: `<p><strong>Concordance</strong> = SNP positions called by BOTH pipelines (regardless of allele).</p>
+                       <div class="formula">Concordance = positions where Pipeline A AND Pipeline B call a SNP</div>
+                       <p><strong>Two modes:</strong></p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li><strong>Any:</strong> At least 1 sample has SNP in both pipelines at this position</li>
+                           <li><strong>All:</strong> ALL samples have SNP in both pipelines (Core_A ∩ Core_B)</li>
+                       </ul>
+                       <p><strong>Note:</strong> Concordance only checks if a SNP exists - it does NOT compare the actual allele called.</p>`
+            },
+            'consensus': {
+                title: 'Allele Consensus',
+                body: `<p><strong>Consensus</strong> = SNP positions where BOTH pipelines call the SAME allele.</p>
+                       <div class="formula">Consensus = positions where Pipeline A alt == Pipeline B alt</div>
+                       <p><strong>Two modes:</strong></p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li><strong>Any:</strong> At least 1 sample has the same allele in both pipelines</li>
+                           <li><strong>All:</strong> ALL samples have the same allele in both pipelines</li>
+                       </ul>
+                       <p><strong>Note:</strong> Consensus ≤ Concordance (consensus is a subset where alleles match).</p>
+                       <p><strong>Interpretation:</strong></p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li>Consensus ≈ Concordance: pipelines agree on alleles</li>
+                           <li>Consensus &lt;&lt; Concordance: pipelines find same positions but call different alleles</li>
+                       </ul>`
+            },
             'consensus_vs_gt': {
                 title: 'VCF Consensus vs Ground Truth',
                 body: `<p><strong>VCF Consensus</strong> = SNP positions where <strong>ALL VCF pipelines agree</strong> (e.g., CFSAN ∩ Snippy).</p>
@@ -2229,26 +2256,31 @@
             html += `</tbody></table>`;
 
             // === SECTION 3: Cross-Pipeline Concordance ===
-            const intersection = JSON.parse(genomeData.get_snp_intersection());
-            if (intersection && Object.keys(intersection).length > 0) {
+            const concordance = JSON.parse(genomeData.get_pipeline_concordance());
+            if (concordance && Object.keys(concordance).length > 0) {
                 html += sectionHeader('Cross-Pipeline Concordance');
 
-                // Build table with all pairwise intersections
+                // Build table with all pairwise concordance stats
                 const allPipelines = sortedPipelineEntries(kpis.snps).map(([p]) => p);
                 const getShortLabel = (p) => genomeData.get_pipeline_label(p).split(' ')[0];
 
                 html += `<table class="kpi-table">
                     <thead>
                         <tr>
-                            <th>A ∩ B ${infoIcon('intersection')}</th>
-                            <th>Intersection</th>
-                            <th>% of A</th>
-                            <th>% of B</th>
+                            <th rowspan="2">A ∩ B</th>
+                            <th colspan="2" style="text-align:center;border-bottom:1px solid var(--border-color);">Concordance ${infoIcon('concordance')}</th>
+                            <th colspan="2" style="text-align:center;border-bottom:1px solid var(--border-color);">Consensus ${infoIcon('consensus')}</th>
+                        </tr>
+                        <tr>
+                            <th title="At least 1 sample has SNP in both pipelines">Any</th>
+                            <th title="ALL samples have SNP in both pipelines (Core ∩ Core)">All</th>
+                            <th title="At least 1 sample has same allele in both pipelines">Any</th>
+                            <th title="ALL samples have same allele in both pipelines">All</th>
                         </tr>
                     </thead>
                     <tbody>`;
 
-                // Show all unique pairs (avoid duplicates like A∩B and B∩A)
+                // Show all unique pairs
                 for (let i = 0; i < allPipelines.length; i++) {
                     const pipelineA = allPipelines[i];
                     const labelA = getShortLabel(pipelineA);
@@ -2256,36 +2288,21 @@
                         const pipelineB = allPipelines[j];
                         const labelB = getShortLabel(pipelineB);
 
-                        // Get intersection stats (check both directions)
-                        let stats = intersection[pipelineA]?.[pipelineB] || intersection[pipelineB]?.[pipelineA];
+                        // Get concordance stats (check both directions since we only store one)
+                        let stats = concordance[pipelineA]?.[pipelineB] || concordance[pipelineB]?.[pipelineA];
                         if (stats) {
-                            // Ensure correct order (A is first pipeline)
-                            const isReversed = !intersection[pipelineA]?.[pipelineB];
-                            const pctA = isReversed ? stats.pct_of_b.toFixed(1) : stats.pct_of_a.toFixed(1);
-                            const pctB = isReversed ? stats.pct_of_a.toFixed(1) : stats.pct_of_b.toFixed(1);
-
                             html += `<tr>
                                 <td>${labelA} ∩ ${labelB}</td>
-                                <td>${stats.intersection.toLocaleString()}</td>
-                                <td>${pctA}%</td>
-                                <td>${pctB}%</td>
+                                <td>${stats.concordance_any.toLocaleString()}</td>
+                                <td>${stats.concordance_all.toLocaleString()}</td>
+                                <td>${stats.consensus_any.toLocaleString()}</td>
+                                <td>${stats.consensus_all.toLocaleString()}</td>
                             </tr>`;
                         }
                     }
                 }
 
                 html += `</tbody></table>`;
-
-                // Also show ALL pipelines consensus if GT exists
-                const consensusStats = JSON.parse(genomeData.get_consensus_stats());
-                if (consensusStats && consensusStats.global_all && gtPipelineId) {
-                    const allPipelineNames = allPipelines.map(p => getShortLabel(p)).join(' ∩ ');
-                    const allConsensusPct = ((consensusStats.global_all / refLength) * 100).toFixed(2);
-                    html += `<div class="kpi" style="margin-top:10px;" title="Positions where ALL pipelines agree on having a SNP">
-                        <div class="label">${allPipelineNames} ${infoIcon('all_consensus')}</div>
-                        <div class="value">${consensusStats.global_all.toLocaleString()} (${allConsensusPct}%)</div>
-                    </div>`;
-                }
             }
 
             // === SECTION 4: Ground Truth Comparison (only if GT exists) ===

@@ -87,6 +87,15 @@ export class GenomeData {
      */
     get_pipeline_command(pipeline_id: string): string | undefined;
     /**
+     * Get detailed pipeline concordance statistics
+     * Returns 4 metrics for each pipeline pair:
+     * - concordance_any: positions where at least 1 sample has SNP in both pipelines
+     * - concordance_all: positions where ALL samples have SNP in both pipelines
+     * - consensus_any: positions where at least 1 sample has same allele in both pipelines
+     * - consensus_all: positions where ALL samples have same allele in both pipelines
+     */
+    get_pipeline_concordance(): string;
+    /**
      * Get all pipeline IDs as JSON array
      */
     get_pipeline_ids(): string;
@@ -201,6 +210,7 @@ export interface InitOutput {
     readonly genomedata_get_kpis: (a: number) => [number, number];
     readonly genomedata_get_per_sample_stats: (a: number) => [number, number];
     readonly genomedata_get_snp_intersection: (a: number) => [number, number];
+    readonly genomedata_get_pipeline_concordance: (a: number) => [number, number];
     readonly genomedata_get_per_sample_intersection_with_gt: (a: number) => [number, number];
     readonly genomedata_get_consensus_stats: (a: number) => [number, number];
     readonly genomedata_get_filtered_positions_v2: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number];

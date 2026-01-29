@@ -304,6 +304,27 @@ export class GenomeData {
         return v2;
     }
     /**
+     * Get detailed pipeline concordance statistics
+     * Returns 4 metrics for each pipeline pair:
+     * - concordance_any: positions where at least 1 sample has SNP in both pipelines
+     * - concordance_all: positions where ALL samples have SNP in both pipelines
+     * - consensus_any: positions where at least 1 sample has same allele in both pipelines
+     * - consensus_all: positions where ALL samples have same allele in both pipelines
+     * @returns {string}
+     */
+    get_pipeline_concordance() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_pipeline_concordance(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get all pipeline IDs as JSON array
      * @returns {string}
      */

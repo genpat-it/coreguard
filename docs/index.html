@@ -1303,67 +1303,68 @@
                        <p><strong>High gap percentage</strong> may indicate poor sequencing quality or divergent samples.</p>`
             },
             'snps_in_gt_gaps': {
-                title: 'SNPs in Ground Truth Gaps',
-                body: `<p>Number of SNPs called by this pipeline that fall within gap regions of the Ground Truth pipeline.</p>
-                       <div class="formula">% = (SNPs in GT Gaps / Total SNPs) × 100</div>
+                title: 'Any SNPs in GT Gaps',
+                body: `<p>SNP positions in GT gap regions where <strong>at least 1 sample</strong> has a SNP.</p>
+                       <div class="formula">% = (Any SNPs in GT Gaps / Any SNPs) × 100</div>
+                       <p><strong>Any</strong> = position has SNP in ≥1 sample</p>
                        <p><strong>Interpretation:</strong></p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
                            <li><span style="color:#81c784;">Green (&lt;1%)</span>: Good - few SNPs in unreliable regions</li>
                            <li><span style="color:#e57373;">Red (&gt;1%)</span>: Potential false positives in low-coverage regions</li>
-                       </ul>
-                       <p>SNPs called in regions where the ground truth has no coverage are potentially unreliable.</p>`
+                       </ul>`
             },
-            'core_snps_in_gt_gaps': {
-                title: 'Core SNPs in GT Gaps',
-                body: `<p><strong>Core SNPs</strong> in Ground Truth gap regions.</p>
-                       <div class="formula">% = (Core SNPs in GT Gaps / Core SNPs) × 100</div>
-                       <p><strong>Core SNPs</strong> = positions where ALL samples have a SNP in this pipeline.</p>
+            'all_snps_in_gt_gaps': {
+                title: 'All SNPs in GT Gaps',
+                body: `<p>SNP positions in GT gap regions where <strong>ALL samples</strong> have a SNP.</p>
+                       <div class="formula">% = (All SNPs in GT Gaps / All SNPs) × 100</div>
+                       <p><strong>All</strong> = position has SNP in ALL samples (position-based, any allele)</p>
                        <p><strong>Interpretation:</strong></p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li>Core SNPs are more reliable as they're consistently called</li>
-                           <li>Core SNPs in GT gaps may indicate systematic differences between pipelines</li>
+                           <li>These are consistently called SNPs in unreliable regions</li>
+                           <li>May indicate systematic differences between pipelines</li>
                        </ul>`
             },
             'consensus_snps_in_gt_gaps': {
                 title: 'Consensus SNPs in GT Gaps',
-                body: `<p><strong>Consensus SNPs</strong> in Ground Truth gap regions.</p>
+                body: `<p>SNP positions in GT gap regions where <strong>ALL samples have the SAME allele</strong>.</p>
                        <div class="formula">% = (Consensus SNPs in GT Gaps / Consensus SNPs) × 100</div>
-                       <p><strong>Consensus SNPs</strong> = positions where ALL samples have the SAME alt allele.</p>
+                       <p><strong>Consensus</strong> = ALL samples have identical alt allele</p>
                        <p><strong>Interpretation:</strong></p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li>Consensus SNPs are the most reliable variant calls</li>
+                           <li>Most reliable variant calls in unreliable regions</li>
                            <li>Consensus SNPs in GT gaps warrant closer inspection</li>
                        </ul>`
             },
             'gt_snps_missing': {
-                title: 'GT SNPs Filtered by Pipeline (Total)',
-                body: `<p>Number of Ground Truth SNP positions that this pipeline does <strong>NOT</strong> call (summed across all samples).</p>
+                title: 'Any GT SNPs Filtered',
+                body: `<p>GT SNP positions (≥1 sample) that this pipeline does <strong>NOT</strong> call.</p>
                        <div class="formula">Σ(GT<sub>sample</sub> - (GT<sub>sample</sub> ∩ Pipeline<sub>sample</sub>))</div>
+                       <p><strong>Any</strong> = position has SNP in ≥1 sample</p>
                        <p><strong>Interpretation:</strong></p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li>Shows total GT SNPs being "filtered out" by each pipeline</li>
+                           <li>Shows GT SNPs being "filtered out" by each pipeline</li>
                            <li>Higher values = more aggressive filtering</li>
                        </ul>`
             },
-            'core_gt_missing': {
-                title: 'Core GT SNPs Filtered',
-                body: `<p>Core GT SNP positions not present in the pipeline's core SNPs.</p>
-                       <div class="formula">|Core GT| - |Core GT ∩ Core Pipeline|</div>
-                       <p><strong>Core SNPs</strong> = positions with SNP in ALL samples</p>
+            'all_gt_missing': {
+                title: 'All GT SNPs Filtered',
+                body: `<p>GT SNP positions (ALL samples) not present in the pipeline.</p>
+                       <div class="formula">|All GT| - |All GT ∩ All Pipeline|</div>
+                       <p><strong>All</strong> = position has SNP in ALL samples (position-based)</p>
                        <p><strong>Interpretation:</strong></p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li>Shows reliable GT SNPs missing from pipeline's core</li>
+                           <li>Shows consistent GT SNPs missing from pipeline</li>
                            <li>Lower = pipeline captures consistent GT signal</li>
                        </ul>`
             },
             'consensus_gt_missing': {
                 title: 'Consensus GT SNPs Filtered',
-                body: `<p>Consensus GT SNP positions not present in the pipeline's consensus SNPs.</p>
+                body: `<p>GT Consensus positions not present in the pipeline's consensus.</p>
                        <div class="formula">|Consensus GT| - |Consensus GT ∩ Consensus Pipeline|</div>
-                       <p><strong>Consensus SNPs</strong> = positions where ALL samples have the SAME alt allele</p>
+                       <p><strong>Consensus</strong> = ALL samples have identical alt allele</p>
                        <p><strong>Interpretation:</strong></p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li>Shows highly reliable GT SNPs (same across all samples) missing from pipeline's consensus</li>
+                           <li>Shows highly reliable GT SNPs missing from pipeline's consensus</li>
                            <li>Lower = pipeline captures consistent variant calls</li>
                        </ul>`
             },
@@ -1555,15 +1556,15 @@
                        <p><strong>Note:</strong> SNPs called in gap regions of other pipelines may be less reliable.</p>`
             },
             'core_snps': {
-                title: 'Core SNPs',
-                body: `<p><strong>Core SNPs</strong> = SNP positions present in <strong>ALL samples</strong> within this pipeline.</p>
-                       <p>These are the most consistent SNPs - found by this pipeline in every sample analyzed.</p>
+                title: 'All SNPs (position-based)',
+                body: `<p><strong>All</strong> = SNP positions present in <strong>ALL samples</strong> within this pipeline.</p>
+                       <p>Position-based: counts where ALL samples have a SNP, regardless of which allele.</p>
                        <p><strong>Use:</strong></p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li>High core % = consistent variant calling across samples</li>
-                           <li>Low core % = many sample-specific variants (may indicate noise or real biological variation)</li>
+                           <li>High % = consistent variant calling across samples</li>
+                           <li>Low % = many sample-specific variants</li>
                        </ul>
-                       <p><strong>% of total:</strong> What fraction of all SNPs are present in every sample.</p>`
+                       <p><strong>Note:</strong> "All" ⊇ "Consensus" (All includes Consensus as a subset)</p>`
             },
             'consensus_snps': {
                 title: 'Consensus SNPs',
@@ -1994,6 +1995,7 @@
 
         function populatePipelineInfo() {
             const pipelineIds = JSON.parse(genomeData.get_pipeline_ids());
+            const vcfPipelines = JSON.parse(genomeData.get_vcf_pipelines());
             const container = document.getElementById('pipelines-info');
 
             let html = '';
@@ -2001,15 +2003,22 @@
                 const label = genomeData.get_pipeline_label(pipelineId);
                 const command = genomeData.get_pipeline_command(pipelineId);
                 const isGroundTruth = genomeData.is_ground_truth(pipelineId);
+                const hasVcf = vcfPipelines.includes(pipelineId);
 
                 html += `<div class="pipeline-info-item">`;
                 html += `<div class="pipeline-name">${label}`;
                 if (isGroundTruth) {
                     html += `<span class="pipeline-badge">Ground Truth</span>`;
+                    if (!hasVcf) {
+                        html += `<span class="pipeline-badge" style="background:#ff9800;" title="SNPs derived from BAM pileup, no variant calling filters applied">BAM pileup</span>`;
+                    }
                 }
                 html += `</div>`;
                 if (command) {
                     html += `<div class="pipeline-command">${command}</div>`;
+                }
+                if (isGroundTruth && !hasVcf) {
+                    html += `<div style="color:#ff9800;font-size:10px;margin-top:4px;">⚠️ SNPs from BAM pileup - no variant calling performed</div>`;
                 }
                 html += `</div>`;
             }
@@ -2333,7 +2342,7 @@
                         <th>SNPs ${infoIcon('snps')}</th>
                         <th>Gaps ${infoIcon('gaps')}</th>
                         <th>MNPs ${infoIcon('mnps')}</th>
-                        <th>Core ${infoIcon('core_snps')}</th>
+                        <th>All ${infoIcon('core_snps')}</th>
                         <th>Consensus ${infoIcon('consensus_snps')}</th>
                     </tr>
                 </thead>
@@ -2463,8 +2472,8 @@
                         <thead>
                             <tr>
                                 <th>Pipeline</th>
-                                <th>Total ${infoIcon('snps_in_gt_gaps')}</th>
-                                <th>Core ${infoIcon('core_snps_in_gt_gaps')}</th>
+                                <th>Any ${infoIcon('snps_in_gt_gaps')}</th>
+                                <th>All ${infoIcon('all_snps_in_gt_gaps')}</th>
                                 <th>Consensus ${infoIcon('consensus_snps_in_gt_gaps')}</th>
                             </tr>
                         </thead>
@@ -2498,8 +2507,8 @@
                         <thead>
                             <tr>
                                 <th>Pipeline</th>
-                                <th>Total (/${kpis.gt_total_snps.toLocaleString()}) ${infoIcon('gt_snps_missing')}</th>
-                                <th>Core (/${(kpis.core_gt_total || 0).toLocaleString()}) ${infoIcon('core_gt_missing')}</th>
+                                <th>Any (/${kpis.gt_total_snps.toLocaleString()}) ${infoIcon('gt_snps_missing')}</th>
+                                <th>All (/${(kpis.core_gt_total || 0).toLocaleString()}) ${infoIcon('all_gt_missing')}</th>
                                 <th>Consensus (/${(kpis.consensus_gt_total || 0).toLocaleString()}) ${infoIcon('consensus_gt_missing')}</th>
                             </tr>
                         </thead>

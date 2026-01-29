@@ -1782,24 +1782,41 @@
             await new Promise(r => requestAnimationFrame(r));
 
             try {
-                // Use JSON format (bincode disabled due to serde compatibility issues)
-                const response = await fetch('demo.json.gz');
-                if (!response.ok) throw new Error('Failed to fetch demo file');
+                // Try binary format first (faster), fall back to JSON
+                let response = await fetch('demo.bin.gz');
+                let isBinary = response.ok;
+
+                if (!isBinary) {
+                    response = await fetch('demo.json.gz');
+                    if (!response.ok) throw new Error('Failed to fetch demo file');
+                }
 
                 const compressedSize = parseInt(response.headers.get('content-length') || '0');
                 showLoader('Downloading...', `${(compressedSize / 1024 / 1024).toFixed(1)} MB compressed`);
                 await new Promise(r => requestAnimationFrame(r));
                 const arrayBuffer = await response.arrayBuffer();
 
-                showLoader('Decompressing...', '0 MB');
-                const text = await decompressGzipWithProgress(arrayBuffer, (bytes) => {
-                    showLoader('Decompressing...', `${(bytes / 1024 / 1024).toFixed(1)} MB`);
-                });
+                if (isBinary) {
+                    showLoader('Decompressing...', '0 MB');
+                    const binaryData = await decompressGzipBinary(arrayBuffer, (bytes) => {
+                        showLoader('Decompressing...', `${(bytes / 1024 / 1024).toFixed(1)} MB`);
+                    });
 
-                showLoader('Processing data...', `${(text.length / 1024 / 1024).toFixed(0)} MB - please wait`);
-                await new Promise(r => setTimeout(r, 50)); // Allow UI to update
+                    showLoader('Processing binary...', `${(binaryData.length / 1024 / 1024).toFixed(0)} MB`);
+                    await new Promise(r => setTimeout(r, 50));
 
-                genomeData.load_json(text);
+                    genomeData.load_binary(binaryData);
+                } else {
+                    showLoader('Decompressing...', '0 MB');
+                    const text = await decompressGzipWithProgress(arrayBuffer, (bytes) => {
+                        showLoader('Decompressing...', `${(bytes / 1024 / 1024).toFixed(1)} MB`);
+                    });
+
+                    showLoader('Processing data...', `${(text.length / 1024 / 1024).toFixed(0)} MB - please wait`);
+                    await new Promise(r => setTimeout(r, 50));
+
+                    genomeData.load_json(text);
+                }
 
                 samples = JSON.parse(genomeData.get_sample_ids());
                 pipelines = JSON.parse(genomeData.get_pipeline_ids());

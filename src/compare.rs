@@ -33,7 +33,7 @@ pub struct CompareReport {
 
     /// Polymorphic sites for distance matrix calculation (per pipeline)
     /// Key: pipeline_id -> position (as string for JSON compatibility) -> allele data per sample
-    #[serde(skip_serializing_if = "HashMap::is_empty", default)]
+    #[serde(default)]
     pub polymorphic_sites: HashMap<String, HashMap<String, PolymorphicSite>>,
 
     /// Summary statistics
@@ -58,20 +58,20 @@ pub struct SampleAllele {
     /// Source of the call: "vcf", "bam", or "gap"
     pub source: String,
     /// Depth at this position (if available)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub depth: Option<u32>,
     /// Quality score from VCF (if available)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub qual: Option<f64>,
     /// Consensus percentage from BAM (0.0 - 1.0, if available)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub consensus: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReferenceInfo {
     pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub label: Option<String>,
     pub length: usize,
     pub sequence: String,
@@ -79,39 +79,39 @@ pub struct ReferenceInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SampleInfo {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub label: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelineInfo {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub label: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub command: Option<String>,
     pub has_vcf: bool,
     pub has_bam: bool,
     /// Mark this pipeline as ground truth (baseline for comparison)
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[serde(default)]
     pub ground_truth: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PipelineData {
     /// Gap regions [start, end)
-    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    #[serde(default)]
     pub gaps: Vec<[usize; 2]>,
 
     /// SNP list
-    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    #[serde(default)]
     pub snps: Vec<Snp>,
 
     /// Source VCF file path (for reproducibility)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub vcf_path: Option<String>,
 
     /// Source BAM file path (for reproducibility)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub bam_path: Option<String>,
 }
 
@@ -132,16 +132,16 @@ pub struct Summary {
     pub generated_at: String,
     pub coreguard_version: String,
     /// Warnings (e.g., MNP decomposition notices)
-    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    #[serde(default)]
     pub warnings: Vec<String>,
     /// SNPs in ground truth gaps statistics (pipeline_id -> stats)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub snps_in_gt_gaps: Option<HashMap<String, SnpsInGapsStats>>,
     /// Ground truth pileup SNP statistics (raw count from BAM without variant calling)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub ground_truth_pileup: Option<GroundTruthPileupStats>,
     /// Per-pipeline MNP decomposition statistics
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub mnp_stats: Option<HashMap<String, MnpStats>>,
 }
 

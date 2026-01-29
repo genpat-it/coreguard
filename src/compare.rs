@@ -38,6 +38,10 @@ pub struct CompareReport {
 
     /// Summary statistics
     pub summary: Summary,
+
+    /// Description (markdown content)
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 /// Allele information at a polymorphic site
@@ -560,6 +564,9 @@ impl CompareReport {
             mnp_stats,
         };
 
+        // Get description content (from file or inline)
+        let description = config.get_description_content();
+
         Ok(CompareReport {
             version: "1.0".to_string(),
             reference: ReferenceInfo {
@@ -573,6 +580,7 @@ impl CompareReport {
             data,
             polymorphic_sites,
             summary,
+            description,
         })
     }
 

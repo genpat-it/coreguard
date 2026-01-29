@@ -491,7 +491,24 @@ export class GenomeData {
         }
     }
     /**
-     * Get SNPs in ground truth gaps statistics as JSON
+     * Get SNPs in gaps for ALL pipeline pairs as JSON
+     * Returns: { gap_pipeline: { snp_pipeline: { total_snps, snps_in_gaps, percentage } } }
+     * @returns {string}
+     */
+    get_snps_in_gaps() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_snps_in_gaps(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Get SNPs in ground truth gaps statistics as JSON (DEPRECATED - use get_snps_in_gaps)
      * @returns {string}
      */
     get_snps_in_gt_gaps() {

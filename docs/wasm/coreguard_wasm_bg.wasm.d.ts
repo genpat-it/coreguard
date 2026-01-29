@@ -4,6 +4,7 @@ export const memory: WebAssembly.Memory;
 export const __wbg_genomedata_free: (a: number, b: number) => void;
 export const genomedata_new: () => number;
 export const genomedata_load_json: (a: number, b: number, c: number) => [number, number];
+export const genomedata_load_binary: (a: number, b: number, c: number) => [number, number];
 export const genomedata_get_ref_length: (a: number) => number;
 export const genomedata_get_ref_name: (a: number) => [number, number];
 export const genomedata_get_sample_ids: (a: number) => [number, number];
@@ -13,6 +14,7 @@ export const genomedata_get_pipeline_label: (a: number, b: number, c: number) =>
 export const genomedata_get_pipeline_command: (a: number, b: number, c: number) => [number, number];
 export const genomedata_get_ground_truth_pipeline: (a: number) => [number, number];
 export const genomedata_is_ground_truth: (a: number, b: number, c: number) => number;
+export const genomedata_is_from_bam_pileup: (a: number, b: number, c: number) => number;
 export const genomedata_get_vcf_pipelines: (a: number) => [number, number];
 export const genomedata_get_generated_at: (a: number) => [number, number];
 export const genomedata_get_warnings: (a: number) => [number, number];

@@ -94,6 +94,9 @@ pub struct PipelineInfo {
     /// Mark this pipeline as ground truth (baseline for comparison)
     #[serde(default)]
     pub ground_truth: bool,
+    /// True if SNPs were derived from BAM pileup (no variant calling filters)
+    #[serde(default)]
+    pub from_bam_pileup: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -224,8 +227,10 @@ impl CompareReport {
             if let Some(pipeline) = config.pipelines.get(pipeline_id) {
                 let has_vcf_files = pipeline.samples.values().any(|f| f.vcf.is_some());
                 let has_bam = pipeline.samples.values().any(|f| f.bam.is_some());
-                // Ground truth with BAM will have SNPs from pileup, so treat as having VCF
+                // Ground truth with BAM will have SNPs from pileup, so treat as having VCF for comparisons
                 let has_vcf = has_vcf_files || (pipeline.ground_truth && has_bam);
+                // Track if SNPs come from BAM pileup (no variant calling)
+                let from_bam_pileup = pipeline.ground_truth && !has_vcf_files && has_bam;
                 pipelines.insert(
                     pipeline_id.clone(),
                     PipelineInfo {
@@ -234,6 +239,7 @@ impl CompareReport {
                         has_vcf,
                         has_bam,
                         ground_truth: pipeline.ground_truth,
+                        from_bam_pileup,
                     },
                 );
             }

@@ -98,16 +98,33 @@
             gap: 15px;
         }
         .theme-toggle {
-            background: var(--btn-bg);
-            border: 1px solid var(--btn-border);
-            color: var(--text-primary);
-            padding: 4px 10px;
-            border-radius: 4px;
+            position: relative;
+            width: 44px;
+            height: 22px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 11px;
             cursor: pointer;
-            font-size: 14px;
+            transition: background 0.3s ease;
+            padding: 0;
+        }
+        .theme-toggle::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            background: var(--text-secondary);
+            border-radius: 50%;
+            transition: transform 0.3s ease, background 0.3s ease;
+        }
+        .theme-toggle.light::after {
+            transform: translateX(22px);
+            background: #ffc107;
         }
         .theme-toggle:hover {
-            background: var(--bg-tertiary);
+            border-color: var(--accent-color);
         }
         .drop-zone {
             display: flex;
@@ -984,7 +1001,7 @@
         <h1>CoreGuard SNP Comparison Viewer</h1>
         <div class="header-right">
             <div class="info" id="header-info">Drop a report to begin (.json, .json.gz, .bin, .bin.gz)</div>
-            <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">🌙</button>
+            <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode"></button>
         </div>
     </div>
 
@@ -1265,7 +1282,7 @@
         function updateThemeIcon(theme) {
             const btn = document.getElementById('theme-toggle');
             if (btn) {
-                btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+                btn.classList.toggle('light', theme === 'light');
                 btn.title = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
             }
         }
@@ -1334,6 +1351,79 @@
                            <li>Most reliable variant calls in unreliable regions</li>
                            <li>Consensus SNPs in GT gaps warrant closer inspection</li>
                        </ul>`
+            },
+            'snps_in_pipeline_gaps': {
+                title: 'SNPs in Pipeline Gaps',
+                body: `<p>SNPs from one pipeline that fall within gap regions of another pipeline.</p>
+                       <div class="formula">% = (SNPs in Gaps / Total SNPs) × 100</div>
+                       <p><strong>Interpretation:</strong></p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li>Shows SNPs called by one pipeline in regions where another has low coverage</li>
+                           <li>High values may indicate false positives or differences in coverage</li>
+                           <li>Useful for comparing pipeline reliability across different regions</li>
+                       </ul>`
+            },
+            // Per-Sample Statistics metrics
+            'ps_snps': {
+                title: 'Per-Sample SNPs',
+                body: `<p>Number of SNPs called by this pipeline for this sample.</p>
+                       <div class="formula">% = (SNPs / Reference Length) × 100</div>
+                       <p>Percentage shows SNP density relative to the reference genome size.</p>`
+            },
+            'ps_gaps': {
+                title: 'Per-Sample Gaps',
+                body: `<p>Total base pairs with insufficient coverage (depth < minimum threshold) for this sample.</p>
+                       <div class="formula">% = (Gap bp / Reference Length) × 100</div>
+                       <p>Gaps indicate regions where the pipeline could not confidently call variants.</p>`
+            },
+            'ps_vs_gt': {
+                title: 'vs GT (Agreement)',
+                body: `<p>Pipeline SNPs that are at the same positions as GT SNPs for this sample.</p>
+                       <div class="formula">% = (Pipeline ∩ GT SNP positions / Pipeline SNPs) × 100</div>
+                       <p><strong>Interpretation:</strong></p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li><span style="color:#81c784;">≥90%</span>: Good agreement with ground truth</li>
+                           <li><span style="color:#ffc107;">70-90%</span>: Moderate agreement</li>
+                           <li><span style="color:#e57373;">&lt;70%</span>: Poor agreement</li>
+                       </ul>`
+            },
+            'ps_in_gt_gaps': {
+                title: 'in GT Gaps',
+                body: `<p>Pipeline SNPs that fall within GT gap regions (low coverage in GT).</p>
+                       <div class="formula">% = (SNPs in GT Gaps / Pipeline SNPs) × 100</div>
+                       <p><strong>Interpretation:</strong></p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li><span style="color:#81c784;">≤1%</span>: Good - few SNPs in unreliable GT regions</li>
+                           <li><span style="color:#ffc107;">1-5%</span>: Some SNPs in GT gaps</li>
+                           <li><span style="color:#e57373;">&gt;5%</span>: Many SNPs in GT gaps - potential false positives</li>
+                       </ul>`
+            },
+            'ps_intersection': {
+                title: 'Pipeline ∩ GT Intersection',
+                body: `<p>SNP positions where both the pipeline and GT have called a SNP for this sample.</p>
+                       <div class="formula">Intersection = |Pipeline SNP positions ∩ GT SNP positions|</div>
+                       <div class="formula">% = (Intersection / GT SNPs) × 100</div>
+                       <p>Shows what percentage of GT SNPs are also called by the pipeline.</p>`
+            },
+            'ps_vcf_consensus': {
+                title: 'VCF Consensus SNPs',
+                body: `<p>SNP positions where ALL VCF pipelines (excluding GT) agree for this sample.</p>
+                       <div class="formula">VCF Consensus = ∩ all VCF pipelines</div>
+                       <div class="formula">% = (VCF Consensus / Reference Length) × 100</div>
+                       <p>These are the most confident variant calls where all VCF-based pipelines agree.</p>`
+            },
+            'ps_consensus_in_gt': {
+                title: 'VCF Consensus in GT',
+                body: `<p>VCF consensus SNPs that are also present in GT for this sample.</p>
+                       <div class="formula">% = (VCF Consensus ∩ GT / VCF Consensus) × 100</div>
+                       <p>High percentage means VCF consensus aligns well with ground truth.</p>`
+            },
+            'ps_all_consensus': {
+                title: 'All Consensus (GT ∩ VCF)',
+                body: `<p>Positions where ALL pipelines (including GT) agree for this sample.</p>
+                       <div class="formula">All Consensus = GT ∩ VCF Consensus</div>
+                       <div class="formula">% = (All Consensus / Reference Length) × 100</div>
+                       <p>These are the highest confidence calls - all pipelines agree.</p>`
             },
             'gt_snps_missing': {
                 title: 'Any GT SNPs Filtered',
@@ -2086,27 +2176,28 @@
             }
             html += '</tr>';
 
-            // Sub-header row
+            // Sub-header row (with info icons)
+            const psInfoIcon = (type) => `<span class="info-icon" onclick="event.stopPropagation();showKpiInfo('${type}')" style="margin-left:3px;">ⓘ</span>`;
             html += '<tr>';
             for (const pipelineId of pipelineIds) {
                 const isGT = pipelineId === gtPipeline;
-                html += '<th title="SNPs count and % of reference">SNPs</th><th title="Gap base pairs and % of reference">Gaps</th>';
+                html += `<th>SNPs ${psInfoIcon('ps_snps')}</th><th>Gaps ${psInfoIcon('ps_gaps')}</th>`;
                 if (!isGT) {
-                    html += '<th title="SNPs at positions where GT also has a SNP">vs GT</th>';
-                    html += '<th title="SNPs falling in GT gap regions">in GT Gaps</th>';
+                    html += `<th>vs GT ${psInfoIcon('ps_vs_gt')}</th>`;
+                    html += `<th>in GT Gaps ${psInfoIcon('ps_in_gt_gaps')}</th>`;
                 }
             }
             // Add intersection sub-headers
             if (gtPipeline && perSampleIntersection && Object.keys(perSampleIntersection).length > 0) {
                 for (const pipelineId of nonGtPipelines) {
-                    html += '<th title="# and % of shared SNP positions">∩</th>';
+                    html += `<th>∩ ${psInfoIcon('ps_intersection')}</th>`;
                 }
             }
             // Add Consensus sub-headers
             if (gtPipeline && consensusStats?.per_sample) {
-                html += '<th title="VCF Consensus SNPs">SNPs</th>';
-                html += '<th title="VCF Consensus SNPs also in GT">in GT</th>';
-                html += '<th title="All pipelines (incl. GT) consensus">All</th>';
+                html += `<th>SNPs ${psInfoIcon('ps_vcf_consensus')}</th>`;
+                html += `<th>in GT ${psInfoIcon('ps_consensus_in_gt')}</th>`;
+                html += `<th>All ${psInfoIcon('ps_all_consensus')}</th>`;
             }
             html += '</tr>';
 
@@ -2351,10 +2442,10 @@
                     <tr>
                         <th>Pipeline</th>
                         <th>SNPs ${infoIcon('snps')}</th>
+                        <th>#All ${infoIcon('core_snps')}</th>
+                        <th>#Consensus ${infoIcon('consensus_snps')}</th>
                         <th>Gaps ${infoIcon('gaps')}</th>
                         <th>MNPs ${infoIcon('mnps')}</th>
-                        <th>All ${infoIcon('core_snps')}</th>
-                        <th>Consensus ${infoIcon('consensus_snps')}</th>
                     </tr>
                 </thead>
                 <tbody>`;
@@ -2403,10 +2494,10 @@
                 html += `<tr>
                     <td>${label}</td>
                     <td>${snpCount.toLocaleString()}<span class="pct">(${snpPct}%)</span>${bamPileupWarning}${snpDiff}</td>
-                    <td>${gapCount.toLocaleString()}<span class="pct">(${gapPct}%)</span>${gapDiff}</td>
-                    <td>${mnpCount.toLocaleString()}${mnpWarning}</td>
                     <td>${coreCount.toLocaleString()}<span class="pct">(${corePct}%)</span></td>
                     <td>${consCount.toLocaleString()}<span class="pct">(${consPct}%)</span></td>
+                    <td>${gapCount.toLocaleString()}<span class="pct">(${gapPct}%)</span>${gapDiff}</td>
+                    <td>${mnpCount.toLocaleString()}${mnpWarning}</td>
                 </tr>`;
             }
 
@@ -2541,6 +2632,52 @@
                             <td>${totalMissing.toLocaleString()}<span class="pct">(${totalPct}%)</span></td>
                             <td>${coreMissing.toLocaleString()}<span class="pct">(${corePct}%)</span></td>
                             <td>${consMissing.toLocaleString()}<span class="pct">(${consPct}%)</span></td>
+                        </tr>`;
+                    }
+                    html += `</tbody></table>`;
+                }
+            }
+
+            // === SECTION 5: Cross-Pipeline Gap Analysis (all pairwise combinations) ===
+            const snpsInGapsJson = genomeData.get_snps_in_gaps();
+            const snpsInGaps = snpsInGapsJson !== 'null' ? JSON.parse(snpsInGapsJson) : null;
+
+            if (snpsInGaps && Object.keys(snpsInGaps).length > 0) {
+                html += sectionHeader('Cross-Pipeline Gap Analysis');
+
+                // For each pipeline that has gaps (gap source)
+                for (const gapPipeline of Object.keys(snpsInGaps).sort()) {
+                    const gapPipelineStats = snpsInGaps[gapPipeline];
+                    if (!gapPipelineStats || Object.keys(gapPipelineStats).length === 0) continue;
+
+                    const gapLabel = genomeData.get_pipeline_label(gapPipeline).split(' ')[0];
+
+                    html += subLabel(`SNPs in ${gapLabel} Gaps ${infoIcon('snps_in_pipeline_gaps')}`);
+                    html += `<table class="kpi-table">
+                        <thead>
+                            <tr>
+                                <th>Pipeline</th>
+                                <th>SNPs in ${gapLabel} Gaps</th>
+                                <th>Total SNPs</th>
+                                <th>%</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+                    // Sort by pipeline name
+                    const sortedSnpPipelines = Object.entries(gapPipelineStats)
+                        .sort((a, b) => a[0].localeCompare(b[0]));
+
+                    for (const [snpPipeline, stats] of sortedSnpPipelines) {
+                        const snpLabel = genomeData.get_pipeline_label(snpPipeline).split(' ')[0];
+                        const pct = stats.percentage.toFixed(2);
+                        const pctClass = stats.percentage <= 1 ? 'good' : stats.percentage <= 5 ? 'warning' : 'bad';
+
+                        html += `<tr>
+                            <td>${snpLabel}</td>
+                            <td>${stats.snps_in_gaps.toLocaleString()}</td>
+                            <td>${stats.total_snps.toLocaleString()}</td>
+                            <td class="${pctClass}">${pct}%</td>
                         </tr>`;
                     }
                     html += `</tbody></table>`;

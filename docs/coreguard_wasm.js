@@ -304,6 +304,27 @@ export class GenomeData {
         return v2;
     }
     /**
+     * Get detailed pipeline concordance statistics
+     * Returns 4 metrics for each pipeline pair:
+     * - concordance_any: positions where at least 1 sample has SNP in both pipelines
+     * - concordance_all: positions where ALL samples have SNP in both pipelines
+     * - consensus_any: positions where at least 1 sample has same allele in both pipelines
+     * - consensus_all: positions where ALL samples have same allele in both pipelines
+     * @returns {string}
+     */
+    get_pipeline_concordance() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_pipeline_concordance(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get all pipeline IDs as JSON array
      * @returns {string}
      */
@@ -470,7 +491,24 @@ export class GenomeData {
         }
     }
     /**
-     * Get SNPs in ground truth gaps statistics as JSON
+     * Get SNPs in gaps for ALL pipeline pairs as JSON
+     * Returns: { gap_pipeline: { snp_pipeline: { total_snps, snps_in_gaps, percentage } } }
+     * @returns {string}
+     */
+    get_snps_in_gaps() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_snps_in_gaps(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Get SNPs in ground truth gaps statistics as JSON (DEPRECATED - use get_snps_in_gaps)
      * @returns {string}
      */
     get_snps_in_gt_gaps() {
@@ -518,6 +556,17 @@ export class GenomeData {
         }
     }
     /**
+     * Check if a pipeline's SNPs come from BAM pileup (no variant calling)
+     * @param {string} pipeline_id
+     * @returns {boolean}
+     */
+    is_from_bam_pileup(pipeline_id) {
+        const ptr0 = passStringToWasm0(pipeline_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.genomedata_is_from_bam_pileup(this.__wbg_ptr, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
      * Check if position is in a gap for a sample/pipeline
      * @param {string} sample
      * @param {string} pipeline
@@ -542,6 +591,18 @@ export class GenomeData {
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.genomedata_is_ground_truth(this.__wbg_ptr, ptr0, len0);
         return ret !== 0;
+    }
+    /**
+     * Load data from binary (bincode) report - faster than JSON
+     * @param {Uint8Array} data
+     */
+    load_binary(data) {
+        const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.genomedata_load_binary(this.__wbg_ptr, ptr0, len0);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
     }
     /**
      * Load data from JSON report (the main entry point)
@@ -643,6 +704,10 @@ function __wbg_get_imports() {
             const ret = new Error();
             return ret;
         },
+        __wbg_now_a3af9a2f4bbaa4d1: function() {
+            const ret = Date.now();
+            return ret;
+        },
         __wbg_stack_0ed75d68575b0f3c: function(arg0, arg1) {
             const ret = arg1.stack;
             const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -694,6 +759,13 @@ function getUint8ArrayMemory0() {
         cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
     }
     return cachedUint8ArrayMemory0;
+}
+
+function passArray8ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 1, 1) >>> 0;
+    getUint8ArrayMemory0().set(arg, ptr / 1);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
 }
 
 function passStringToWasm0(arg, malloc, realloc) {

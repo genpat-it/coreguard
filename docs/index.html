@@ -807,6 +807,11 @@
             content: "⚠";
             font-size: 14px;
         }
+        .mnp-warning {
+            cursor: pointer;
+            margin-left: 4px;
+            font-size: 12px;
+        }
         .pipeline-info-item {
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
@@ -1817,12 +1822,11 @@
 
             let html = '';
             for (const warning of warnings) {
-                // Add info icon for MNP warnings
+                // Skip MNP warnings - they're shown in the table with warning icon
                 if (warning.includes('MNP')) {
-                    html += `<div class="warning-item">${warning} <span class="info-icon" onclick="event.stopPropagation();showKpiInfo('mnp')" style="cursor:pointer;">ⓘ</span></div>`;
-                } else {
-                    html += `<div class="warning-item">${warning}</div>`;
+                    continue;
                 }
+                html += `<div class="warning-item">${warning}</div>`;
             }
             container.innerHTML = html;
         }
@@ -2198,11 +2202,14 @@
                     snpDiff = `<span class="pct" style="color:${diff < 0 ? '#e57373' : '#81c784'}">${diffSign}${diff.toLocaleString()} (${diffPctSign}${diffPct}%)</span>`;
                 }
 
+                // Warning icon for MNPs
+                const mnpWarning = mnpCount > 0 ? `<span class="mnp-warning" onclick="event.stopPropagation();showKpiInfo('mnp')" title="Click for MNP info">⚠️</span>` : '';
+
                 html += `<tr>
                     <td>${label}</td>
                     <td>${snpCount.toLocaleString()}<span class="pct">(${snpPct}%)</span>${snpDiff}</td>
                     <td>${gapCount.toLocaleString()}<span class="pct">(${gapPct}%)</span></td>
-                    <td>${mnpCount.toLocaleString()}</td>
+                    <td>${mnpCount.toLocaleString()}${mnpWarning}</td>
                     <td>${coreCount.toLocaleString()}<span class="pct">(${corePct}%)</span></td>
                     <td>${consCount.toLocaleString()}<span class="pct">(${consPct}%)</span></td>
                 </tr>`;

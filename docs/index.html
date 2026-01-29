@@ -1796,10 +1796,13 @@
                     showLoader('Decompressing...', `${(bytes / 1024 / 1024).toFixed(1)} MB`);
                 });
 
-                showLoader('Processing binary...', `${(binaryData.length / 1024 / 1024).toFixed(0)} MB`);
+                showLoader('Parsing binary...', `${(binaryData.length / 1024 / 1024).toFixed(0)} MB`);
                 await new Promise(r => setTimeout(r, 50));
 
                 genomeData.load_binary(binaryData);
+
+                showLoader('Preparing view...', '');
+                await new Promise(r => requestAnimationFrame(r));
 
                 samples = JSON.parse(genomeData.get_sample_ids());
                 pipelines = JSON.parse(genomeData.get_pipeline_ids());
@@ -1826,6 +1829,7 @@
                 document.getElementById('viewer').classList.remove('hidden');
 
                 showLoader('Calculating KPIs...', '');
+                await new Promise(r => requestAnimationFrame(r));
                 updateKPIs();
                 displayWarnings();
                 populatePipelineInfo();
@@ -1835,11 +1839,13 @@
                 createVisibilityControls(pipelines);
 
                 showLoader('Drawing genome overview...', '');
+                await new Promise(r => requestAnimationFrame(r));
                 drawGenomeOverview();
                 populateMatrixPipelineSelector();
                 populateCoverageStats();
 
                 showLoader('Loading positions...', '');
+                await new Promise(r => requestAnimationFrame(r));
                 loadPositions();
 
                 hideLoader();
@@ -1876,7 +1882,7 @@
                         binaryData = new Uint8Array(arrayBuffer);
                     }
 
-                    showLoader('Processing binary data...', `${(binaryData.length / 1024 / 1024).toFixed(0)} MB`);
+                    showLoader('Parsing binary...', `${(binaryData.length / 1024 / 1024).toFixed(0)} MB`);
                     await new Promise(r => setTimeout(r, 50)); // Allow UI to update
 
                     genomeData.load_binary(binaryData);
@@ -1897,11 +1903,14 @@
                         text = await file.text();
                     }
 
-                    showLoader('Processing data...', `${(text.length / 1024 / 1024).toFixed(0)} MB - please wait`);
+                    showLoader('Parsing JSON...', `${(text.length / 1024 / 1024).toFixed(0)} MB`);
                     await new Promise(r => setTimeout(r, 50)); // Allow UI to update
 
                     genomeData.load_json(text);
                 }
+
+                showLoader('Preparing view...', '');
+                await new Promise(r => requestAnimationFrame(r));
 
                 samples = JSON.parse(genomeData.get_sample_ids());
                 pipelines = JSON.parse(genomeData.get_pipeline_ids());
@@ -1928,6 +1937,7 @@
                 document.getElementById('viewer').classList.remove('hidden');
 
                 showLoader('Calculating KPIs...', '');
+                await new Promise(r => requestAnimationFrame(r));
                 updateKPIs();
                 displayWarnings();
                 populatePipelineInfo();
@@ -1937,11 +1947,13 @@
                 createVisibilityControls(pipelines);
 
                 showLoader('Drawing genome overview...', '');
+                await new Promise(r => requestAnimationFrame(r));
                 drawGenomeOverview();
                 populateMatrixPipelineSelector();
                 populateCoverageStats();
 
                 showLoader('Loading positions...', '');
+                await new Promise(r => requestAnimationFrame(r));
                 loadPositions();
 
                 hideLoader();
@@ -2389,10 +2401,10 @@
                         </tr>
                         <tr>
                             <th>A ∩ B</th>
-                            <th style="text-align:center;" title="At least 1 sample has SNP in both pipelines">Any</th>
-                            <th style="text-align:center;" title="ALL samples have SNP in both pipelines (Core ∩ Core)">All</th>
-                            <th style="text-align:center;" title="At least 1 sample has same allele in both pipelines">Any</th>
-                            <th style="text-align:center;" title="ALL samples have same allele in both pipelines">All</th>
+                            <th style="text-align:center;" title="At least 1 sample has SNP in both pipelines. % relative to min(SNPs_A, SNPs_B)">Any</th>
+                            <th style="text-align:center;" title="ALL samples have SNP in both pipelines (Core ∩ Core). % relative to min(SNPs_A, SNPs_B)">All</th>
+                            <th style="text-align:center;" title="At least 1 sample has same allele in both pipelines. % relative to min(SNPs_A, SNPs_B)">Any</th>
+                            <th style="text-align:center;" title="ALL samples have same allele in both pipelines. % relative to min(SNPs_A, SNPs_B)">All</th>
                         </tr>
                     </thead>
                     <tbody>`;
@@ -2401,19 +2413,28 @@
                 for (let i = 0; i < allPipelines.length; i++) {
                     const pipelineA = allPipelines[i];
                     const labelA = getShortLabel(pipelineA);
+                    const snpsA = kpis.snps[pipelineA] || 0;
                     for (let j = i + 1; j < allPipelines.length; j++) {
                         const pipelineB = allPipelines[j];
                         const labelB = getShortLabel(pipelineB);
+                        const snpsB = kpis.snps[pipelineB] || 0;
 
                         // Get concordance stats (check both directions since we only store one)
                         let stats = concordance[pipelineA]?.[pipelineB] || concordance[pipelineB]?.[pipelineA];
                         if (stats) {
+                            // Calculate percentages relative to minimum SNPs (max possible overlap)
+                            const minSnps = Math.min(snpsA, snpsB);
+                            const pctConcAny = minSnps > 0 ? (stats.concordance_any / minSnps * 100).toFixed(1) : '0.0';
+                            const pctConcAll = minSnps > 0 ? (stats.concordance_all / minSnps * 100).toFixed(1) : '0.0';
+                            const pctConsAny = minSnps > 0 ? (stats.consensus_any / minSnps * 100).toFixed(1) : '0.0';
+                            const pctConsAll = minSnps > 0 ? (stats.consensus_all / minSnps * 100).toFixed(1) : '0.0';
+
                             html += `<tr>
                                 <td>${labelA} ∩ ${labelB}</td>
-                                <td style="text-align:center;">${stats.concordance_any.toLocaleString()}</td>
-                                <td style="text-align:center;">${stats.concordance_all.toLocaleString()}</td>
-                                <td style="text-align:center;">${stats.consensus_any.toLocaleString()}</td>
-                                <td style="text-align:center;">${stats.consensus_all.toLocaleString()}</td>
+                                <td style="text-align:center;">${stats.concordance_any.toLocaleString()} <span style="color:#888;font-size:0.85em">(${pctConcAny}%)</span></td>
+                                <td style="text-align:center;">${stats.concordance_all.toLocaleString()} <span style="color:#888;font-size:0.85em">(${pctConcAll}%)</span></td>
+                                <td style="text-align:center;">${stats.consensus_any.toLocaleString()} <span style="color:#888;font-size:0.85em">(${pctConsAny}%)</span></td>
+                                <td style="text-align:center;">${stats.consensus_all.toLocaleString()} <span style="color:#888;font-size:0.85em">(${pctConsAll}%)</span></td>
                             </tr>`;
                         }
                     }

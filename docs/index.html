@@ -1460,10 +1460,11 @@ pipelines:
                        <p>All samples are aligned against this reference sequence for SNP calling.</p>`
             },
             'usable_space': {
-                title: 'Usable Space',
-                body: `<p>The number of reference base pairs <strong>not covered by gaps</strong> in the Ground Truth pipeline.</p>
-                       <div class="formula">Usable Space = Reference Length − avg(GT gaps per sample)</div>
-                       <p>This represents the effective genome size available for SNP comparison. Regions where the Ground Truth has no coverage (gaps) cannot be used to validate other pipelines.</p>`
+                title: 'Usable Space (Global)',
+                body: `<p>The number of reference base pairs <strong>not covered by any GT gap</strong> across all samples.</p>
+                       <div class="formula">Usable Space = Reference Length − union(GT gaps of all samples)</div>
+                       <p>A position is excluded if <strong>at least one</strong> sample has a GT gap there. This is the most restrictive estimate of usable genome space.</p>
+                       <p>This represents the effective genome size where all samples have GT coverage.</p>`
             },
             'pw_usable_space': {
                 title: 'Pairwise Strict — Avg Usable Space',
@@ -2053,6 +2054,10 @@ pipelines:
 
             async getSnp(sample, pipeline, pos) {
                 return (await this.send('getSnp', { sample, pipeline, pos })).snp;
+            }
+
+            async getGlobalStats() {
+                return (await this.send('getGlobalStats')).stats;
             }
 
             async getPairwiseUsableStats() {
@@ -2974,23 +2979,15 @@ pipelines:
 
             html += sectionEnd(); // close Overview
 
-            // === Global section: dataset-level usable space/SNPs ===
-            if (gtPipelineId && kpis.gaps[gtPipelineId] != null) {
-                html += sectionStart('Global', true);
-
-                const avgGtGaps = Math.round(kpis.gaps[gtPipelineId] / kpis.samples);
-                const usableBp = refLength - avgGtGaps;
-                const usablePct = ((usableBp / refLength) * 100).toFixed(2);
-                html += `<div class="kpi"><div class="label">Usable Space ${infoIcon('usable_space')}</div><div class="value">${usableBp.toLocaleString()} bp <span class="pct">(${usablePct}%)</span></div></div>`;
-
-                // Usable SNPs: GT core positions minus consensus (discriminating SNPs)
-                const gtCore = kpis.core_snps[gtPipelineId] || 0;
-                const gtConsensus = kpis.consensus_snps[gtPipelineId] || 0;
-                const gtUsableSnps = gtCore - gtConsensus;
-                const gtUsablePct = gtCore > 0 ? ((gtUsableSnps / gtCore) * 100).toFixed(2) : '0.00';
-                html += `<div class="kpi"><div class="label">Usable SNPs (GT) ${infoIcon('usable_snps')}</div><div class="value">${gtUsableSnps.toLocaleString()} <span class="pct">(${gtUsablePct}% of ${gtCore.toLocaleString()} core)</span></div></div>`;
-
-                html += sectionEnd(); // close Global
+            // === Global section: union of all GT gaps ===
+            if (gtPipelineId) {
+                const gs = await workerApi.getGlobalStats();
+                if (gs) {
+                    html += sectionStart('Global', true);
+                    html += `<div class="kpi"><div class="label">Usable Space ${infoIcon('usable_space')}</div><div class="value">${gs.usable_space.toLocaleString()} bp <span class="pct">(${gs.usable_space_pct.toFixed(2)}%)</span></div></div>`;
+                    html += `<div class="kpi"><div class="label">Usable SNPs (GT) ${infoIcon('usable_snps')}</div><div class="value">${gs.usable_snps.toLocaleString()} <span class="pct">(${gs.usable_snps_pct.toFixed(2)}% of ${gs.core_snps.toLocaleString()} core)</span></div></div>`;
+                    html += sectionEnd(); // close Global
+                }
             }
 
             // Pairwise averages (only if GT and >= 2 samples)

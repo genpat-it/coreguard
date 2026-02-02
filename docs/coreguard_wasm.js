@@ -208,6 +208,25 @@ export class GenomeData {
         }
     }
     /**
+     * Global stats: union of ALL GT gaps across all samples
+     *
+     * Usable Space = refLength - union(GT gaps of all samples)
+     * Usable SNPs = GT core SNPs - SNPs in global gap union - consensus outside gaps
+     * @returns {string}
+     */
+    get_global_stats() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_global_stats(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get ground truth pileup statistics as JSON
      * Returns: { total_snps, per_sample, covered_positions, pipeline_comparison }
      * @returns {string}

@@ -60,6 +60,13 @@ export class GenomeData {
      */
     get_generated_at(): string;
     /**
+     * Global stats: union of ALL GT gaps across all samples
+     *
+     * Usable Space = refLength - union(GT gaps of all samples)
+     * Usable SNPs = GT core SNPs - SNPs in global gap union - consensus outside gaps
+     */
+    get_global_stats(): string;
+    /**
      * Get ground truth pileup statistics as JSON
      * Returns: { total_snps, per_sample, covered_positions, pipeline_comparison }
      */
@@ -252,6 +259,7 @@ export interface InitOutput {
     readonly genomedata_get_snp_alt: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly genomedata_render_region: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly genomedata_get_kpis: (a: number) => [number, number];
+    readonly genomedata_get_global_stats: (a: number) => [number, number];
     readonly genomedata_get_pairwise_usable_stats: (a: number) => [number, number];
     readonly genomedata_get_reviewer_pairwise_stats: (a: number) => [number, number];
     readonly genomedata_get_per_sample_stats: (a: number) => [number, number];

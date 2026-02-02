@@ -31,6 +31,7 @@ export const genomedata_get_snp: (a: number, b: number, c: number, d: number, e:
 export const genomedata_get_snp_alt: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
 export const genomedata_render_region: (a: number, b: number, c: number, d: number, e: number) => [number, number];
 export const genomedata_get_kpis: (a: number) => [number, number];
+export const genomedata_get_global_stats: (a: number) => [number, number];
 export const genomedata_get_pairwise_usable_stats: (a: number) => [number, number];
 export const genomedata_get_reviewer_pairwise_stats: (a: number) => [number, number];
 export const genomedata_get_per_sample_stats: (a: number) => [number, number];

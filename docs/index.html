@@ -316,6 +316,15 @@
             padding: 6px 0 2px 0;
             opacity: 0.7;
         }
+        .kpi-group-label {
+            width: 100%;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            padding: 4px 0 0 0;
+            border-top: 1px solid var(--border-color);
+            margin-top: 2px;
+        }
         .kpi-table {
             width: 100%;
             border-collapse: collapse;
@@ -2961,13 +2970,11 @@ pipelines:
 
             let html = '';
 
-            // === SECTION 1: Overview ===
+            // === SECTION 1: Overview + Global + Pairwise (single row) ===
             html += sectionStart('Overview', true);
-            html += `
-                <div class="kpi"><div class="label">Reference ${infoIcon('reference')}</div><div class="value">${refLength.toLocaleString()} bp</div></div>
-            `;
 
             html += `
+                <div class="kpi"><div class="label">Reference ${infoIcon('reference')}</div><div class="value">${refLength.toLocaleString()} bp</div></div>
                 <div class="kpi"><div class="label">Samples ${infoIcon('samples')}</div><div class="value">${kpis.samples}</div></div>
                 <div class="kpi"><div class="label">Pipelines ${infoIcon('pipelines')}</div><div class="value">${kpis.pipelines}</div></div>
             `;
@@ -2977,38 +2984,34 @@ pipelines:
                 html += `<div class="kpi"><div class="label">Filtered Positions ${infoIcon('filtered')}</div><div class="value">${filteredCount.toLocaleString()}</div></div>`;
             }
 
-            html += sectionEnd(); // close Overview
-
-            // === Global section: union of all GT gaps ===
+            // Global: union of all GT gaps
             if (gtPipelineId) {
                 const gs = await workerApi.getGlobalStats();
                 if (gs) {
-                    html += sectionStart('Global', true);
+                    html += `<div class="kpi-group-label">Global</div>`;
                     html += `<div class="kpi"><div class="label">Usable Space ${infoIcon('usable_space')}</div><div class="value">${gs.usable_space.toLocaleString()} bp <span class="pct">(${gs.usable_space_pct.toFixed(2)}%)</span></div></div>`;
                     html += `<div class="kpi"><div class="label">Usable SNPs (GT) ${infoIcon('usable_snps')}</div><div class="value">${gs.usable_snps.toLocaleString()} <span class="pct">(${gs.usable_snps_pct.toFixed(2)}% of ${gs.core_snps.toLocaleString()} core)</span></div></div>`;
-                    html += sectionEnd(); // close Global
                 }
             }
 
-            // Pairwise averages (only if GT and >= 2 samples)
+            // Pairwise (only if GT and >= 2 samples)
             if (gtPipelineId && kpis.samples >= 2) {
                 const pw = await workerApi.getPairwiseUsableStats();
                 if (pw && pw.num_pairs > 0) {
-                    html += sectionStart(`Pairwise (Strict) <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${pw.num_pairs} pairs)</span>`, true);
+                    html += `<div class="kpi-group-label">Pairwise Strict <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${pw.num_pairs} pairs)</span></div>`;
                     html += `<div class="kpi"><div class="label">Avg Usable Space ${infoIcon('pw_usable_space')}</div><div class="value">${Math.round(pw.avg_usable_space).toLocaleString()} bp <span class="pct">(${pw.avg_usable_space_pct.toFixed(2)}%)</span></div></div>`;
                     html += `<div class="kpi"><div class="label">Avg Discriminating SNPs (GT) ${infoIcon('pw_usable_snps')}</div><div class="value">${pw.avg_usable_snps.toFixed(2)}</div></div>`;
-                    html += sectionEnd();
                 }
 
-                // Relaxed pairwise: intersection-based gaps per pair
                 const rpw = await workerApi.getReviewerPairwiseStats();
                 if (rpw) {
-                    html += sectionStart(`Pairwise (Relaxed) <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${rpw.num_pairs} pairs)</span>`, true);
+                    html += `<div class="kpi-group-label">Pairwise Relaxed <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${rpw.num_pairs} pairs)</span></div>`;
                     html += `<div class="kpi"><div class="label">Avg Usable Space ${infoIcon('rpw_usable_space')}</div><div class="value">${Math.round(rpw.avg_usable_space).toLocaleString()} bp <span class="pct">(${rpw.avg_usable_space_pct.toFixed(2)}%)</span></div></div>`;
                     html += `<div class="kpi"><div class="label">Avg Discriminating SNPs ${infoIcon('rpw_discriminating')}</div><div class="value">${rpw.avg_usable_snps.toFixed(2)}</div></div>`;
-                    html += sectionEnd();
                 }
             }
+
+            html += sectionEnd(); // close Overview
 
             // === SECTION 2: Per-Pipeline Statistics (Pivot Table) ===
             html += sectionStart('Per-Pipeline Statistics');

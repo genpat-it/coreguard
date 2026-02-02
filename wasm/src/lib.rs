@@ -1058,7 +1058,7 @@ impl GenomeData {
         struct PairwiseUsableStats {
             avg_usable_space: f64,
             avg_usable_space_pct: f64,
-            avg_usable_snps: HashMap<String, f64>,
+            avg_usable_snps: f64,
             num_pairs: usize,
         }
 
@@ -1068,7 +1068,7 @@ impl GenomeData {
             return serde_json::to_string(&PairwiseUsableStats {
                 avg_usable_space: self.ref_len as f64,
                 avg_usable_space_pct: 100.0,
-                avg_usable_snps: HashMap::new(),
+                avg_usable_snps: 0.0,
                 num_pairs: 0,
             }).unwrap_or_else(|_| "{}".to_string());
         }
@@ -1076,13 +1076,7 @@ impl GenomeData {
         let gt_id = self.ground_truth_pipeline.clone();
         let num_pairs = n * (n - 1) / 2;
         let mut total_usable_space: f64 = 0.0;
-        let mut total_usable_snps: HashMap<String, f64> = HashMap::new();
-
-        // Initialize per-pipeline counters
-        for pipeline_id in &self.pipeline_ids {
-            if gt_id.as_ref() == Some(pipeline_id) { continue; }
-            total_usable_snps.insert(pipeline_id.clone(), 0.0);
-        }
+        let mut total_usable_snps: f64 = 0.0;
 
         // Helper: merge gap regions into non-overlapping sorted list and compute total bases
         fn merge_gaps_total(gaps_a: &[(u32, u32)], gaps_b: &[(u32, u32)]) -> u32 {
@@ -1163,21 +1157,18 @@ impl GenomeData {
                 let gap_bases = merge_gaps_total(&gaps_a, &gaps_b);
                 total_usable_space += (self.ref_len - gap_bases) as f64;
 
-                // Merged gaps for position checking
-                let merged_gaps = merge_gap_regions(&gaps_a, &gaps_b);
+                // Count discriminating GT SNPs not in GT gaps
+                if let Some(ref gt) = gt_id {
+                    let merged_gaps = merge_gap_regions(&gaps_a, &gaps_b);
 
-                // For each VCF pipeline, count discriminating SNPs not in GT gaps
-                for pipeline_id in &self.pipeline_ids {
-                    if gt_id.as_ref() == Some(pipeline_id) { continue; }
-
-                    let snps_a: HashMap<u32, u8> = sample_a.pipelines.get(pipeline_id)
+                    let snps_a: HashMap<u32, u8> = sample_a.pipelines.get(gt)
                         .map(|p| p.snps.iter().map(|s| (s.pos, s.alt_allele)).collect())
                         .unwrap_or_default();
-                    let snps_b: HashMap<u32, u8> = sample_b.pipelines.get(pipeline_id)
+                    let snps_b: HashMap<u32, u8> = sample_b.pipelines.get(gt)
                         .map(|p| p.snps.iter().map(|s| (s.pos, s.alt_allele)).collect())
                         .unwrap_or_default();
 
-                    // All positions with SNPs in either sample
+                    // All GT SNP positions in either sample
                     let mut all_positions: std::collections::HashSet<u32> = std::collections::HashSet::new();
                     all_positions.extend(snps_a.keys());
                     all_positions.extend(snps_b.keys());
@@ -1196,18 +1187,14 @@ impl GenomeData {
                         }
                     }
 
-                    if let Some(counter) = total_usable_snps.get_mut(pipeline_id) {
-                        *counter += discriminating as f64;
-                    }
+                    total_usable_snps += discriminating as f64;
                 }
             }
         }
 
         let avg_usable_space = total_usable_space / num_pairs as f64;
         let avg_usable_space_pct = (avg_usable_space / self.ref_len as f64) * 100.0;
-        let avg_usable_snps: HashMap<String, f64> = total_usable_snps.into_iter()
-            .map(|(k, v)| (k, v / num_pairs as f64))
-            .collect();
+        let avg_usable_snps = total_usable_snps / num_pairs as f64;
 
         let stats = PairwiseUsableStats {
             avg_usable_space,

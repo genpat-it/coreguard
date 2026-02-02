@@ -2942,11 +2942,7 @@ pipelines:
                 if (pw && pw.num_pairs > 0) {
                     html += sectionHeader(`Pairwise Averages <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${pw.num_pairs} pairs)</span>`);
                     html += `<div class="kpi"><div class="label">Avg Usable Space ${infoIcon('pw_usable_space')}</div><div class="value">${Math.round(pw.avg_usable_space).toLocaleString()} bp <span class="pct">(${pw.avg_usable_space_pct.toFixed(2)}%)</span></div></div>`;
-
-                    for (const [pipeline, avgSnps] of Object.entries(pw.avg_usable_snps).sort((a, b) => a[0].localeCompare(b[0]))) {
-                        const pLabel = workerApi.getPipelineLabel(pipeline);
-                        html += `<div class="kpi"><div class="label">Avg Usable SNPs (${pLabel}) ${infoIcon('pw_usable_snps')}</div><div class="value">${avgSnps.toFixed(2)}</div></div>`;
-                    }
+                    html += `<div class="kpi"><div class="label">Avg Discriminating SNPs (GT) ${infoIcon('pw_usable_snps')}</div><div class="value">${pw.avg_usable_snps.toFixed(2)}</div></div>`;
                 }
             }
 

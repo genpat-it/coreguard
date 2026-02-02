@@ -2910,7 +2910,7 @@ pipelines:
                 const gtCore = kpis.core_snps[gtPipelineId] || 0;
                 const gtConsensus = kpis.consensus_snps[gtPipelineId] || 0;
                 const gtUsableSnps = gtCore - gtConsensus;
-                const gtUsablePct = gtCore > 0 ? ((gtUsableSnps / gtCore) * 100).toFixed(1) : '0';
+                const gtUsablePct = gtCore > 0 ? ((gtUsableSnps / gtCore) * 100).toFixed(2) : '0.00';
                 html += `<div class="kpi"><div class="label">Usable SNPs (GT) ${infoIcon('usable_snps')}</div><div class="value">${gtUsableSnps.toLocaleString()} <span class="pct">(${gtUsablePct}% of ${gtCore.toLocaleString()} core)</span></div></div>`;
             }
 
@@ -2965,8 +2965,8 @@ pipelines:
                 const totalBases = refLength * kpis.samples;
                 const snpPct = ((snpCount / totalBases) * 100).toFixed(2);
                 const gapPct = ((gapCount / totalBases) * 100).toFixed(2);
-                const corePct = snpCount > 0 ? ((coreCount / snpCount) * 100).toFixed(0) : 0;
-                const consPct = snpCount > 0 ? ((consCount / snpCount) * 100).toFixed(0) : 0;
+                const corePct = snpCount > 0 ? ((coreCount / snpCount) * 100).toFixed(2) : '0.00';
+                const consPct = snpCount > 0 ? ((consCount / snpCount) * 100).toFixed(2) : '0.00';
 
                 // Calculate diff vs GT for non-GT pipelines
                 let snpDiff = '';
@@ -2975,14 +2975,14 @@ pipelines:
                     if (gtSnpCount !== null) {
                         const diff = snpCount - gtSnpCount;
                         const diffSign = diff >= 0 ? '+' : '';
-                        const diffPct = gtSnpCount > 0 ? ((diff / gtSnpCount) * 100).toFixed(1) : 0;
+                        const diffPct = gtSnpCount > 0 ? ((diff / gtSnpCount) * 100).toFixed(2) : '0.00';
                         const diffPctSign = diff >= 0 ? '+' : '';
                         snpDiff = `<span class="pct" style="color:${diff < 0 ? '#e57373' : '#81c784'}">${diffSign}${diff.toLocaleString()} (${diffPctSign}${diffPct}%)</span>`;
                     }
                     if (gtGapCount !== null) {
                         const diff = gapCount - gtGapCount;
                         const diffSign = diff >= 0 ? '+' : '';
-                        const diffPct = gtGapCount > 0 ? ((diff / gtGapCount) * 100).toFixed(1) : 0;
+                        const diffPct = gtGapCount > 0 ? ((diff / gtGapCount) * 100).toFixed(2) : '0.00';
                         const diffPctSign = diff >= 0 ? '+' : '';
                         gapDiff = `<span class="pct" style="color:${diff > 0 ? '#e57373' : '#81c784'}">${diffSign}${diff.toLocaleString()} (${diffPctSign}${diffPct}%)</span>`;
                     }
@@ -2993,17 +2993,17 @@ pipelines:
                 if (gtPipelineId && pipeline === gtPipelineId) {
                     // GT itself: usable = core - consensus
                     usableCount = coreCount - consCount;
-                    usablePctVal = coreCount > 0 ? ((usableCount / coreCount) * 100).toFixed(0) : 0;
+                    usablePctVal = coreCount > 0 ? ((usableCount / coreCount) * 100).toFixed(2) : '0.00';
                 } else if (gtPipelineId) {
                     // VCF pipeline: remove SNPs in GT gaps + consensus not in GT gaps
                     const inGtGaps = kpis.snps_in_gt_gaps_core ? (kpis.snps_in_gt_gaps_core[pipeline] || 0) : 0;
                     const consInGtGaps = kpis.snps_in_gt_gaps_consensus ? (kpis.snps_in_gt_gaps_consensus[pipeline] || 0) : 0;
                     usableCount = coreCount - inGtGaps - (consCount - consInGtGaps);
-                    usablePctVal = coreCount > 0 ? ((usableCount / coreCount) * 100).toFixed(0) : 0;
+                    usablePctVal = coreCount > 0 ? ((usableCount / coreCount) * 100).toFixed(2) : '0.00';
                 } else {
                     // No GT: usable = core - consensus
                     usableCount = coreCount - consCount;
-                    usablePctVal = coreCount > 0 ? ((usableCount / coreCount) * 100).toFixed(0) : 0;
+                    usablePctVal = coreCount > 0 ? ((usableCount / coreCount) * 100).toFixed(2) : '0.00';
                 }
 
                 // Warning icon for MNPs

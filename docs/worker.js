@@ -216,6 +216,10 @@ self.onmessage = async function(e) {
                 result = { snp: genomeData.get_snp(payload.sample, payload.pipeline, payload.pos) };
                 break;
 
+            case 'getPairwiseUsableStats':
+                result = { stats: JSON.parse(genomeData.get_pairwise_usable_stats()) };
+                break;
+
             default:
                 throw new Error(`Unknown action: ${action}`);
         }

@@ -1442,6 +1442,19 @@ pipelines:
                        <div class="formula">Usable Space = Reference Length − avg(GT gaps per sample)</div>
                        <p>This represents the effective genome size available for SNP comparison. Regions where the Ground Truth has no coverage (gaps) cannot be used to validate other pipelines.</p>`
             },
+            'pw_usable_space': {
+                title: 'Avg Pairwise Usable Space',
+                body: `<p>Average usable genome space across all sample pairs.</p>
+                       <div class="formula">For each pair (A, B): Usable = RefLength − union(GT gaps A, GT gaps B)</div>
+                       <p>This considers the GT gaps specific to each pair of samples. The union of gaps from both samples is excluded, giving the effective comparable space for that pair.</p>`
+            },
+            'pw_usable_snps': {
+                title: 'Avg Pairwise Usable SNPs',
+                body: `<p>Average number of <strong>discriminating SNPs</strong> per sample pair, excluding unreliable positions.</p>
+                       <div class="formula">For each pair (A, B): count positions where A ≠ B, not in GT gaps</div>
+                       <p>A position is discriminating if one sample has a SNP and the other doesn't, or both have different alt alleles. Positions in GT gaps (union for the pair) are excluded.</p>
+                       <p>This represents the average pairwise distance using only validated, reliable SNP positions.</p>`
+            },
             'samples': {
                 title: 'Number of Samples',
                 body: `<p>Total number of samples (isolates) included in this comparison.</p>`
@@ -1999,6 +2012,10 @@ pipelines:
 
             async getSnp(sample, pipeline, pos) {
                 return (await this.send('getSnp', { sample, pipeline, pos })).snp;
+            }
+
+            async getPairwiseUsableStats() {
+                return (await this.send('getPairwiseUsableStats')).stats;
             }
 
             // Cached accessors (no worker call needed after load)
@@ -2918,6 +2935,20 @@ pipelines:
                 <div class="kpi"><div class="label">Samples ${infoIcon('samples')}</div><div class="value">${kpis.samples}</div></div>
                 <div class="kpi"><div class="label">Pipelines ${infoIcon('pipelines')}</div><div class="value">${kpis.pipelines}</div></div>
             `;
+
+            // Pairwise averages (only if GT and >= 2 samples)
+            if (gtPipelineId && kpis.samples >= 2) {
+                const pw = await workerApi.getPairwiseUsableStats();
+                if (pw && pw.num_pairs > 0) {
+                    html += sectionHeader(`Pairwise Averages <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${pw.num_pairs} pairs)</span>`);
+                    html += `<div class="kpi"><div class="label">Avg Usable Space ${infoIcon('pw_usable_space')}</div><div class="value">${Math.round(pw.avg_usable_space).toLocaleString()} bp <span class="pct">(${pw.avg_usable_space_pct.toFixed(2)}%)</span></div></div>`;
+
+                    for (const [pipeline, avgSnps] of Object.entries(pw.avg_usable_snps).sort((a, b) => a[0].localeCompare(b[0]))) {
+                        const pLabel = workerApi.getPipelineLabel(pipeline);
+                        html += `<div class="kpi"><div class="label">Avg Usable SNPs (${pLabel}) ${infoIcon('pw_usable_snps')}</div><div class="value">${avgSnps.toFixed(2)}</div></div>`;
+                    }
+                }
+            }
 
             // Show filtered positions count when filters are active
             if (filteredCount !== null) {

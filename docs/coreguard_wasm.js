@@ -271,6 +271,26 @@ export class GenomeData {
         }
     }
     /**
+     * Get average pairwise usable stats across all sample pairs
+     * For each pair (A, B):
+     *   - usable_space = refLength - union of GT gap bases for A and B
+     *   - usable_snps per pipeline = discriminating SNPs not in GT gaps
+     * Returns averages across all N*(N-1)/2 pairs
+     * @returns {string}
+     */
+    get_pairwise_usable_stats() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_pairwise_usable_stats(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get per-sample SNP intersection with GT
      * Returns: { sample_id: { pipeline_id: { intersection, pipeline_snps, gt_snps, pct_of_pipeline, pct_of_gt } } }
      * @returns {string}

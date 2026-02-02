@@ -1047,6 +1047,178 @@ impl GenomeData {
         serde_json::to_string(&kpis).unwrap_or_else(|_| "{}".to_string())
     }
 
+    /// Get average pairwise usable stats across all sample pairs
+    /// For each pair (A, B):
+    ///   - usable_space = refLength - union of GT gap bases for A and B
+    ///   - usable_snps per pipeline = discriminating SNPs not in GT gaps
+    /// Returns averages across all N*(N-1)/2 pairs
+    #[wasm_bindgen]
+    pub fn get_pairwise_usable_stats(&self) -> String {
+        #[derive(Serialize)]
+        struct PairwiseUsableStats {
+            avg_usable_space: f64,
+            avg_usable_space_pct: f64,
+            avg_usable_snps: HashMap<String, f64>,
+            num_pairs: usize,
+        }
+
+        let sample_ids: Vec<&String> = self.samples.keys().collect();
+        let n = sample_ids.len();
+        if n < 2 {
+            return serde_json::to_string(&PairwiseUsableStats {
+                avg_usable_space: self.ref_len as f64,
+                avg_usable_space_pct: 100.0,
+                avg_usable_snps: HashMap::new(),
+                num_pairs: 0,
+            }).unwrap_or_else(|_| "{}".to_string());
+        }
+
+        let gt_id = self.ground_truth_pipeline.clone();
+        let num_pairs = n * (n - 1) / 2;
+        let mut total_usable_space: f64 = 0.0;
+        let mut total_usable_snps: HashMap<String, f64> = HashMap::new();
+
+        // Initialize per-pipeline counters
+        for pipeline_id in &self.pipeline_ids {
+            if gt_id.as_ref() == Some(pipeline_id) { continue; }
+            total_usable_snps.insert(pipeline_id.clone(), 0.0);
+        }
+
+        // Helper: merge gap regions into non-overlapping sorted list and compute total bases
+        fn merge_gaps_total(gaps_a: &[(u32, u32)], gaps_b: &[(u32, u32)]) -> u32 {
+            let mut all: Vec<(u32, u32)> = Vec::with_capacity(gaps_a.len() + gaps_b.len());
+            all.extend_from_slice(gaps_a);
+            all.extend_from_slice(gaps_b);
+            all.sort_unstable();
+            let mut total = 0u32;
+            let mut cur_start = 0u32;
+            let mut cur_end = 0u32;
+            for &(s, e) in &all {
+                if s > cur_end {
+                    total += cur_end - cur_start;
+                    cur_start = s;
+                    cur_end = e;
+                } else if e > cur_end {
+                    cur_end = e;
+                }
+            }
+            total += cur_end - cur_start;
+            total
+        }
+
+        // Helper: check if position is in any gap from merged list
+        fn in_merged_gaps(pos: u32, gaps: &[(u32, u32)]) -> bool {
+            // Binary search for efficiency
+            match gaps.binary_search_by(|&(s, _)| s.cmp(&pos)) {
+                Ok(_) => true, // pos == start of a gap
+                Err(idx) => {
+                    // Check if pos is inside the preceding gap
+                    if idx > 0 {
+                        let (_, end) = gaps[idx - 1];
+                        pos < end
+                    } else {
+                        false
+                    }
+                }
+            }
+        }
+
+        // Merge and sort gaps helper
+        fn merge_gap_regions(gaps_a: &[(u32, u32)], gaps_b: &[(u32, u32)]) -> Vec<(u32, u32)> {
+            let mut all: Vec<(u32, u32)> = Vec::with_capacity(gaps_a.len() + gaps_b.len());
+            all.extend_from_slice(gaps_a);
+            all.extend_from_slice(gaps_b);
+            all.sort_unstable();
+            let mut merged: Vec<(u32, u32)> = Vec::new();
+            for &(s, e) in &all {
+                if let Some(last) = merged.last_mut() {
+                    if s <= last.1 {
+                        last.1 = last.1.max(e);
+                    } else {
+                        merged.push((s, e));
+                    }
+                } else {
+                    merged.push((s, e));
+                }
+            }
+            merged
+        }
+
+        for i in 0..n {
+            for j in (i+1)..n {
+                let sample_a = &self.samples[sample_ids[i]];
+                let sample_b = &self.samples[sample_ids[j]];
+
+                // Get GT gaps for both samples
+                let gaps_a: Vec<(u32, u32)> = gt_id.as_ref()
+                    .and_then(|gt| sample_a.pipelines.get(gt))
+                    .map(|p| p.gaps.iter().map(|g| (g.start, g.end)).collect())
+                    .unwrap_or_default();
+                let gaps_b: Vec<(u32, u32)> = gt_id.as_ref()
+                    .and_then(|gt| sample_b.pipelines.get(gt))
+                    .map(|p| p.gaps.iter().map(|g| (g.start, g.end)).collect())
+                    .unwrap_or_default();
+
+                // Usable space = refLen - merged GT gaps
+                let gap_bases = merge_gaps_total(&gaps_a, &gaps_b);
+                total_usable_space += (self.ref_len - gap_bases) as f64;
+
+                // Merged gaps for position checking
+                let merged_gaps = merge_gap_regions(&gaps_a, &gaps_b);
+
+                // For each VCF pipeline, count discriminating SNPs not in GT gaps
+                for pipeline_id in &self.pipeline_ids {
+                    if gt_id.as_ref() == Some(pipeline_id) { continue; }
+
+                    let snps_a: HashMap<u32, u8> = sample_a.pipelines.get(pipeline_id)
+                        .map(|p| p.snps.iter().map(|s| (s.pos, s.alt_allele)).collect())
+                        .unwrap_or_default();
+                    let snps_b: HashMap<u32, u8> = sample_b.pipelines.get(pipeline_id)
+                        .map(|p| p.snps.iter().map(|s| (s.pos, s.alt_allele)).collect())
+                        .unwrap_or_default();
+
+                    // All positions with SNPs in either sample
+                    let mut all_positions: std::collections::HashSet<u32> = std::collections::HashSet::new();
+                    all_positions.extend(snps_a.keys());
+                    all_positions.extend(snps_b.keys());
+
+                    let mut discriminating = 0u32;
+                    for &pos in &all_positions {
+                        // Skip if in GT gaps
+                        if !merged_gaps.is_empty() && in_merged_gaps(pos, &merged_gaps) {
+                            continue;
+                        }
+                        // Discriminating: different between the two samples
+                        let alt_a = snps_a.get(&pos);
+                        let alt_b = snps_b.get(&pos);
+                        if alt_a != alt_b {
+                            discriminating += 1;
+                        }
+                    }
+
+                    if let Some(counter) = total_usable_snps.get_mut(pipeline_id) {
+                        *counter += discriminating as f64;
+                    }
+                }
+            }
+        }
+
+        let avg_usable_space = total_usable_space / num_pairs as f64;
+        let avg_usable_space_pct = (avg_usable_space / self.ref_len as f64) * 100.0;
+        let avg_usable_snps: HashMap<String, f64> = total_usable_snps.into_iter()
+            .map(|(k, v)| (k, v / num_pairs as f64))
+            .collect();
+
+        let stats = PairwiseUsableStats {
+            avg_usable_space,
+            avg_usable_space_pct,
+            avg_usable_snps,
+            num_pairs,
+        };
+
+        serde_json::to_string(&stats).unwrap_or_else(|_| "{}".to_string())
+    }
+
     /// Get per-sample statistics as JSON
     /// Returns: { sample_id: { pipeline_id: { snps, snps_in_gt_gaps, agreement_with_gt, ... } } }
     #[wasm_bindgen]

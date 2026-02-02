@@ -32,6 +32,11 @@ export class GenomeData {
      */
     get_coverage_stats(): string;
     /**
+     * Get report description (markdown content)
+     * Returns: description string or null if not available
+     */
+    get_description(): string;
+    /**
      * Get file paths for reproducibility (sample -> pipeline -> {vcf_path, bam_path})
      */
     get_file_paths(): string;
@@ -73,6 +78,14 @@ export class GenomeData {
      */
     get_mnp_stats(): string;
     /**
+     * Get average pairwise usable stats across all sample pairs
+     * For each pair (A, B):
+     *   - usable_space = refLength - union of GT gap bases for A and B
+     *   - usable_snps per pipeline = discriminating SNPs not in GT gaps
+     * Returns averages across all N*(N-1)/2 pairs
+     */
+    get_pairwise_usable_stats(): string;
+    /**
      * Get per-sample SNP intersection with GT
      * Returns: { sample_id: { pipeline_id: { intersection, pipeline_snps, gt_snps, pct_of_pipeline, pct_of_gt } } }
      */
@@ -86,6 +99,20 @@ export class GenomeData {
      * Get command for a pipeline (if any)
      */
     get_pipeline_command(pipeline_id: string): string | undefined;
+    /**
+     * Get detailed pipeline concordance statistics
+     * Returns 4 metrics for each pipeline pair:
+     * - concordance_any: positions where at least 1 sample has SNP in both pipelines
+     * - concordance_all: positions where ALL samples have SNP in both pipelines
+     * - consensus_any: positions where at least 1 sample has same allele in both pipelines
+     * - consensus_all: positions where ALL samples have same allele in both pipelines
+     */
+    get_pipeline_concordance(): string;
+    /**
+     * Get pre-computed distance matrices from pipelines
+     * Returns: JSON object { pipeline_id: { samples: [...], matrix: [[...], ...] } }
+     */
+    get_pipeline_distance_matrices(): string;
     /**
      * Get all pipeline IDs as JSON array
      */
@@ -128,7 +155,12 @@ export class GenomeData {
      */
     get_snp_intersection(): string;
     /**
-     * Get SNPs in ground truth gaps statistics as JSON
+     * Get SNPs in gaps for ALL pipeline pairs as JSON
+     * Returns: { gap_pipeline: { snp_pipeline: { total_snps, snps_in_gaps, percentage } } }
+     */
+    get_snps_in_gaps(): string;
+    /**
+     * Get SNPs in ground truth gaps statistics as JSON (DEPRECATED - use get_snps_in_gaps)
      */
     get_snps_in_gt_gaps(): string;
     /**
@@ -140,6 +172,10 @@ export class GenomeData {
      */
     get_warnings(): string;
     /**
+     * Check if a pipeline's SNPs come from BAM pileup (no variant calling)
+     */
+    is_from_bam_pileup(pipeline_id: string): boolean;
+    /**
      * Check if position is in a gap for a sample/pipeline
      */
     is_gap(sample: string, pipeline: string, pos: number): boolean;
@@ -147,6 +183,10 @@ export class GenomeData {
      * Check if a pipeline is the ground truth
      */
     is_ground_truth(pipeline_id: string): boolean;
+    /**
+     * Load data from binary (bincode) report - faster than JSON
+     */
+    load_binary(data: Uint8Array): void;
     /**
      * Load data from JSON report (the main entry point)
      */
@@ -177,6 +217,7 @@ export interface InitOutput {
     readonly __wbg_genomedata_free: (a: number, b: number) => void;
     readonly genomedata_new: () => number;
     readonly genomedata_load_json: (a: number, b: number, c: number) => [number, number];
+    readonly genomedata_load_binary: (a: number, b: number, c: number) => [number, number];
     readonly genomedata_get_ref_length: (a: number) => number;
     readonly genomedata_get_ref_name: (a: number) => [number, number];
     readonly genomedata_get_sample_ids: (a: number) => [number, number];
@@ -186,12 +227,16 @@ export interface InitOutput {
     readonly genomedata_get_pipeline_command: (a: number, b: number, c: number) => [number, number];
     readonly genomedata_get_ground_truth_pipeline: (a: number) => [number, number];
     readonly genomedata_is_ground_truth: (a: number, b: number, c: number) => number;
+    readonly genomedata_is_from_bam_pileup: (a: number, b: number, c: number) => number;
     readonly genomedata_get_vcf_pipelines: (a: number) => [number, number];
     readonly genomedata_get_generated_at: (a: number) => [number, number];
     readonly genomedata_get_warnings: (a: number) => [number, number];
     readonly genomedata_get_snps_in_gt_gaps: (a: number) => [number, number];
+    readonly genomedata_get_snps_in_gaps: (a: number) => [number, number];
     readonly genomedata_get_ground_truth_pileup: (a: number) => [number, number];
     readonly genomedata_get_mnp_stats: (a: number) => [number, number];
+    readonly genomedata_get_description: (a: number) => [number, number];
+    readonly genomedata_get_pipeline_distance_matrices: (a: number) => [number, number];
     readonly genomedata_get_file_paths: (a: number) => [number, number];
     readonly genomedata_get_ref_nuc: (a: number, b: number) => number;
     readonly genomedata_is_gap: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
@@ -199,8 +244,10 @@ export interface InitOutput {
     readonly genomedata_get_snp_alt: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly genomedata_render_region: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly genomedata_get_kpis: (a: number) => [number, number];
+    readonly genomedata_get_pairwise_usable_stats: (a: number) => [number, number];
     readonly genomedata_get_per_sample_stats: (a: number) => [number, number];
     readonly genomedata_get_snp_intersection: (a: number) => [number, number];
+    readonly genomedata_get_pipeline_concordance: (a: number) => [number, number];
     readonly genomedata_get_per_sample_intersection_with_gt: (a: number) => [number, number];
     readonly genomedata_get_consensus_stats: (a: number) => [number, number];
     readonly genomedata_get_filtered_positions_v2: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number];

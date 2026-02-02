@@ -1436,6 +1436,12 @@ pipelines:
                 body: `<p>The length of the reference genome in base pairs (bp).</p>
                        <p>All samples are aligned against this reference sequence for SNP calling.</p>`
             },
+            'usable_space': {
+                title: 'Usable Space',
+                body: `<p>The number of reference base pairs <strong>not covered by gaps</strong> in the Ground Truth pipeline.</p>
+                       <div class="formula">Usable Space = Reference Length − avg(GT gaps per sample)</div>
+                       <p>This represents the effective genome size available for SNP comparison. Regions where the Ground Truth has no coverage (gaps) cannot be used to validate other pipelines.</p>`
+            },
             'samples': {
                 title: 'Number of Samples',
                 body: `<p>Total number of samples (isolates) included in this comparison.</p>`
@@ -2880,6 +2886,17 @@ pipelines:
             html += sectionHeader('Overview');
             html += `
                 <div class="kpi"><div class="label">Reference ${infoIcon('reference')}</div><div class="value">${refLength.toLocaleString()} bp</div></div>
+            `;
+
+            // Usable space: reference length minus average GT gaps per sample
+            if (gtPipelineId && kpis.gaps[gtPipelineId] != null) {
+                const avgGtGaps = Math.round(kpis.gaps[gtPipelineId] / kpis.samples);
+                const usableBp = refLength - avgGtGaps;
+                const usablePct = ((usableBp / refLength) * 100).toFixed(2);
+                html += `<div class="kpi"><div class="label">Usable Space ${infoIcon('usable_space')}</div><div class="value">${usableBp.toLocaleString()} bp <span class="pct">(${usablePct}%)</span></div></div>`;
+            }
+
+            html += `
                 <div class="kpi"><div class="label">Samples ${infoIcon('samples')}</div><div class="value">${kpis.samples}</div></div>
                 <div class="kpi"><div class="label">Pipelines ${infoIcon('pipelines')}</div><div class="value">${kpis.pipelines}</div></div>
             `;

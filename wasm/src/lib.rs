@@ -1047,19 +1047,26 @@ impl GenomeData {
         serde_json::to_string(&kpis).unwrap_or_else(|_| "{}".to_string())
     }
 
-    /// Global stats: union of ALL GT gaps across all samples
+    /// Global stats: both union and intersection of GT gaps across all samples
     ///
-    /// Usable Space = refLength - union(GT gaps of all samples)
-    /// Usable SNPs = GT core SNPs - SNPs in global gap union - consensus outside gaps
+    /// Strict (union): exclude position if at least 1 sample has gap
+    /// Relaxed (intersection): exclude position only if ALL samples have gap
+    /// For each: Usable Space + Usable SNPs (not in gaps, not consensus outside gaps)
     #[wasm_bindgen]
     pub fn get_global_stats(&self) -> String {
         #[derive(Serialize)]
-        struct GlobalStats {
+        struct GlobalVariant {
             usable_space: u32,
             usable_space_pct: f64,
             usable_snps: u32,
             usable_snps_pct: f64,
-            core_snps: u32,
+            total_snps: u32,
+        }
+
+        #[derive(Serialize)]
+        struct GlobalStats {
+            strict: GlobalVariant,
+            relaxed: GlobalVariant,
         }
 
         let gt_id = match &self.ground_truth_pipeline {
@@ -1068,10 +1075,8 @@ impl GenomeData {
         };
 
         let sample_ids: Vec<&String> = self.samples.keys().collect();
-        let n = sample_ids.len();
 
-        // === 1. Union of ALL GT gaps across all samples ===
-        let mut global_gap_union: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        // Build per-sample gap sets
         let mut sample_gap_sets: Vec<std::collections::HashSet<u32>> = Vec::new();
         for sample_id in &sample_ids {
             let sample_data = &self.samples[*sample_id];
@@ -1083,14 +1088,28 @@ impl GenomeData {
                     }
                 }
             }
-            global_gap_union.extend(&gap_positions);
             sample_gap_sets.push(gap_positions);
         }
 
-        let usable_space = self.ref_len - global_gap_union.len() as u32;
-        let usable_space_pct = (usable_space as f64 / self.ref_len as f64) * 100.0;
+        // Union: positions where at least 1 sample has gap
+        let mut gap_union: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        for gs in &sample_gap_sets {
+            gap_union.extend(gs);
+        }
 
-        // === 2. Usable SNPs: GT core - in gap union - consensus outside gaps ===
+        // Intersection: positions where ALL samples have gap
+        let gap_intersection = if sample_gap_sets.len() > 1 {
+            let mut isect = sample_gap_sets[0].clone();
+            for gs in &sample_gap_sets[1..] {
+                isect = isect.intersection(gs).cloned().collect();
+            }
+            isect
+        } else if sample_gap_sets.len() == 1 {
+            sample_gap_sets[0].clone()
+        } else {
+            std::collections::HashSet::new()
+        };
+
         // Build per-sample GT SNP maps
         let mut gt_snp_maps: Vec<HashMap<u32, u8>> = Vec::new();
         for sample_id in &sample_ids {
@@ -1101,58 +1120,75 @@ impl GenomeData {
             gt_snp_maps.push(snps);
         }
 
-        // All GT SNP positions across all samples
+        // All GT SNP positions
         let mut all_snp_positions: std::collections::HashSet<u32> = std::collections::HashSet::new();
         for snp_map in &gt_snp_maps {
             all_snp_positions.extend(snp_map.keys());
         }
 
-        // Core SNPs: positions present in ALL samples
-        let core_positions: std::collections::HashSet<u32> = all_snp_positions.iter()
-            .filter(|&&pos| gt_snp_maps.iter().all(|m| m.contains_key(&pos)))
-            .cloned()
-            .collect();
+        // Helper: compute usable SNPs for a given gap set
+        let compute_variant = |gap_set: &std::collections::HashSet<u32>| -> GlobalVariant {
+            let usable_space = self.ref_len - gap_set.len() as u32;
+            let usable_space_pct = (usable_space as f64 / self.ref_len as f64) * 100.0;
 
-        // Consensus outside gaps: core positions where ALL samples have same alt
-        // and NO sample has a gap there
-        let mut consensus_outside_gaps: std::collections::HashSet<u32> = std::collections::HashSet::new();
-        for &pos in &core_positions {
-            if global_gap_union.contains(&pos) {
-                continue;
-            }
-            let first_alt = gt_snp_maps[0].get(&pos).cloned();
-            if let Some(fa) = first_alt {
-                if gt_snp_maps.iter().all(|m| m.get(&pos) == Some(&fa)) {
-                    consensus_outside_gaps.insert(pos);
+            // Consensus outside this gap set: positions where ALL samples have same alt
+            // and position is NOT in the gap set
+            let mut consensus_outside: std::collections::HashSet<u32> = std::collections::HashSet::new();
+            for &pos in &all_snp_positions {
+                if gap_set.contains(&pos) {
+                    continue;
+                }
+                // Check all samples have this SNP with same alt
+                let mut all_have = true;
+                let mut first_alt: Option<u8> = None;
+                let mut all_same = true;
+                for snp_map in &gt_snp_maps {
+                    if let Some(&alt) = snp_map.get(&pos) {
+                        match first_alt {
+                            None => first_alt = Some(alt),
+                            Some(f) => if alt != f { all_same = false; }
+                        }
+                    } else {
+                        all_have = false;
+                        break;
+                    }
+                }
+                if all_have && all_same && first_alt.is_some() {
+                    consensus_outside.insert(pos);
                 }
             }
-        }
 
-        // Usable SNPs: all GT SNP positions not in gap union, not consensus
-        let mut usable_snps_count = 0u32;
-        for &pos in &all_snp_positions {
-            if global_gap_union.contains(&pos) {
-                continue;
+            // Count usable SNPs: not in gap set, not consensus
+            let mut usable_count = 0u32;
+            for &pos in &all_snp_positions {
+                if gap_set.contains(&pos) {
+                    continue;
+                }
+                if consensus_outside.contains(&pos) {
+                    continue;
+                }
+                usable_count += 1;
             }
-            if consensus_outside_gaps.contains(&pos) {
-                continue;
-            }
-            usable_snps_count += 1;
-        }
 
-        let core_snps = core_positions.len() as u32;
-        let usable_snps_pct = if all_snp_positions.len() > 0 {
-            (usable_snps_count as f64 / all_snp_positions.len() as f64) * 100.0
-        } else {
-            0.0
+            let total = all_snp_positions.len() as u32;
+            let usable_pct = if total > 0 {
+                (usable_count as f64 / total as f64) * 100.0
+            } else {
+                0.0
+            };
+
+            GlobalVariant {
+                usable_space,
+                usable_space_pct,
+                usable_snps: usable_count,
+                usable_snps_pct: usable_pct,
+                total_snps: total,
+            }
         };
 
         let stats = GlobalStats {
-            usable_space,
-            usable_space_pct,
-            usable_snps: usable_snps_count,
-            usable_snps_pct,
-            core_snps,
+            strict: compute_variant(&gap_union),
+            relaxed: compute_variant(&gap_intersection),
         };
 
         serde_json::to_string(&stats).unwrap_or_else(|_| "{}".to_string())

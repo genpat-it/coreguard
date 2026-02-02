@@ -60,10 +60,11 @@ export class GenomeData {
      */
     get_generated_at(): string;
     /**
-     * Global stats: union of ALL GT gaps across all samples
+     * Global stats: both union and intersection of GT gaps across all samples
      *
-     * Usable Space = refLength - union(GT gaps of all samples)
-     * Usable SNPs = GT core SNPs - SNPs in global gap union - consensus outside gaps
+     * Strict (union): exclude position if at least 1 sample has gap
+     * Relaxed (intersection): exclude position only if ALL samples have gap
+     * For each: Usable Space + Usable SNPs (not in gaps, not consensus outside gaps)
      */
     get_global_stats(): string;
     /**

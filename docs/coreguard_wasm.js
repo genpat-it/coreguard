@@ -447,11 +447,11 @@ export class GenomeData {
         return String.fromCodePoint(ret);
     }
     /**
-     * Reviewer methodology: pairwise stats with intersection-based gap removal
+     * Pairwise Relaxed: per-pair stats with intersection-based gap removal
      *
-     * Usable Space = refLength - positions where ALL samples have GT gap (intersection)
-     * Per-sample usable SNPs = GT SNPs - (in sample's gap) - (consensus outside gaps)
-     * Pairwise: average discriminating usable SNPs across all pairs
+     * For each pair (A, B):
+     *   Usable Space = refLength - positions where BOTH A and B have GT gap (intersection)
+     *   Discriminating SNPs = GT SNPs not in pair's gap intersection, not consensus (global), and different between A and B
      * @returns {string}
      */
     get_reviewer_pairwise_stats() {

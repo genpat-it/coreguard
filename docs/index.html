@@ -1872,30 +1872,22 @@ pipelines:
                        <p><strong>Note:</strong> The consensus count is the same for all pipelines since it's the intersection.</p>`
             },
             'rpw_usable_space': {
-                title: 'Pairwise Relaxed — Usable Space',
-                body: `<p>The number of reference base pairs <strong>not covered by gaps in ALL samples</strong> in the Ground Truth pipeline.</p>
-                       <div class="formula">Usable Space = Reference Length − |positions where ALL samples have GT gap|</div>
-                       <p>Unlike the union-based Usable Space, this uses the <strong>intersection</strong> of GT gaps: a position is removed only if <em>every</em> sample has a gap there.</p>
-                       <p><strong>Interpretation:</strong> This gives a more conservative (larger) usable space estimate, reflecting positions that are at least covered in one sample.</p>`
-            },
-            'rpw_sample_snps': {
-                title: 'Pairwise Relaxed — Per-Sample Usable SNPs',
-                body: `<p>Number of <strong>informative GT SNPs</strong> for each sample after removing unreliable positions.</p>
-                       <div class="formula">Usable = GT SNPs for sample − SNPs in that sample's GT gaps − Consensus SNPs outside gaps</div>
-                       <p>Removed positions:</p>
-                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li><strong>In sample's gaps:</strong> SNPs where this specific sample has a GT coverage gap</li>
-                           <li><strong>Consensus outside gaps:</strong> Positions where ALL samples have the same alt allele AND no sample has a gap — these are reference differences, not inter-sample variation</li>
-                       </ul>
-                       <p>The remaining positions represent true variation for this sample that can be used for phylogenetics.</p>`
+                title: 'Pairwise Relaxed — Avg Usable Space',
+                body: `<p>Average usable genome space across all sample pairs, using <strong>intersection</strong> of gaps.</p>
+                       <div class="formula">For each pair (A, B): Usable = RefLength − intersection(GT gaps A, GT gaps B)</div>
+                       <p>A position is excluded only if <strong>both</strong> samples in the pair have a GT gap there. This is less restrictive than Strict mode (which excludes if either has a gap).</p>
+                       <p><strong>Relaxed ≥ Strict</strong> usable space, since fewer positions are excluded.</p>`
             },
             'rpw_discriminating': {
                 title: 'Pairwise Relaxed — Avg Discriminating SNPs',
-                body: `<p>Average number of <strong>discriminating usable SNPs</strong> across all sample pairs.</p>
-                       <div class="formula">For each pair (A, B): count positions in (Usable_A ∩ Usable_B) where A ≠ B</div>
-                       <p>A position is discriminating if it is usable in both samples but one has a SNP and the other doesn't (or they have different alleles).</p>
-                       <p><strong>Usable per sample</strong> = GT SNPs − in that sample's gap − consensus outside gaps.</p>
-                       <p>This represents the average pairwise distance using the intersection-based methodology.</p>`
+                body: `<p>Average number of <strong>discriminating SNPs</strong> per sample pair, using intersection-based gap removal.</p>
+                       <div class="formula">For each pair (A, B): count GT SNPs where A ≠ B, not in pair gap intersection, not global consensus</div>
+                       <p>Excluded positions:</p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li><strong>Pair gap intersection:</strong> positions where BOTH samples have a GT gap</li>
+                           <li><strong>Global consensus:</strong> positions where ALL samples have the same alt allele and no sample has a gap — reference differences, not inter-sample variation</li>
+                       </ul>
+                       <p>This represents the average pairwise distance using the relaxed (intersection-based) methodology.</p>`
             }
         };
 
@@ -3007,21 +2999,12 @@ pipelines:
                     html += sectionEnd();
                 }
 
-                // Reviewer methodology: intersection-based gaps + per-sample usable SNPs
+                // Relaxed pairwise: intersection-based gaps per pair
                 const rpw = await workerApi.getReviewerPairwiseStats();
                 if (rpw) {
                     html += sectionStart(`Pairwise (Relaxed) <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${rpw.num_pairs} pairs)</span>`, true);
-                    html += `<div class="kpi"><div class="label">Usable Space ${infoIcon('rpw_usable_space')}</div><div class="value">${rpw.global_usable_space.toLocaleString()} bp <span class="pct">(${rpw.global_usable_space_pct.toFixed(2)}%)</span></div></div>`;
-
-                    // Per-sample usable SNPs
-                    const sampleIds = workerApi.sampleIds;
-                    for (const sId of sampleIds) {
-                        const sLabel = workerApi.getSampleLabel(sId);
-                        const usable = rpw.per_sample_usable_snps[sId] || 0;
-                        html += `<div class="kpi"><div class="label">${sLabel} Usable SNPs ${infoIcon('rpw_sample_snps')}</div><div class="value">${usable.toLocaleString()}</div></div>`;
-                    }
-
-                    html += `<div class="kpi"><div class="label">Avg Pairwise Discriminating ${infoIcon('rpw_discriminating')}</div><div class="value">${rpw.avg_pairwise_discriminating.toFixed(2)}</div></div>`;
+                    html += `<div class="kpi"><div class="label">Avg Usable Space ${infoIcon('rpw_usable_space')}</div><div class="value">${Math.round(rpw.avg_usable_space).toLocaleString()} bp <span class="pct">(${rpw.avg_usable_space_pct.toFixed(2)}%)</span></div></div>`;
+                    html += `<div class="kpi"><div class="label">Avg Discriminating SNPs ${infoIcon('rpw_discriminating')}</div><div class="value">${rpw.avg_usable_snps.toFixed(2)}</div></div>`;
                     html += sectionEnd();
                 }
             }

@@ -271,20 +271,35 @@
             border: 1px solid var(--border-color);
             position: relative;
         }
-        .kpi-section-header {
+        .kpi-section {
+            margin-top: 8px;
+            border-top: 1px solid var(--border-color);
+        }
+        .kpi-section:first-child {
+            margin-top: 0;
+            border-top: none;
+        }
+        .kpi-section > summary {
             width: 100%;
             font-size: 11px;
             font-weight: bold;
             color: var(--text-secondary);
             text-transform: uppercase;
             padding: 8px 0 4px 0;
-            margin-top: 8px;
-            border-top: 1px solid var(--border-color);
             letter-spacing: 0.5px;
+            cursor: pointer;
+            list-style: none;
         }
-        .kpi-section-header:first-child {
-            margin-top: 0;
-            border-top: none;
+        .kpi-section > summary::-webkit-details-marker { display: none; }
+        .kpi-section > summary::before {
+            content: '▶';
+            display: inline-block;
+            margin-right: 6px;
+            font-size: 8px;
+            transition: transform 0.15s;
+        }
+        .kpi-section[open] > summary::before {
+            transform: rotate(90deg);
         }
         .kpi-sub-label {
             width: 100%;
@@ -2905,13 +2920,14 @@ pipelines:
             // Helper to create info icon
             const infoIcon = (type) => `<span class="info-icon" onclick="event.stopPropagation();showKpiInfo('${type}')">ⓘ</span>`;
 
-            // Helper to create section header
-            const sectionHeader = (title) => `<div class="kpi-section-header">${title}</div>`;
+            // Helper to create collapsible section
+            const sectionStart = (title, open = false) => `<details class="kpi-section"${open ? ' open' : ''}><summary>${title}</summary>`;
+            const sectionEnd = () => `</details>`;
 
             let html = '';
 
             // === SECTION 1: Overview ===
-            html += sectionHeader('Overview');
+            html += sectionStart('Overview', true);
             html += `
                 <div class="kpi"><div class="label">Reference ${infoIcon('reference')}</div><div class="value">${refLength.toLocaleString()} bp</div></div>
             `;
@@ -2936,23 +2952,26 @@ pipelines:
                 <div class="kpi"><div class="label">Pipelines ${infoIcon('pipelines')}</div><div class="value">${kpis.pipelines}</div></div>
             `;
 
-            // Pairwise averages (only if GT and >= 2 samples)
-            if (gtPipelineId && kpis.samples >= 2) {
-                const pw = await workerApi.getPairwiseUsableStats();
-                if (pw && pw.num_pairs > 0) {
-                    html += sectionHeader(`Pairwise Averages <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${pw.num_pairs} pairs)</span>`);
-                    html += `<div class="kpi"><div class="label">Avg Usable Space ${infoIcon('pw_usable_space')}</div><div class="value">${Math.round(pw.avg_usable_space).toLocaleString()} bp <span class="pct">(${pw.avg_usable_space_pct.toFixed(2)}%)</span></div></div>`;
-                    html += `<div class="kpi"><div class="label">Avg Discriminating SNPs (GT) ${infoIcon('pw_usable_snps')}</div><div class="value">${pw.avg_usable_snps.toFixed(2)}</div></div>`;
-                }
-            }
-
             // Show filtered positions count when filters are active
             if (filteredCount !== null) {
                 html += `<div class="kpi"><div class="label">Filtered Positions ${infoIcon('filtered')}</div><div class="value">${filteredCount.toLocaleString()}</div></div>`;
             }
 
+            html += sectionEnd(); // close Overview
+
+            // Pairwise averages (only if GT and >= 2 samples)
+            if (gtPipelineId && kpis.samples >= 2) {
+                const pw = await workerApi.getPairwiseUsableStats();
+                if (pw && pw.num_pairs > 0) {
+                    html += sectionStart(`Pairwise Averages <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${pw.num_pairs} pairs)</span>`, true);
+                    html += `<div class="kpi"><div class="label">Avg Usable Space ${infoIcon('pw_usable_space')}</div><div class="value">${Math.round(pw.avg_usable_space).toLocaleString()} bp <span class="pct">(${pw.avg_usable_space_pct.toFixed(2)}%)</span></div></div>`;
+                    html += `<div class="kpi"><div class="label">Avg Discriminating SNPs (GT) ${infoIcon('pw_usable_snps')}</div><div class="value">${pw.avg_usable_snps.toFixed(2)}</div></div>`;
+                    html += sectionEnd();
+                }
+            }
+
             // === SECTION 2: Per-Pipeline Statistics (Pivot Table) ===
-            html += sectionHeader('Per-Pipeline Statistics');
+            html += sectionStart('Per-Pipeline Statistics');
 
             // Helper for subsection labels
             const subLabel = (title) => `<div class="kpi-sub-label">${title}</div>`;
@@ -3050,11 +3069,12 @@ pipelines:
             }
 
             html += `</tbody></table>`;
+            html += sectionEnd(); // close Per-Pipeline Statistics
 
             // === SECTION 3: Cross-Pipeline Concordance ===
             const concordance = await workerApi.getPipelineConcordance();
             if (concordance && Object.keys(concordance).length > 0) {
-                html += sectionHeader('Cross-Pipeline Concordance');
+                html += sectionStart('Cross-Pipeline Concordance');
 
                 // Build table with all pairwise concordance stats
                 const allPipelines = sortedPipelineEntries(kpis.snps).map(([p]) => p);
@@ -3110,11 +3130,12 @@ pipelines:
                 }
 
                 html += `</tbody></table>`;
+                html += sectionEnd(); // close Cross-Pipeline Concordance
             }
 
             // === SECTION 4: Ground Truth Comparison (only if GT exists) ===
             if (gtPipelineId) {
-                html += sectionHeader('Ground Truth Comparison');
+                html += sectionStart('Ground Truth Comparison');
 
                 const gtLabel = workerApi.getPipelineLabel(gtPipelineId);
                 const gtShortLabel = gtLabel.split(' ')[0];
@@ -3185,13 +3206,14 @@ pipelines:
                     }
                     html += `</tbody></table>`;
                 }
+                html += sectionEnd(); // close Ground Truth Comparison
             }
 
             // === SECTION 5: Cross-Pipeline Gap Analysis (all pairwise combinations) ===
             const snpsInGaps = await workerApi.getSnpsInGaps();
 
             if (snpsInGaps && Object.keys(snpsInGaps).length > 0) {
-                html += sectionHeader('Cross-Pipeline Gap Analysis');
+                html += sectionStart('Cross-Pipeline Gap Analysis');
 
                 // For each pipeline that has gaps (gap source)
                 for (const gapPipeline of Object.keys(snpsInGaps).sort()) {
@@ -3230,6 +3252,7 @@ pipelines:
                     }
                     html += `</tbody></table>`;
                 }
+                html += sectionEnd(); // close Cross-Pipeline Gap Analysis
             }
 
             document.getElementById('kpis').innerHTML = html;

@@ -447,6 +447,26 @@ export class GenomeData {
         return String.fromCodePoint(ret);
     }
     /**
+     * Reviewer methodology: pairwise stats with intersection-based gap removal
+     *
+     * Usable Space = refLength - positions where ALL samples have GT gap (intersection)
+     * Per-sample usable SNPs = GT SNPs - (in sample's gap) - (consensus outside gaps)
+     * Pairwise: average discriminating usable SNPs across all pairs
+     * @returns {string}
+     */
+    get_reviewer_pairwise_stats() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_reviewer_pairwise_stats(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get all sample IDs as JSON array
      * @returns {string}
      */

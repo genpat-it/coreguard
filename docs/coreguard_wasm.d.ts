@@ -134,6 +134,14 @@ export class GenomeData {
      */
     get_ref_nuc(pos: number): string;
     /**
+     * Reviewer methodology: pairwise stats with intersection-based gap removal
+     *
+     * Usable Space = refLength - positions where ALL samples have GT gap (intersection)
+     * Per-sample usable SNPs = GT SNPs - (in sample's gap) - (consensus outside gaps)
+     * Pairwise: average discriminating usable SNPs across all pairs
+     */
+    get_reviewer_pairwise_stats(): string;
+    /**
      * Get all sample IDs as JSON array
      */
     get_sample_ids(): string;
@@ -245,6 +253,7 @@ export interface InitOutput {
     readonly genomedata_render_region: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly genomedata_get_kpis: (a: number) => [number, number];
     readonly genomedata_get_pairwise_usable_stats: (a: number) => [number, number];
+    readonly genomedata_get_reviewer_pairwise_stats: (a: number) => [number, number];
     readonly genomedata_get_per_sample_stats: (a: number) => [number, number];
     readonly genomedata_get_snp_intersection: (a: number) => [number, number];
     readonly genomedata_get_pipeline_concordance: (a: number) => [number, number];

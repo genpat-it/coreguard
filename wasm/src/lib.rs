@@ -1206,6 +1206,183 @@ impl GenomeData {
         serde_json::to_string(&stats).unwrap_or_else(|_| "{}".to_string())
     }
 
+    /// Reviewer methodology: pairwise stats with intersection-based gap removal
+    ///
+    /// Usable Space = refLength - positions where ALL samples have GT gap (intersection)
+    /// Per-sample usable SNPs = GT SNPs - (in sample's gap) - (consensus outside gaps)
+    /// Pairwise: average discriminating usable SNPs across all pairs
+    #[wasm_bindgen]
+    pub fn get_reviewer_pairwise_stats(&self) -> String {
+        #[derive(Serialize)]
+        struct ReviewerPairwiseStats {
+            /// refLength - intersection of GT gaps across ALL samples
+            global_usable_space: u32,
+            global_usable_space_pct: f64,
+            /// Per-sample: usable SNP count (GT SNPs - in_gap - consensus_outside_gap)
+            per_sample_usable_snps: HashMap<String, u32>,
+            /// Average pairwise discriminating usable SNPs
+            avg_pairwise_discriminating: f64,
+            num_pairs: usize,
+        }
+
+        let gt_id = match &self.ground_truth_pipeline {
+            Some(id) => id.clone(),
+            None => return "null".to_string(),
+        };
+
+        let sample_ids: Vec<&String> = self.samples.keys().collect();
+        let n = sample_ids.len();
+
+        // === 1. Global Usable Space: intersection of GT gaps ===
+        // A position is removed only if ALL samples have a gap there
+        // Build per-sample gap position sets, then intersect
+        let mut sample_gap_sets: Vec<std::collections::HashSet<u32>> = Vec::new();
+        for sample_id in &sample_ids {
+            let sample_data = &self.samples[*sample_id];
+            let mut gap_positions: std::collections::HashSet<u32> = std::collections::HashSet::new();
+            if let Some(gt_data) = sample_data.pipelines.get(&gt_id) {
+                for gap in &gt_data.gaps {
+                    for pos in gap.start..gap.end {
+                        gap_positions.insert(pos);
+                    }
+                }
+            }
+            sample_gap_sets.push(gap_positions);
+        }
+
+        // Intersection: positions where ALL samples have a gap
+        let all_gap_positions = if sample_gap_sets.len() > 1 {
+            let mut intersection = sample_gap_sets[0].clone();
+            for gap_set in &sample_gap_sets[1..] {
+                intersection = intersection.intersection(gap_set).cloned().collect();
+            }
+            intersection
+        } else if sample_gap_sets.len() == 1 {
+            sample_gap_sets[0].clone()
+        } else {
+            std::collections::HashSet::new()
+        };
+
+        let global_usable_space = self.ref_len - all_gap_positions.len() as u32;
+        let global_usable_space_pct = (global_usable_space as f64 / self.ref_len as f64) * 100.0;
+
+        // === 2. Per-sample usable SNPs ===
+        // For each sample:
+        //   - Get GT SNPs
+        //   - Remove those in that sample's GT gap
+        //   - Remove consensus (same alt in ALL samples) that are NOT in a gap
+
+        // First, find consensus positions: positions where ALL samples have
+        // the same alt allele in GT (and all have a SNP there)
+        let mut gt_snp_maps: HashMap<&String, HashMap<u32, u8>> = HashMap::new();
+        for sample_id in &sample_ids {
+            let sample_data = &self.samples[*sample_id];
+            let snps: HashMap<u32, u8> = sample_data.pipelines.get(&gt_id)
+                .map(|p| p.snps.iter().map(|s| (s.pos, s.alt_allele)).collect())
+                .unwrap_or_default();
+            gt_snp_maps.insert(sample_id, snps);
+        }
+
+        // Find all GT SNP positions across all samples
+        let mut all_snp_positions: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        for snp_map in gt_snp_maps.values() {
+            all_snp_positions.extend(snp_map.keys());
+        }
+
+        // Consensus: positions present in ALL samples with same alt, and NOT in a gap for any sample
+        let mut consensus_outside_gaps: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        for &pos in &all_snp_positions {
+            // Check all samples have this SNP
+            let mut all_have = true;
+            let mut alts: Vec<u8> = Vec::new();
+            let mut in_any_gap = false;
+
+            for (idx, sample_id) in sample_ids.iter().enumerate() {
+                if let Some(&alt) = gt_snp_maps[sample_id].get(&pos) {
+                    alts.push(alt);
+                    // Check if this position is in this sample's gap
+                    if sample_gap_sets[idx].contains(&pos) {
+                        in_any_gap = true;
+                    }
+                } else {
+                    all_have = false;
+                    break;
+                }
+            }
+
+            if all_have && !in_any_gap && !alts.is_empty() && alts.iter().all(|&a| a == alts[0]) {
+                consensus_outside_gaps.insert(pos);
+            }
+        }
+
+        // Per-sample usable SNPs
+        let mut per_sample_usable_snps: HashMap<String, u32> = HashMap::new();
+        // Also store usable SNP sets for pairwise comparison
+        let mut sample_usable_snp_sets: Vec<HashMap<u32, u8>> = Vec::new();
+
+        for (idx, sample_id) in sample_ids.iter().enumerate() {
+            let snp_map = &gt_snp_maps[sample_id];
+            let mut usable: HashMap<u32, u8> = HashMap::new();
+
+            for (&pos, &alt) in snp_map {
+                // Skip if in this sample's gap
+                if sample_gap_sets[idx].contains(&pos) {
+                    continue;
+                }
+                // Skip if consensus outside gaps
+                if consensus_outside_gaps.contains(&pos) {
+                    continue;
+                }
+                usable.insert(pos, alt);
+            }
+
+            per_sample_usable_snps.insert((*sample_id).clone(), usable.len() as u32);
+            sample_usable_snp_sets.push(usable);
+        }
+
+        // === 3. Pairwise discriminating usable SNPs ===
+        let num_pairs = if n >= 2 { n * (n - 1) / 2 } else { 0 };
+        let mut total_discriminating: f64 = 0.0;
+
+        for i in 0..n {
+            for j in (i+1)..n {
+                let usable_a = &sample_usable_snp_sets[i];
+                let usable_b = &sample_usable_snp_sets[j];
+
+                // All positions in either sample's usable set
+                let mut all_pos: std::collections::HashSet<u32> = std::collections::HashSet::new();
+                all_pos.extend(usable_a.keys());
+                all_pos.extend(usable_b.keys());
+
+                let mut disc = 0u32;
+                for &pos in &all_pos {
+                    let alt_a = usable_a.get(&pos);
+                    let alt_b = usable_b.get(&pos);
+                    if alt_a != alt_b {
+                        disc += 1;
+                    }
+                }
+                total_discriminating += disc as f64;
+            }
+        }
+
+        let avg_pairwise_discriminating = if num_pairs > 0 {
+            total_discriminating / num_pairs as f64
+        } else {
+            0.0
+        };
+
+        let stats = ReviewerPairwiseStats {
+            global_usable_space,
+            global_usable_space_pct,
+            per_sample_usable_snps,
+            avg_pairwise_discriminating,
+            num_pairs,
+        };
+
+        serde_json::to_string(&stats).unwrap_or_else(|_| "{}".to_string())
+    }
+
     /// Get per-sample statistics as JSON
     /// Returns: { sample_id: { pipeline_id: { snps, snps_in_gt_gaps, agreement_with_gt, ... } } }
     #[wasm_bindgen]

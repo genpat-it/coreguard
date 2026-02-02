@@ -2962,21 +2962,6 @@ pipelines:
                 <div class="kpi"><div class="label">Reference ${infoIcon('reference')}</div><div class="value">${refLength.toLocaleString()} bp</div></div>
             `;
 
-            // Usable space: reference length minus average GT gaps per sample
-            if (gtPipelineId && kpis.gaps[gtPipelineId] != null) {
-                const avgGtGaps = Math.round(kpis.gaps[gtPipelineId] / kpis.samples);
-                const usableBp = refLength - avgGtGaps;
-                const usablePct = ((usableBp / refLength) * 100).toFixed(2);
-                html += `<div class="kpi"><div class="label">Usable Space ${infoIcon('usable_space')}</div><div class="value">${usableBp.toLocaleString()} bp <span class="pct">(${usablePct}%)</span></div></div>`;
-
-                // Usable SNPs: GT core positions minus consensus (discriminating SNPs)
-                const gtCore = kpis.core_snps[gtPipelineId] || 0;
-                const gtConsensus = kpis.consensus_snps[gtPipelineId] || 0;
-                const gtUsableSnps = gtCore - gtConsensus;
-                const gtUsablePct = gtCore > 0 ? ((gtUsableSnps / gtCore) * 100).toFixed(2) : '0.00';
-                html += `<div class="kpi"><div class="label">Usable SNPs (GT) ${infoIcon('usable_snps')}</div><div class="value">${gtUsableSnps.toLocaleString()} <span class="pct">(${gtUsablePct}% of ${gtCore.toLocaleString()} core)</span></div></div>`;
-            }
-
             html += `
                 <div class="kpi"><div class="label">Samples ${infoIcon('samples')}</div><div class="value">${kpis.samples}</div></div>
                 <div class="kpi"><div class="label">Pipelines ${infoIcon('pipelines')}</div><div class="value">${kpis.pipelines}</div></div>
@@ -2988,6 +2973,25 @@ pipelines:
             }
 
             html += sectionEnd(); // close Overview
+
+            // === Global section: dataset-level usable space/SNPs ===
+            if (gtPipelineId && kpis.gaps[gtPipelineId] != null) {
+                html += sectionStart('Global', true);
+
+                const avgGtGaps = Math.round(kpis.gaps[gtPipelineId] / kpis.samples);
+                const usableBp = refLength - avgGtGaps;
+                const usablePct = ((usableBp / refLength) * 100).toFixed(2);
+                html += `<div class="kpi"><div class="label">Usable Space ${infoIcon('usable_space')}</div><div class="value">${usableBp.toLocaleString()} bp <span class="pct">(${usablePct}%)</span></div></div>`;
+
+                // Usable SNPs: GT core positions minus consensus (discriminating SNPs)
+                const gtCore = kpis.core_snps[gtPipelineId] || 0;
+                const gtConsensus = kpis.consensus_snps[gtPipelineId] || 0;
+                const gtUsableSnps = gtCore - gtConsensus;
+                const gtUsablePct = gtCore > 0 ? ((gtUsableSnps / gtCore) * 100).toFixed(2) : '0.00';
+                html += `<div class="kpi"><div class="label">Usable SNPs (GT) ${infoIcon('usable_snps')}</div><div class="value">${gtUsableSnps.toLocaleString()} <span class="pct">(${gtUsablePct}% of ${gtCore.toLocaleString()} core)</span></div></div>`;
+
+                html += sectionEnd(); // close Global
+            }
 
             // Pairwise averages (only if GT and >= 2 samples)
             if (gtPipelineId && kpis.samples >= 2) {

@@ -301,6 +301,17 @@
         .kpi-section[open] > summary::before {
             transform: rotate(90deg);
         }
+        .kpi-section-content {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 4px;
+        }
+        .kpi-section-content > table,
+        .kpi-section-content > .kpi-sub-label,
+        .kpi-section-content > div[style] {
+            width: 100%;
+        }
         .kpi-sub-label {
             width: 100%;
             font-size: 10px;
@@ -2921,8 +2932,8 @@ pipelines:
             const infoIcon = (type) => `<span class="info-icon" onclick="event.stopPropagation();showKpiInfo('${type}')">ⓘ</span>`;
 
             // Helper to create collapsible section
-            const sectionStart = (title, open = false) => `<details class="kpi-section"${open ? ' open' : ''}><summary>${title}</summary>`;
-            const sectionEnd = () => `</details>`;
+            const sectionStart = (title, open = false) => `<details class="kpi-section"${open ? ' open' : ''}><summary>${title}</summary><div class="kpi-section-content">`;
+            const sectionEnd = () => `</div></details>`;
 
             let html = '';
 

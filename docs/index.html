@@ -1451,6 +1451,17 @@ pipelines:
                 body: `<p>Number of different SNP calling pipelines being compared.</p>
                        <p>Each pipeline may use different algorithms, parameters, or reference-based variant calling approaches.</p>`
             },
+            'usable_snps': {
+                title: 'Usable SNPs',
+                body: `<p>SNP positions that are <strong>actually informative</strong> for discriminating between samples.</p>
+                       <div class="formula">Usable = Core SNPs − SNPs in GT Gaps − Consensus SNPs (not in GT gaps)</div>
+                       <p>Removed positions:</p>
+                       <ul>
+                           <li><strong>In GT Gaps:</strong> positions where the Ground Truth has no coverage — cannot be validated</li>
+                           <li><strong>Consensus:</strong> positions where ALL samples share the same alt allele — these are reference differences, not real variation between samples</li>
+                       </ul>
+                       <p>The remaining positions represent true inter-sample variation usable for phylogenetics and distance matrices.</p>`
+            },
             'snps': {
                 title: 'SNP Count',
                 body: `<p>Total number of Single Nucleotide Polymorphisms (SNPs) detected by this pipeline across all samples.</p>
@@ -2894,6 +2905,13 @@ pipelines:
                 const usableBp = refLength - avgGtGaps;
                 const usablePct = ((usableBp / refLength) * 100).toFixed(2);
                 html += `<div class="kpi"><div class="label">Usable Space ${infoIcon('usable_space')}</div><div class="value">${usableBp.toLocaleString()} bp <span class="pct">(${usablePct}%)</span></div></div>`;
+
+                // Usable SNPs: GT core positions minus consensus (discriminating SNPs)
+                const gtCore = kpis.core_snps[gtPipelineId] || 0;
+                const gtConsensus = kpis.consensus_snps[gtPipelineId] || 0;
+                const gtUsableSnps = gtCore - gtConsensus;
+                const gtUsablePct = gtCore > 0 ? ((gtUsableSnps / gtCore) * 100).toFixed(1) : '0';
+                html += `<div class="kpi"><div class="label">Usable SNPs (GT) ${infoIcon('usable_snps')}</div><div class="value">${gtUsableSnps.toLocaleString()} <span class="pct">(${gtUsablePct}% of ${gtCore.toLocaleString()} core)</span></div></div>`;
             }
 
             html += `
@@ -2927,6 +2945,7 @@ pipelines:
                         <th>SNPs ${infoIcon('snps')}</th>
                         <th>#All ${infoIcon('core_snps')}</th>
                         <th>#Consensus ${infoIcon('consensus_snps')}</th>
+                        <th>Usable ${infoIcon('usable_snps')}</th>
                         <th>Gaps ${infoIcon('gaps')}</th>
                         <th>MNPs ${infoIcon('mnps')}</th>
                     </tr>
@@ -2969,6 +2988,24 @@ pipelines:
                     }
                 }
 
+                // Usable SNPs: core - in_gt_gaps - (consensus - consensus_in_gt_gaps)
+                let usableCount, usablePctVal;
+                if (gtPipelineId && pipeline === gtPipelineId) {
+                    // GT itself: usable = core - consensus
+                    usableCount = coreCount - consCount;
+                    usablePctVal = coreCount > 0 ? ((usableCount / coreCount) * 100).toFixed(0) : 0;
+                } else if (gtPipelineId) {
+                    // VCF pipeline: remove SNPs in GT gaps + consensus not in GT gaps
+                    const inGtGaps = kpis.snps_in_gt_gaps_core ? (kpis.snps_in_gt_gaps_core[pipeline] || 0) : 0;
+                    const consInGtGaps = kpis.snps_in_gt_gaps_consensus ? (kpis.snps_in_gt_gaps_consensus[pipeline] || 0) : 0;
+                    usableCount = coreCount - inGtGaps - (consCount - consInGtGaps);
+                    usablePctVal = coreCount > 0 ? ((usableCount / coreCount) * 100).toFixed(0) : 0;
+                } else {
+                    // No GT: usable = core - consensus
+                    usableCount = coreCount - consCount;
+                    usablePctVal = coreCount > 0 ? ((usableCount / coreCount) * 100).toFixed(0) : 0;
+                }
+
                 // Warning icon for MNPs
                 const mnpWarning = mnpCount > 0 ? `<span class="mnp-warning" onclick="event.stopPropagation();showKpiInfo('mnp')" title="Click for MNP info">⚠️</span>` : '';
                 // Warning icon for BAM pileup (no variant calling)
@@ -2979,6 +3016,7 @@ pipelines:
                     <td>${snpCount.toLocaleString()}<span class="pct">(${snpPct}%)</span>${bamPileupWarning}${snpDiff}</td>
                     <td>${coreCount.toLocaleString()}<span class="pct">(${corePct}%)</span></td>
                     <td>${consCount.toLocaleString()}<span class="pct">(${consPct}%)</span></td>
+                    <td>${usableCount.toLocaleString()}<span class="pct">(${usablePctVal}%)</span></td>
                     <td>${gapCount.toLocaleString()}<span class="pct">(${gapPct}%)</span>${gapDiff}</td>
                     <td>${mnpCount.toLocaleString()}${mnpWarning}</td>
                 </tr>`;

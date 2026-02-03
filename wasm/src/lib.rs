@@ -1051,18 +1051,16 @@ impl GenomeData {
     ///
     /// Strict (union): exclude position if at least 1 sample has gap
     /// Relaxed (intersection): exclude position only if ALL samples have gap
-    /// For each: Usable Space + Real SNPs (consensus) + Discriminating SNPs (non-consensus)
+    /// For each: Usable Space, Total SNPs (in usable space), Consensus SNPs, Discriminating SNPs
     #[wasm_bindgen]
     pub fn get_global_stats(&self) -> String {
         #[derive(Serialize)]
         struct GlobalVariant {
             usable_space: u32,
             usable_space_pct: f64,
-            usable_snps: u32,
-            usable_snps_pct: f64,
-            discriminating_snps: u32,
-            discriminating_snps_pct: f64,
             total_snps: u32,
+            consensus_snps: u32,
+            discriminating_snps: u32,
         }
 
         #[derive(Serialize)]
@@ -1128,21 +1126,23 @@ impl GenomeData {
             all_snp_positions.extend(snp_map.keys());
         }
 
-        // Helper: compute usable SNPs for a given gap set
+        // Helper: compute stats for a given gap set
         let compute_variant = |gap_set: &std::collections::HashSet<u32>| -> GlobalVariant {
             let usable_space = self.ref_len - gap_set.len() as u32;
             let usable_space_pct = (usable_space as f64 / self.ref_len as f64) * 100.0;
 
-            // Classify SNP positions outside gaps:
-            // - consensus: ALL samples have same alt allele (real SNP, no discrimination)
-            // - discriminating: at least 2 samples differ in alt allele (useful for distance)
+            // Count SNP positions in usable space (outside gaps)
+            // - total: at least 1 sample has alt allele vs reference
+            // - consensus: ALL samples have same alt allele
+            // - discriminating: total - consensus
+            let mut total_count: u32 = 0;
             let mut consensus_count: u32 = 0;
-            let mut discriminating_count: u32 = 0;
             for &pos in &all_snp_positions {
                 if gap_set.contains(&pos) {
                     continue;
                 }
-                // Check all samples have this SNP with same alt
+                total_count += 1;
+                // Check if ALL samples have this SNP with same alt
                 let mut all_have = true;
                 let mut first_alt: Option<u8> = None;
                 let mut all_same = true;
@@ -1159,32 +1159,15 @@ impl GenomeData {
                 }
                 if all_have && all_same && first_alt.is_some() {
                     consensus_count += 1;
-                } else {
-                    // Position is outside gaps but samples disagree → discriminating
-                    discriminating_count += 1;
                 }
             }
-
-            let total = all_snp_positions.len() as u32;
-            let usable_pct = if total > 0 {
-                (consensus_count as f64 / total as f64) * 100.0
-            } else {
-                0.0
-            };
-            let disc_pct = if total > 0 {
-                (discriminating_count as f64 / total as f64) * 100.0
-            } else {
-                0.0
-            };
 
             GlobalVariant {
                 usable_space,
                 usable_space_pct,
-                usable_snps: consensus_count,
-                usable_snps_pct: usable_pct,
-                discriminating_snps: discriminating_count,
-                discriminating_snps_pct: disc_pct,
-                total_snps: total,
+                total_snps: total_count,
+                consensus_snps: consensus_count,
+                discriminating_snps: total_count - consensus_count,
             }
         };
 

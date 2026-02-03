@@ -280,6 +280,29 @@
             background: #fff3e0;
             border-color: #ffb74d;
         }
+        .kpi-expand-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 14px;
+            line-height: 18px;
+            cursor: pointer;
+            color: var(--text-muted);
+            padding: 0;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+        .kpi-expand-btn:hover {
+            background: var(--bg-secondary);
+        }
+        .kpi-collapsible {
+            display: none;
+        }
+        .kpi-collapsible.expanded {
+            display: block;
+        }
         [data-theme="dark"] .kpi.kpi-highlight-orange {
             background: #3e2c1a;
             border-color: #e6862a;
@@ -3045,15 +3068,21 @@ pipelines:
                 if (gs) {
                     html += sectionStart('Global (Gap-Intersect)', true);
                     html += `<div class="kpi kpi-highlight-green"><div class="label">Usable Space ${infoIcon('gl_relaxed_space')}</div><div class="value">${gs.relaxed.usable_space.toLocaleString()} bp <span class="pct">(${gs.relaxed.usable_space_pct.toFixed(2)}%)</span></div></div>`;
+                    html += `<button class="kpi-expand-btn" onclick="this.nextElementSibling.classList.toggle('expanded');this.textContent=this.textContent==='+'?'−':'+'">+</button>`;
+                    html += `<div class="kpi-collapsible">`;
                     html += `<div class="kpi"><div class="label">Total SNPs (GT) ${infoIcon('gl_relaxed_total_snps')}</div><div class="value">${gs.relaxed.total_snps.toLocaleString()}</div></div>`;
                     html += `<div class="kpi"><div class="label">Consensus SNPs (GT) ${infoIcon('gl_relaxed_consensus_snps')}</div><div class="value">${gs.relaxed.consensus_snps.toLocaleString()}</div></div>`;
+                    html += `</div>`;
                     html += `<div class="kpi kpi-highlight-green"><div class="label">Discriminating SNPs (GT) ${infoIcon('gl_relaxed_disc_snps')}</div><div class="value">${gs.relaxed.discriminating_snps.toLocaleString()}</div></div>`;
                     html += sectionEnd();
 
                     html += sectionStart('Global (Gap-Union)', true);
                     html += `<div class="kpi kpi-highlight-orange"><div class="label">Usable Space ${infoIcon('usable_space')}</div><div class="value">${gs.strict.usable_space.toLocaleString()} bp <span class="pct">(${gs.strict.usable_space_pct.toFixed(2)}%)</span></div></div>`;
+                    html += `<button class="kpi-expand-btn" onclick="this.nextElementSibling.classList.toggle('expanded');this.textContent=this.textContent==='+'?'−':'+'">+</button>`;
+                    html += `<div class="kpi-collapsible">`;
                     html += `<div class="kpi"><div class="label">Total SNPs (GT) ${infoIcon('gl_strict_total_snps')}</div><div class="value">${gs.strict.total_snps.toLocaleString()}</div></div>`;
                     html += `<div class="kpi"><div class="label">Consensus SNPs (GT) ${infoIcon('gl_strict_consensus_snps')}</div><div class="value">${gs.strict.consensus_snps.toLocaleString()}</div></div>`;
+                    html += `</div>`;
                     html += `<div class="kpi kpi-highlight-orange"><div class="label">Discriminating SNPs (GT) ${infoIcon('gl_strict_disc_snps')}</div><div class="value">${gs.strict.discriminating_snps.toLocaleString()}</div></div>`;
                     html += sectionEnd();
                 }

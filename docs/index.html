@@ -1414,6 +1414,10 @@ pipelines:
         </details>
 
         <div class="status" id="status"></div>
+        <div id="load-positions-prompt" style="display:none;text-align:center;padding:30px 20px;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;margin:10px 0;">
+            <p style="color:var(--text-secondary);font-size:13px;margin-bottom:12px;">Positions are not loaded yet. Click the button below to load and display the alignment view.</p>
+            <button onclick="loadAllPositions()" style="padding:10px 24px;font-size:14px;background:var(--accent-color,#4ec9b0);color:#1e1e1e;border:none;border-radius:6px;cursor:pointer;font-weight:bold;">Load Positions</button>
+        </div>
         <div class="alignment-view" id="alignment"></div>
 
         <div class="pagination" id="pagination">
@@ -2257,14 +2261,9 @@ pipelines:
             await drawGenomeOverview();
             console.log(`Phase 7 (genome): ${(performance.now() - t0).toFixed(0)}ms`);
 
-            // Phase 8: Load positions in idle time (after UI is responsive)
-            setSectionLoading('alignment', true, 'Loading positions...');
-            document.getElementById('status').textContent = 'Loading positions...';
-            scheduleIdleTask(async () => {
-                await loadAllPositions();
-                console.log(`Phase 8 (positions): ${(performance.now() - t0).toFixed(0)}ms`);
-            });
-            console.log(`Phase 8 (positions scheduled): ${(performance.now() - t0).toFixed(0)}ms`);
+            // Phase 8: Show load positions button (user-triggered)
+            document.getElementById('load-positions-prompt').style.display = 'block';
+            console.log(`Phase 8 (positions button shown): ${(performance.now() - t0).toFixed(0)}ms`);
 
             // Clear matrix placeholder
             document.getElementById('matrix-result').innerHTML =
@@ -2461,6 +2460,8 @@ pipelines:
         }
         // Load all positions on demand
         async function loadAllPositions() {
+            const prompt = document.getElementById('load-positions-prompt');
+            if (prompt) prompt.style.display = 'none';
             showLoader('Loading positions...', 'This may take a moment');
             await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
             await loadPositions();

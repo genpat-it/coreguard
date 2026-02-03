@@ -64,7 +64,7 @@ export class GenomeData {
      *
      * Strict (union): exclude position if at least 1 sample has gap
      * Relaxed (intersection): exclude position only if ALL samples have gap
-     * For each: Usable Space + Usable SNPs (not in gaps, not consensus outside gaps)
+     * For each: Usable Space + Real SNPs (consensus) + Discriminating SNPs (non-consensus)
      */
     get_global_stats(): string;
     /**

@@ -3093,7 +3093,7 @@ pipelines:
                 if (pw && pw.num_pairs > 0) {
                     html += sectionStart(`Pairwise (Gap-Union) <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${pw.num_pairs} pairs)</span>`, true);
                     html += `<div class="kpi kpi-highlight-orange"><div class="label">Avg Usable Space ${infoIcon('pw_usable_space')}</div><div class="value">${Math.round(pw.avg_usable_space).toLocaleString()} bp <span class="pct">(${pw.avg_usable_space_pct.toFixed(2)}%)</span></div></div>`;
-                    html += `<div class="kpi kpi-highlight-orange"><div class="label">Avg Discriminating SNPs (GT) ${infoIcon('pw_usable_snps')}</div><div class="value">${pw.avg_usable_snps.toFixed(2)}</div></div>`;
+                    html += `<div class="kpi kpi-highlight-orange"><div class="label">Discriminating SNPs (GT) ${infoIcon('pw_usable_snps')}</div><div class="value">avg ${pw.avg_usable_snps.toFixed(1)} &nbsp;|&nbsp; min ${pw.min_usable_snps.toLocaleString()} &nbsp;|&nbsp; med ${pw.median_usable_snps.toFixed(1)} &nbsp;|&nbsp; max ${pw.max_usable_snps.toLocaleString()}</div></div>`;
                     html += sectionEnd();
                 }
             }

@@ -1191,6 +1191,9 @@ impl GenomeData {
             avg_usable_space: f64,
             avg_usable_space_pct: f64,
             avg_usable_snps: f64,
+            min_usable_snps: u32,
+            max_usable_snps: u32,
+            median_usable_snps: f64,
             num_pairs: usize,
         }
 
@@ -1201,6 +1204,9 @@ impl GenomeData {
                 avg_usable_space: self.ref_len as f64,
                 avg_usable_space_pct: 100.0,
                 avg_usable_snps: 0.0,
+                min_usable_snps: 0,
+                max_usable_snps: 0,
+                median_usable_snps: 0.0,
                 num_pairs: 0,
             }).unwrap_or_else(|_| "{}".to_string());
         }
@@ -1209,6 +1215,7 @@ impl GenomeData {
         let num_pairs = n * (n - 1) / 2;
         let mut total_usable_space: f64 = 0.0;
         let mut total_usable_snps: f64 = 0.0;
+        let mut per_pair_disc: Vec<u32> = Vec::with_capacity(num_pairs);
 
         // Helper: merge gap regions into non-overlapping sorted list and compute total bases
         fn merge_gaps_total(gaps_a: &[(u32, u32)], gaps_b: &[(u32, u32)]) -> u32 {
@@ -1319,6 +1326,7 @@ impl GenomeData {
                         }
                     }
 
+                    per_pair_disc.push(discriminating);
                     total_usable_snps += discriminating as f64;
                 }
             }
@@ -1328,10 +1336,27 @@ impl GenomeData {
         let avg_usable_space_pct = (avg_usable_space / self.ref_len as f64) * 100.0;
         let avg_usable_snps = total_usable_snps / num_pairs as f64;
 
+        per_pair_disc.sort_unstable();
+        let min_usable_snps = *per_pair_disc.first().unwrap_or(&0);
+        let max_usable_snps = *per_pair_disc.last().unwrap_or(&0);
+        let median_usable_snps = if per_pair_disc.is_empty() {
+            0.0
+        } else {
+            let mid = per_pair_disc.len() / 2;
+            if per_pair_disc.len() % 2 == 0 {
+                (per_pair_disc[mid - 1] as f64 + per_pair_disc[mid] as f64) / 2.0
+            } else {
+                per_pair_disc[mid] as f64
+            }
+        };
+
         let stats = PairwiseUsableStats {
             avg_usable_space,
             avg_usable_space_pct,
             avg_usable_snps,
+            min_usable_snps,
+            max_usable_snps,
+            median_usable_snps,
             num_pairs,
         };
 

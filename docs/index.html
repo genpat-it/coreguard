@@ -3109,7 +3109,7 @@ pipelines:
                 const gs = await workerApi.getGlobalStatsForPipeline(pipelineId);
                 if (gs) {
                     const renderDiscBreakdown = (b) => {
-                        if (!b) return '';
+                        if (!b || isGt) return '';
                         const items = [];
                         if (b.gap_affected > 0) items.push(`<span class="disc-item">Gap-affected: <span class="disc-val">${b.gap_affected.toLocaleString()}</span></span>`);
                         if (b.gt_consensus > 0) items.push(`<span class="disc-item">GT-consensus: <span class="disc-val">${b.gt_consensus.toLocaleString()}</span></span>`);

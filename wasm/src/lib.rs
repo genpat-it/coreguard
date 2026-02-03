@@ -1079,6 +1079,7 @@ impl GenomeData {
             consensus_snps: u32,
             discriminating_snps: u32,
             disc_breakdown: DiscBreakdown,
+            missing_calls: u32,
         }
 
         #[derive(Serialize)]
@@ -1190,6 +1191,7 @@ impl GenomeData {
             let mut h_gt_consensus: u32 = 0;
             let mut h_majority: u32 = 0;
             let mut h_confirmed: u32 = 0;
+            let mut missing_calls_count: u32 = 0;
 
             for &pos in &all_snp_positions {
                 if gap_set.contains(&pos) {
@@ -1211,6 +1213,12 @@ impl GenomeData {
                     if alleles.len() < 2 {
                         continue;
                     }
+                    // Missing call: ≥1 non-gap sample has SNP, ≥1 non-gap sample has no call (None)
+                    let has_snp = alleles.iter().any(|a| a.is_some());
+                    let has_no_call = alleles.iter().any(|a| a.is_none());
+                    if has_snp && has_no_call {
+                        missing_calls_count += 1;
+                    }
                     let first = alleles[0];
                     let all_same = alleles.iter().all(|a| *a == first);
                     if all_same {
@@ -1231,7 +1239,13 @@ impl GenomeData {
                         }
                     }
                 } else {
-                    // Gap-Union: all samples have data
+                    // Gap-Union: all samples have data (no gaps)
+                    // Missing call: ≥1 sample has SNP, ≥1 sample has no call
+                    let has_snp = snp_maps.iter().any(|m| m.contains_key(&pos));
+                    let has_no_call = snp_maps.iter().any(|m| !m.contains_key(&pos));
+                    if has_snp && has_no_call {
+                        missing_calls_count += 1;
+                    }
                     let mut all_have = true;
                     let mut first_alt: Option<u8> = None;
                     let mut all_same = true;
@@ -1250,8 +1264,7 @@ impl GenomeData {
                         consensus_count += 1;
                     } else {
                         discriminating_count += 1;
-                        // Classify: no gap_affected possible in Gap-Union (no gaps in usable space)
-                        // Collect alleles for majority check
+                        // Classify: no gap_affected possible in Gap-Union
                         let alleles: Vec<Option<u8>> = snp_maps.iter()
                             .map(|m| m.get(&pos).copied())
                             .collect();
@@ -1278,6 +1291,7 @@ impl GenomeData {
                     majority_rule: h_majority,
                     confirmed: h_confirmed,
                 },
+                missing_calls: missing_calls_count,
             }
         };
 

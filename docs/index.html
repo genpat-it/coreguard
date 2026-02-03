@@ -2051,6 +2051,30 @@ pipelines:
                        </tr>
                        </table>`
             },
+            'pp_missing_calls': {
+                title: 'Missing VCF Calls',
+                body: `<p>Number of SNP positions in usable space where <strong>at least 1 sample has an alt allele</strong> but <strong>at least 1 other sample has no VCF call</strong> (defaults to reference).</p>
+                       <p>This measures <strong>variant calling inconsistency</strong>: positions where the pipeline called a SNP in some samples but not in others.</p>
+                       <table style="width:100%;font-size:11px;border-collapse:collapse;margin:8px 0;">
+                       <tr style="background:var(--bg-tertiary);"><th style="padding:4px 6px;text-align:left;">Scenario</th><th style="padding:4px 6px;text-align:left;">Example (Ref=T, 4 samples)</th><th style="padding:4px 6px;text-align:left;">Missing?</th></tr>
+                       <tr style="border-bottom:1px solid var(--border-color);">
+                           <td style="padding:4px 6px;">All called</td>
+                           <td style="padding:4px 6px;font-family:monospace;">A, A, A, A</td>
+                           <td style="padding:4px 6px;">No</td>
+                       </tr>
+                       <tr style="border-bottom:1px solid var(--border-color);">
+                           <td style="padding:4px 6px;">Some not called</td>
+                           <td style="padding:4px 6px;font-family:monospace;">A, A, A, <span style="color:#e6862a;">ref</span></td>
+                           <td style="padding:4px 6px;">Yes — sample 4 has no VCF record</td>
+                       </tr>
+                       <tr>
+                           <td style="padding:4px 6px;">Different alleles, all called</td>
+                           <td style="padding:4px 6px;font-family:monospace;">A, A, G, G</td>
+                           <td style="padding:4px 6px;">No — all have VCF calls</td>
+                       </tr>
+                       </table>
+                       <p style="font-size:11px;color:var(--text-secondary);"><em>High values indicate the variant caller is inconsistent across samples — many apparent differences may be artifacts rather than real biological variation.</em></p>`
+            },
             'pp_gu_usable': {
                 title: 'Gap-Union — Usable Space',
                 body: `<p>Reference positions remaining after removing those where <strong>at least 1 sample</strong> has a gap in this pipeline.</p>
@@ -3231,6 +3255,7 @@ pipelines:
                     phtml += `<button class="kpi-expand-btn" onclick="this.nextElementSibling.classList.toggle('expanded');this.textContent=this.textContent==='+'?'−':'+'">+</button>`;
                     phtml += `<div class="kpi-collapsible">`;
                     phtml += `<div class="kpi"><div class="label">Total SNPs ${infoIcon('pp_gi_total')}</div><div class="value">${gs.relaxed.total_snps.toLocaleString()}</div></div>`;
+                    phtml += `<div class="kpi"><div class="label">Missing VCF Calls ${infoIcon('pp_missing_calls')}</div><div class="value">${gs.relaxed.missing_calls.toLocaleString()}</div></div>`;
                     phtml += `<div class="kpi"><div class="label">Consensus SNPs ${infoIcon('pp_gi_consensus')}</div><div class="value">${gs.relaxed.consensus_snps.toLocaleString()}</div></div>`;
                     phtml += `</div>`;
                     phtml += `<div class="kpi kpi-highlight-green"><div class="label">Discriminating SNPs ${infoIcon('pp_gi_disc')}</div><div class="value">${gs.relaxed.discriminating_snps.toLocaleString()}${renderDiscBreakdown(gs.relaxed.disc_breakdown)}</div></div>`;
@@ -3241,6 +3266,7 @@ pipelines:
                     phtml += `<button class="kpi-expand-btn" onclick="this.nextElementSibling.classList.toggle('expanded');this.textContent=this.textContent==='+'?'−':'+'">+</button>`;
                     phtml += `<div class="kpi-collapsible">`;
                     phtml += `<div class="kpi"><div class="label">Total SNPs ${infoIcon('pp_gu_total')}</div><div class="value">${gs.strict.total_snps.toLocaleString()}</div></div>`;
+                    phtml += `<div class="kpi"><div class="label">Missing VCF Calls ${infoIcon('pp_missing_calls')}</div><div class="value">${gs.strict.missing_calls.toLocaleString()}</div></div>`;
                     phtml += `<div class="kpi"><div class="label">Consensus SNPs ${infoIcon('pp_gu_consensus')}</div><div class="value">${gs.strict.consensus_snps.toLocaleString()}</div></div>`;
                     phtml += `</div>`;
                     phtml += `<div class="kpi kpi-highlight-orange"><div class="label">Discriminating SNPs ${infoIcon('pp_gu_disc')}</div><div class="value">${gs.strict.discriminating_snps.toLocaleString()}${renderDiscBreakdown(gs.strict.disc_breakdown)}</div></div>`;

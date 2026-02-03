@@ -1220,6 +1220,15 @@ impl GenomeData {
     #[wasm_bindgen]
     pub fn get_pairwise_usable_stats(&self) -> String {
         #[derive(Serialize)]
+        struct PerSamplePairwise {
+            sample_id: String,
+            sample_label: String,
+            avg_usable_space: f64,
+            avg_usable_space_pct: f64,
+            avg_disc_snps: f64,
+        }
+
+        #[derive(Serialize)]
         struct PairwiseUsableStats {
             avg_usable_space: f64,
             avg_usable_space_pct: f64,
@@ -1228,6 +1237,7 @@ impl GenomeData {
             max_usable_snps: u32,
             median_usable_snps: f64,
             num_pairs: usize,
+            per_sample: Vec<PerSamplePairwise>,
         }
 
         let sample_ids: Vec<&String> = self.samples.keys().collect();
@@ -1241,6 +1251,7 @@ impl GenomeData {
                 max_usable_snps: 0,
                 median_usable_snps: 0.0,
                 num_pairs: 0,
+                per_sample: Vec::new(),
             }).unwrap_or_else(|_| "{}".to_string());
         }
 
@@ -1249,6 +1260,9 @@ impl GenomeData {
         let mut total_usable_space: f64 = 0.0;
         let mut total_usable_snps: f64 = 0.0;
         let mut per_pair_disc: Vec<u32> = Vec::with_capacity(num_pairs);
+        // Per-sample accumulators: sum of usable_space and disc_snps across all pairs involving sample i
+        let mut sample_sum_space: Vec<f64> = vec![0.0; n];
+        let mut sample_sum_disc: Vec<f64> = vec![0.0; n];
 
         // Helper: merge gap regions into non-overlapping sorted list and compute total bases
         fn merge_gaps_total(gaps_a: &[(u32, u32)], gaps_b: &[(u32, u32)]) -> u32 {
@@ -1327,7 +1341,10 @@ impl GenomeData {
 
                 // Usable space = refLen - merged GT gaps
                 let gap_bases = merge_gaps_total(&gaps_a, &gaps_b);
-                total_usable_space += (self.ref_len - gap_bases) as f64;
+                let pair_usable_space = (self.ref_len - gap_bases) as f64;
+                total_usable_space += pair_usable_space;
+                sample_sum_space[i] += pair_usable_space;
+                sample_sum_space[j] += pair_usable_space;
 
                 // Count discriminating GT SNPs not in GT gaps
                 if let Some(ref gt) = gt_id {
@@ -1361,6 +1378,8 @@ impl GenomeData {
 
                     per_pair_disc.push(discriminating);
                     total_usable_snps += discriminating as f64;
+                    sample_sum_disc[i] += discriminating as f64;
+                    sample_sum_disc[j] += discriminating as f64;
                 }
             }
         }
@@ -1383,6 +1402,21 @@ impl GenomeData {
             }
         };
 
+        // Per-sample averages: each sample is in (n-1) pairs
+        let pairs_per_sample = (n - 1) as f64;
+        let per_sample: Vec<PerSamplePairwise> = (0..n).map(|i| {
+            let avg_space = sample_sum_space[i] / pairs_per_sample;
+            PerSamplePairwise {
+                sample_id: sample_ids[i].clone(),
+                sample_label: self.sample_labels.get(sample_ids[i])
+                    .cloned()
+                    .unwrap_or_else(|| sample_ids[i].clone()),
+                avg_usable_space: avg_space,
+                avg_usable_space_pct: (avg_space / self.ref_len as f64) * 100.0,
+                avg_disc_snps: sample_sum_disc[i] / pairs_per_sample,
+            }
+        }).collect();
+
         let stats = PairwiseUsableStats {
             avg_usable_space,
             avg_usable_space_pct,
@@ -1391,6 +1425,7 @@ impl GenomeData {
             max_usable_snps,
             median_usable_snps,
             num_pairs,
+            per_sample,
         };
 
         serde_json::to_string(&stats).unwrap_or_else(|_| "{}".to_string())

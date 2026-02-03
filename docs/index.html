@@ -3044,17 +3044,17 @@ pipelines:
                 const gs = await workerApi.getGlobalStats();
                 if (gs) {
                     html += sectionStart('Global (Any-Gap)', true);
-                    html += `<div class="kpi kpi-highlight-green"><div class="label">Usable Space ${infoIcon('usable_space')}</div><div class="value">${gs.strict.usable_space.toLocaleString()} bp <span class="pct">(${gs.strict.usable_space_pct.toFixed(2)}%)</span></div></div>`;
+                    html += `<div class="kpi kpi-highlight-orange"><div class="label">Usable Space ${infoIcon('usable_space')}</div><div class="value">${gs.strict.usable_space.toLocaleString()} bp <span class="pct">(${gs.strict.usable_space_pct.toFixed(2)}%)</span></div></div>`;
                     html += `<div class="kpi"><div class="label">Total SNPs (GT) ${infoIcon('gl_strict_total_snps')}</div><div class="value">${gs.strict.total_snps.toLocaleString()}</div></div>`;
                     html += `<div class="kpi"><div class="label">Consensus SNPs (GT) ${infoIcon('gl_strict_consensus_snps')}</div><div class="value">${gs.strict.consensus_snps.toLocaleString()}</div></div>`;
-                    html += `<div class="kpi kpi-highlight-green"><div class="label">Discriminating SNPs (GT) ${infoIcon('gl_strict_disc_snps')}</div><div class="value">${gs.strict.discriminating_snps.toLocaleString()}</div></div>`;
+                    html += `<div class="kpi kpi-highlight-orange"><div class="label">Discriminating SNPs (GT) ${infoIcon('gl_strict_disc_snps')}</div><div class="value">${gs.strict.discriminating_snps.toLocaleString()}</div></div>`;
                     html += sectionEnd();
 
                     html += sectionStart('Global (Common-Gap)', true);
-                    html += `<div class="kpi kpi-highlight-orange"><div class="label">Usable Space ${infoIcon('gl_relaxed_space')}</div><div class="value">${gs.relaxed.usable_space.toLocaleString()} bp <span class="pct">(${gs.relaxed.usable_space_pct.toFixed(2)}%)</span></div></div>`;
+                    html += `<div class="kpi kpi-highlight-green"><div class="label">Usable Space ${infoIcon('gl_relaxed_space')}</div><div class="value">${gs.relaxed.usable_space.toLocaleString()} bp <span class="pct">(${gs.relaxed.usable_space_pct.toFixed(2)}%)</span></div></div>`;
                     html += `<div class="kpi"><div class="label">Total SNPs (GT) ${infoIcon('gl_relaxed_total_snps')}</div><div class="value">${gs.relaxed.total_snps.toLocaleString()}</div></div>`;
                     html += `<div class="kpi"><div class="label">Consensus SNPs (GT) ${infoIcon('gl_relaxed_consensus_snps')}</div><div class="value">${gs.relaxed.consensus_snps.toLocaleString()}</div></div>`;
-                    html += `<div class="kpi kpi-highlight-orange"><div class="label">Discriminating SNPs (GT) ${infoIcon('gl_relaxed_disc_snps')}</div><div class="value">${gs.relaxed.discriminating_snps.toLocaleString()}</div></div>`;
+                    html += `<div class="kpi kpi-highlight-green"><div class="label">Discriminating SNPs (GT) ${infoIcon('gl_relaxed_disc_snps')}</div><div class="value">${gs.relaxed.discriminating_snps.toLocaleString()}</div></div>`;
                     html += sectionEnd();
                 }
             }

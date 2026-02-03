@@ -81,6 +81,11 @@ export class GenomeData {
      */
     get_ground_truth_pipeline(): string | undefined;
     /**
+     * For each VCF pipeline, check what happens to GT discriminating SNPs.
+     * Returns per-pipeline breakdown: confirmed, lost_gap, lost_missing_call, lost_pipeline_consensus
+     */
+    get_gt_disc_vs_pipelines(): string;
+    /**
      * Get KPI summary as JSON
      */
     get_kpis(): string;
@@ -273,6 +278,7 @@ export interface InitOutput {
     readonly genomedata_get_pairwise_usable_stats: (a: number) => [number, number];
     readonly genomedata_get_pairwise_usable_stats_for_pipeline: (a: number, b: number, c: number) => [number, number];
     readonly genomedata_get_reviewer_pairwise_stats: (a: number) => [number, number];
+    readonly genomedata_get_gt_disc_vs_pipelines: (a: number) => [number, number];
     readonly genomedata_get_per_sample_stats: (a: number) => [number, number];
     readonly genomedata_get_snp_intersection: (a: number) => [number, number];
     readonly genomedata_get_pipeline_concordance: (a: number) => [number, number];

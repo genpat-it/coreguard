@@ -277,6 +277,23 @@ export class GenomeData {
         return v1;
     }
     /**
+     * For each VCF pipeline, check what happens to GT discriminating SNPs.
+     * Returns per-pipeline breakdown: confirmed, lost_gap, lost_missing_call, lost_pipeline_consensus
+     * @returns {string}
+     */
+    get_gt_disc_vs_pipelines() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_gt_disc_vs_pipelines(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get KPI summary as JSON
      * @returns {string}
      */

@@ -189,7 +189,7 @@ Supported formats: `.json`, `.json.gz`, `.bin`, `.bin.gz`
 | Option | Description | Default |
 |--------|-------------|---------|
 | `min_depth` | Minimum read depth to consider position covered | 1 |
-| `min_qual` | Minimum SNP quality score to include | 20 |
+| `min_qual` | Minimum VCF QUAL score to include (0 = no filtering, recommended since variant callers already apply their own filters) | 0 |
 | `min_consensus` | Minimum fraction of reads agreeing on a base for GT pileup (0.0-1.0) | 0.8 |
 | `include_indels` | Include insertions/deletions | false |
 

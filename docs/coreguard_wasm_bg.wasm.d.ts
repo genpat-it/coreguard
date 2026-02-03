@@ -36,6 +36,7 @@ export const genomedata_get_global_stats_for_pipeline: (a: number, b: number, c:
 export const genomedata_get_pairwise_usable_stats: (a: number) => [number, number];
 export const genomedata_get_pairwise_usable_stats_for_pipeline: (a: number, b: number, c: number) => [number, number];
 export const genomedata_get_reviewer_pairwise_stats: (a: number) => [number, number];
+export const genomedata_get_gt_disc_vs_pipelines: (a: number) => [number, number];
 export const genomedata_get_per_sample_stats: (a: number) => [number, number];
 export const genomedata_get_snp_intersection: (a: number) => [number, number];
 export const genomedata_get_pipeline_concordance: (a: number) => [number, number];

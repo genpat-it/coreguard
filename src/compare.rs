@@ -336,7 +336,7 @@ impl CompareReport {
                                 &ref_seq,
                                 &ref_name,
                                 config.options.min_depth as u32,
-                                0.8,  // 80% consensus threshold
+                                config.options.min_consensus,
                             )?;
                             pipeline_data.snps = pileup_snps.iter().map(|ps| Snp {
                                 pos: ps.pos,
@@ -486,7 +486,7 @@ impl CompareReport {
                         &ref_seq,
                         &ref_name,
                         config.options.min_depth as u32,
-                        0.8,  // 80% consensus threshold
+                        config.options.min_consensus,
                     ) {
                         Ok((snp_count, covered_positions)) => {
                             log::info!("  {}: {} SNPs from pileup ({} covered positions)",
@@ -1041,6 +1041,7 @@ fn build_polymorphic_sites(
                     ref_name,
                     &positions,
                     config.options.min_depth as u32,
+                    config.options.min_consensus,
                 ) {
                     Ok(bases) => bases,
                     Err(e) => {

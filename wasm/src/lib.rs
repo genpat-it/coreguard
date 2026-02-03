@@ -657,6 +657,21 @@ impl GenomeData {
         self.ref_seq.chars().nth(pos as usize).unwrap_or('N')
     }
 
+    /// Build a SNP map for a sample/pipeline, filtering out SNPs where alt == genomic reference.
+    /// These bogus SNPs arise from BAM pileup when the local alignment reference differs from
+    /// the FASTA reference. Returns HashMap<position, alt_allele>.
+    fn build_snp_map(&self, pipeline_data: &PipelineData) -> HashMap<u32, u8> {
+        let ref_bytes = self.ref_seq.as_bytes();
+        pipeline_data.snps.iter()
+            .filter(|s| {
+                let pos = s.pos as usize;
+                // Keep SNP only if alt != genomic reference at this position
+                pos < ref_bytes.len() && s.alt_allele != ref_bytes[pos]
+            })
+            .map(|s| (s.pos, s.alt_allele))
+            .collect()
+    }
+
     /// Check if position is in a gap for a sample/pipeline
     #[wasm_bindgen]
     pub fn is_gap(&self, sample: &str, pipeline: &str, pos: u32) -> bool {
@@ -781,6 +796,7 @@ impl GenomeData {
     /// Get KPI summary as JSON
     #[wasm_bindgen]
     pub fn get_kpis(&self) -> String {
+        let ref_bytes = self.ref_seq.as_bytes();
         let mut total_snps: HashMap<String, u32> = HashMap::new();
         let mut total_gaps: HashMap<String, u32> = HashMap::new();
 
@@ -790,7 +806,12 @@ impl GenomeData {
 
             for sample_data in self.samples.values() {
                 if let Some(pipeline_data) = sample_data.pipelines.get(pipeline_id) {
-                    snp_count += pipeline_data.snps.len() as u32;
+                    snp_count += pipeline_data.snps.iter()
+                        .filter(|s| {
+                            let pos = s.pos as usize;
+                            pos < ref_bytes.len() && s.alt_allele != ref_bytes[pos]
+                        })
+                        .count() as u32;
                     gap_bases += pipeline_data.gaps.iter()
                         .map(|g| g.end - g.start)
                         .sum::<u32>();
@@ -850,9 +871,15 @@ impl GenomeData {
                 let mut alts: Vec<u8> = Vec::new();
                 let mut all_have_snp = true;
 
+                let ref_base = ref_bytes.get(pos as usize).copied().unwrap_or(b'N');
                 for sample_data in self.samples.values() {
                     if let Some(pipeline_data) = sample_data.pipelines.get(pipeline_id) {
                         if let Some(snp) = Self::find_snp(&pipeline_data.snps, pos) {
+                            if snp.alt_allele == ref_base {
+                                // alt == genomic ref: not a real SNP
+                                all_have_snp = false;
+                                break;
+                            }
                             alts.push(snp.alt_allele);
                         } else {
                             all_have_snp = false;
@@ -1131,7 +1158,7 @@ impl GenomeData {
         for sample_id in &sample_ids {
             let sample_data = &self.samples[*sample_id];
             let snps: HashMap<u32, u8> = sample_data.pipelines.get(&pid)
-                .map(|p| p.snps.iter().map(|s| (s.pos, s.alt_allele)).collect())
+                .map(|p| self.build_snp_map(p))
                 .unwrap_or_default();
             snp_maps.push(snps);
         }
@@ -1144,7 +1171,7 @@ impl GenomeData {
             for sample_id in &sample_ids {
                 let sample_data = &self.samples[*sample_id];
                 let snps: HashMap<u32, u8> = sample_data.pipelines.get(&gt_id)
-                    .map(|p| p.snps.iter().map(|s| (s.pos, s.alt_allele)).collect())
+                    .map(|p| self.build_snp_map(p))
                     .unwrap_or_default();
                 gt_snp_maps.push(snps);
             }
@@ -1451,10 +1478,10 @@ impl GenomeData {
                     let merged_gaps = merge_gap_regions(&gaps_a, &gaps_b);
 
                     let snps_a: HashMap<u32, u8> = sample_a.pipelines.get(gt)
-                        .map(|p| p.snps.iter().map(|s| (s.pos, s.alt_allele)).collect())
+                        .map(|p| self.build_snp_map(p))
                         .unwrap_or_default();
                     let snps_b: HashMap<u32, u8> = sample_b.pipelines.get(gt)
-                        .map(|p| p.snps.iter().map(|s| (s.pos, s.alt_allele)).collect())
+                        .map(|p| self.build_snp_map(p))
                         .unwrap_or_default();
 
                     // All GT SNP positions in either sample
@@ -1583,7 +1610,7 @@ impl GenomeData {
         for sample_id in &sample_ids {
             let sample_data = &self.samples[*sample_id];
             let snps: HashMap<u32, u8> = sample_data.pipelines.get(&gt_id)
-                .map(|p| p.snps.iter().map(|s| (s.pos, s.alt_allele)).collect())
+                .map(|p| self.build_snp_map(p))
                 .unwrap_or_default();
             gt_snp_maps.push(snps);
         }
@@ -1674,6 +1701,169 @@ impl GenomeData {
         };
 
         serde_json::to_string(&stats).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// For each VCF pipeline, check what happens to GT discriminating SNPs.
+    /// Returns per-pipeline breakdown: confirmed, lost_gap, lost_missing_call, lost_pipeline_consensus
+    #[wasm_bindgen]
+    pub fn get_gt_disc_vs_pipelines(&self) -> String {
+        #[derive(Serialize)]
+        struct GtDiscVsPipeline {
+            gt_discriminating: u32,
+            confirmed: u32,
+            lost_gap: u32,
+            lost_missing_call: u32,
+            lost_pipeline_consensus: u32,
+        }
+
+        let gt_id = match &self.ground_truth_pipeline {
+            Some(id) => id.clone(),
+            None => return "{}".to_string(),
+        };
+
+        let sample_ids: Vec<&String> = self.samples.keys().collect();
+        let n = sample_ids.len();
+        if n < 2 {
+            return "{}".to_string();
+        }
+
+        // Build per-sample GT gap sets
+        let mut gt_gap_sets: Vec<std::collections::HashSet<u32>> = Vec::new();
+        for sample_id in &sample_ids {
+            let sample_data = &self.samples[*sample_id];
+            let mut gaps: std::collections::HashSet<u32> = std::collections::HashSet::new();
+            if let Some(gt_data) = sample_data.pipelines.get(&gt_id) {
+                for gap in &gt_data.gaps {
+                    for pos in gap.start..gap.end {
+                        gaps.insert(pos);
+                    }
+                }
+            }
+            gt_gap_sets.push(gaps);
+        }
+
+        // GT gap union (positions where ANY sample has GT gap)
+        let mut gt_gap_union: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        for gs in &gt_gap_sets {
+            gt_gap_union.extend(gs);
+        }
+
+        // Build per-sample GT SNP maps
+        let mut gt_snp_maps: Vec<HashMap<u32, u8>> = Vec::new();
+        for sample_id in &sample_ids {
+            let sample_data = &self.samples[*sample_id];
+            let snps: HashMap<u32, u8> = sample_data.pipelines.get(&gt_id)
+                .map(|p| self.build_snp_map(p))
+                .unwrap_or_default();
+            gt_snp_maps.push(snps);
+        }
+
+        // Find all GT SNP positions
+        let mut all_gt_snp_positions: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        for snp_map in &gt_snp_maps {
+            all_gt_snp_positions.extend(snp_map.keys());
+        }
+
+        // Identify GT discriminating positions (Gap-Union: no sample has gap)
+        let mut gt_disc_positions: Vec<u32> = Vec::new();
+        for &pos in &all_gt_snp_positions {
+            if gt_gap_union.contains(&pos) {
+                continue;
+            }
+            // Collect GT alleles: None = ref, Some(alt)
+            let alleles: Vec<Option<u8>> = (0..n).map(|idx| gt_snp_maps[idx].get(&pos).copied()).collect();
+            let first = alleles[0];
+            let is_disc = alleles.iter().any(|a| *a != first);
+            if is_disc {
+                gt_disc_positions.push(pos);
+            }
+        }
+        let gt_disc_count = gt_disc_positions.len() as u32;
+
+        // For each VCF pipeline, check those positions
+        let mut result: HashMap<String, GtDiscVsPipeline> = HashMap::new();
+
+        for pipeline_id in &self.pipeline_ids {
+            if *pipeline_id == gt_id {
+                continue;
+            }
+
+            // Build per-sample pipeline gap sets
+            let mut pl_gap_sets: Vec<std::collections::HashSet<u32>> = Vec::new();
+            for sample_id in &sample_ids {
+                let sample_data = &self.samples[*sample_id];
+                let mut gaps: std::collections::HashSet<u32> = std::collections::HashSet::new();
+                if let Some(pl_data) = sample_data.pipelines.get(pipeline_id) {
+                    for gap in &pl_data.gaps {
+                        for pos in gap.start..gap.end {
+                            gaps.insert(pos);
+                        }
+                    }
+                }
+                pl_gap_sets.push(gaps);
+            }
+
+            // Build per-sample pipeline SNP maps (from VCF)
+            let mut pl_snp_maps: Vec<HashMap<u32, u8>> = Vec::new();
+            for sample_id in &sample_ids {
+                let sample_data = &self.samples[*sample_id];
+                let snps: HashMap<u32, u8> = sample_data.pipelines.get(pipeline_id)
+                    .map(|p| self.build_snp_map(p))
+                    .unwrap_or_default();
+                pl_snp_maps.push(snps);
+            }
+
+            let mut confirmed: u32 = 0;
+            let mut lost_gap: u32 = 0;
+            let mut lost_missing: u32 = 0;
+            let mut lost_consensus: u32 = 0;
+
+            for &pos in &gt_disc_positions {
+                // Check if any sample has a gap in this pipeline at this position
+                let any_gap = (0..n).any(|idx| pl_gap_sets[idx].contains(&pos));
+                if any_gap {
+                    lost_gap += 1;
+                    continue;
+                }
+
+                // Check if any sample is missing a VCF call (no SNP and not in gap → assumed ref but uncertain)
+                // Collect pipeline alleles: Some(alt) if VCF call, None if no call (assumed ref)
+                let alleles: Vec<Option<u8>> = (0..n).map(|idx| pl_snp_maps[idx].get(&pos).copied()).collect();
+                let has_snp = alleles.iter().any(|a| a.is_some());
+                let has_no_call = alleles.iter().any(|a| a.is_none());
+
+                if has_snp && has_no_call {
+                    // At least one sample has SNP, at least one has no call → missing
+                    lost_missing += 1;
+                    continue;
+                }
+
+                if !has_snp {
+                    // No sample has a VCF call at this position → all assumed ref → pipeline consensus (ref)
+                    lost_consensus += 1;
+                    continue;
+                }
+
+                // All samples have VCF calls - check if discriminating
+                let first = alleles[0];
+                let is_disc = alleles.iter().any(|a| *a != first);
+                if is_disc {
+                    confirmed += 1;
+                } else {
+                    lost_consensus += 1;
+                }
+            }
+
+            result.insert(pipeline_id.clone(), GtDiscVsPipeline {
+                gt_discriminating: gt_disc_count,
+                confirmed,
+                lost_gap,
+                lost_missing_call: lost_missing,
+                lost_pipeline_consensus: lost_consensus,
+            });
+        }
+
+        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
     }
 
     /// Get per-sample statistics as JSON
@@ -1880,15 +2070,19 @@ impl GenomeData {
         // For each pipeline, collect per-sample SNP data: position -> (sample_id -> alt_allele)
         let mut pipeline_sample_snps: HashMap<String, HashMap<u32, HashMap<String, u8>>> = HashMap::new();
 
+        let ref_bytes = self.ref_seq.as_bytes();
         for pipeline_id in &self.pipeline_ids {
             let mut pos_to_samples: HashMap<u32, HashMap<String, u8>> = HashMap::new();
             for (sample_id, sample_data) in &self.samples {
                 if let Some(pipeline_data) = sample_data.pipelines.get(pipeline_id) {
                     for snp in &pipeline_data.snps {
-                        pos_to_samples
-                            .entry(snp.pos)
-                            .or_insert_with(HashMap::new)
-                            .insert(sample_id.clone(), snp.alt_allele);
+                        let pos = snp.pos as usize;
+                        if pos < ref_bytes.len() && snp.alt_allele != ref_bytes[pos] {
+                            pos_to_samples
+                                .entry(snp.pos)
+                                .or_insert_with(HashMap::new)
+                                .insert(sample_id.clone(), snp.alt_allele);
+                        }
                     }
                 }
             }
@@ -2002,12 +2196,18 @@ impl GenomeData {
             None => return "{}".to_string(),
         };
 
+        let ref_bytes = self.ref_seq.as_bytes();
         for (sample_id, sample_data) in &self.samples {
             let mut sample_intersections: HashMap<String, SampleIntersection> = HashMap::new();
 
-            // Get GT SNPs for this sample
+            // Get GT SNPs for this sample (filtering bogus alt==ref)
             let gt_snps: std::collections::HashSet<u32> = sample_data.pipelines.get(gt_pipeline)
-                .map(|pd| pd.snps.iter().map(|s| s.pos).collect())
+                .map(|pd| pd.snps.iter()
+                    .filter(|s| {
+                        let pos = s.pos as usize;
+                        pos < ref_bytes.len() && s.alt_allele != ref_bytes[pos]
+                    })
+                    .map(|s| s.pos).collect())
                 .unwrap_or_default();
             let gt_count = gt_snps.len() as u32;
 
@@ -2019,6 +2219,10 @@ impl GenomeData {
 
                 if let Some(pipeline_data) = sample_data.pipelines.get(pipeline_id) {
                     let pipeline_snps: std::collections::HashSet<u32> = pipeline_data.snps.iter()
+                        .filter(|s| {
+                            let pos = s.pos as usize;
+                            pos < ref_bytes.len() && s.alt_allele != ref_bytes[pos]
+                        })
                         .map(|s| s.pos)
                         .collect();
                     let pipeline_count = pipeline_snps.len() as u32;
@@ -2345,6 +2549,7 @@ impl GenomeData {
         }
 
         // For each sample, check if ALL VCF pipelines have a SNP and they agree
+        let ref_bytes = self.ref_seq.as_bytes();
         for sample in samples {
             let mut sample_alts: Vec<char> = Vec::new();
             let mut all_have_snp = true;
@@ -2354,6 +2559,11 @@ impl GenomeData {
                     if let Some(pipeline_data) = sample_data.pipelines.get(*pipeline_id) {
                         if pipeline_data.has_vcf {
                             if let Some(snp) = Self::find_snp(&pipeline_data.snps, pos) {
+                                let ref_base = ref_bytes.get(pos as usize).copied().unwrap_or(b'N');
+                                if snp.alt_allele == ref_base {
+                                    all_have_snp = false;
+                                    break;
+                                }
                                 sample_alts.push(snp.alt_allele as char);
                             } else {
                                 all_have_snp = false;
@@ -2412,6 +2622,7 @@ impl GenomeData {
             return false;
         }
 
+        let ref_bytes = self.ref_seq.as_bytes();
         // For each sample, check if pipelines disagree
         for sample in samples {
             let mut sample_alts: Vec<char> = Vec::new();
@@ -2421,7 +2632,10 @@ impl GenomeData {
                     if let Some(pipeline_data) = sample_data.pipelines.get(*pipeline_id) {
                         if pipeline_data.has_vcf {
                             if let Some(snp) = Self::find_snp(&pipeline_data.snps, pos) {
-                                sample_alts.push(snp.alt_allele as char);
+                                let ref_base = ref_bytes.get(pos as usize).copied().unwrap_or(b'N');
+                                if snp.alt_allele != ref_base {
+                                    sample_alts.push(snp.alt_allele as char);
+                                }
                             }
                         }
                     }
@@ -2753,7 +2967,10 @@ impl GenomeData {
                 for (_pid, pipeline_data) in &sample_data.pipelines {
                     for snp in &pipeline_data.snps {
                         if !gap_positions.contains(&snp.pos) {
-                            alleles.entry(snp.pos).or_insert(snp.alt_allele);
+                            let ref_base = ref_bytes.get(snp.pos as usize).copied().unwrap_or(b'N');
+                            if snp.alt_allele != ref_base {
+                                alleles.entry(snp.pos).or_insert(snp.alt_allele);
+                            }
                         }
                     }
                 }

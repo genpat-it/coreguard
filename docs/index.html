@@ -1771,14 +1771,38 @@ pipelines:
                        <p><strong>Purpose:</strong> Provides a baseline for comparing how many potential variants each pipeline reports vs. the raw signal in the data.</p>`
             },
             'bam_pileup': {
-                title: 'BAM Pileup Warning',
+                title: 'BAM Pileup — SNP Calling Logic',
                 body: `<p>⚠️ <strong>These SNPs were derived from BAM pileup analysis</strong>, not from a variant calling pipeline.</p>
-                       <p><strong>What this means:</strong></p>
+                       <p><strong>How a position is classified:</strong></p>
+                       <ol style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li>Count all reads at the position (A, C, G, T)</li>
+                           <li>If total depth &lt; <code>min_depth</code> → <strong>Gap</strong> (position ignored)</li>
+                           <li>Take the most frequent base (majority vote)</li>
+                           <li>If majority base &lt; <code>min_consensus</code> (default 80%) of reads → <strong>Ambiguous</strong> (position ignored)</li>
+                           <li>If majority base ≠ reference → <strong>SNP</strong></li>
+                       </ol>
+                       <table style="width:100%;font-size:11px;border-collapse:collapse;margin:8px 0;">
+                       <tr style="background:var(--bg-tertiary);"><th style="padding:4px 6px;text-align:left;">Example</th><th style="padding:4px 6px;text-align:left;">Reads</th><th style="padding:4px 6px;text-align:left;">Result</th></tr>
+                       <tr style="border-bottom:1px solid var(--border-color);">
+                           <td style="padding:4px 6px;">Ref=T, 100 reads</td>
+                           <td style="padding:4px 6px;font-family:monospace;">85×A, 15×T</td>
+                           <td style="padding:4px 6px;">A is 85% → <strong>SNP (A)</strong></td>
+                       </tr>
+                       <tr style="border-bottom:1px solid var(--border-color);">
+                           <td style="padding:4px 6px;">Ref=T, 100 reads</td>
+                           <td style="padding:4px 6px;font-family:monospace;">75×A, 25×T</td>
+                           <td style="padding:4px 6px;">A is 75% &lt; 80% → <strong>Ambiguous</strong> (skipped)</td>
+                       </tr>
+                       <tr>
+                           <td style="padding:4px 6px;">Ref=T, 3 reads</td>
+                           <td style="padding:4px 6px;font-family:monospace;">3×A</td>
+                           <td style="padding:4px 6px;">Depth 3 &lt; min_depth → <strong>Gap</strong></td>
+                       </tr>
+                       </table>
+                       <p style="font-size:11px;"><strong>Parameters (configurable in YAML):</strong></p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li>No variant calling filters were applied (QUAL, depth, etc.)</li>
-                           <li>SNPs are raw differences between reads and reference</li>
-                           <li>May include sequencing errors and low-confidence calls</li>
-                           <li>Counts are typically higher than filtered VCF pipelines</li>
+                           <li><code>min_depth</code>: minimum read depth to consider a position (default from <code>options.min_depth</code>)</li>
+                           <li><code>min_consensus</code>: minimum fraction of reads agreeing on a base (currently 80%)</li>
                        </ul>
                        <p><strong>Use case:</strong> Ground truth baseline for comparing pipeline filtering behavior.</p>`
             },

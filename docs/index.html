@@ -2001,6 +2001,83 @@ pipelines:
                            <li><strong>Global consensus:</strong> positions where ALL samples have the same alt allele and no sample has a gap — reference differences, not inter-sample variation</li>
                        </ul>
                        <p>This represents the average pairwise distance using the relaxed (intersection-based) methodology.</p>`
+            },
+            'pp_gi_usable': {
+                title: 'Gap-Intersect — Usable Space',
+                body: `<p>Reference positions remaining after removing only those where <strong>ALL samples</strong> have a gap in this pipeline.</p>
+                       <div class="formula">Usable Space = Reference Length − intersection(pipeline gaps of all samples)</div>
+                       <p>More permissive: a position is excluded only if every sample has a gap there.</p>`
+            },
+            'pp_gi_total': {
+                title: 'Gap-Intersect — Total SNPs',
+                body: `<p>Positions in usable space where <strong>at least 1 sample</strong> has an alt allele vs reference in this pipeline.</p>
+                       <div class="formula">Total SNPs = Consensus + Discriminating</div>`
+            },
+            'pp_gi_consensus': {
+                title: 'Gap-Intersect — Consensus SNPs',
+                body: `<p>Positions where all samples <strong>with data</strong> (no gap) agree on the same alt allele.</p>
+                       <p>Samples with a gap at the position are ignored. Among the remaining, all must have the same alt allele.</p>`
+            },
+            'pp_gi_disc': {
+                title: 'Gap-Intersect — Discriminating SNPs',
+                body: `<p>Positions where samples <strong>differ</strong>, considering only samples without a gap at each position.</p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li>Fewer than 2 samples with data → <strong>not counted</strong></li>
+                           <li>All agree → <strong>consensus</strong></li>
+                           <li>At least 2 differ → <strong>discriminating</strong></li>
+                       </ul>
+                       <p><strong>Breakdown (VCF pipelines only):</strong></p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li><strong>Gap-affected:</strong> ≥1 sample was skipped due to gap — comparison is partial</li>
+                           <li><strong>GT-consensus:</strong> GT (pileup) shows all samples agree — likely variant calling artifact</li>
+                           <li><strong>Majority-rule:</strong> all but one sample agree — likely single-sample VC miss</li>
+                           <li><strong>Confirmed:</strong> genuine disagreement between samples</li>
+                       </ul>`
+            },
+            'pp_gu_usable': {
+                title: 'Gap-Union — Usable Space',
+                body: `<p>Reference positions remaining after removing those where <strong>at least 1 sample</strong> has a gap in this pipeline.</p>
+                       <div class="formula">Usable Space = Reference Length − union(pipeline gaps of all samples)</div>
+                       <p>Most restrictive: a position is excluded if any sample has a gap there.</p>`
+            },
+            'pp_gu_total': {
+                title: 'Gap-Union — Total SNPs',
+                body: `<p>Positions in usable space where <strong>at least 1 sample</strong> has an alt allele vs reference in this pipeline.</p>
+                       <div class="formula">Total SNPs = Consensus + Discriminating</div>`
+            },
+            'pp_gu_consensus': {
+                title: 'Gap-Union — Consensus SNPs',
+                body: `<p>Positions where <strong>ALL samples</strong> have the same alt allele. No sample can have a gap here (they were all excluded by the union).</p>`
+            },
+            'pp_gu_disc': {
+                title: 'Gap-Union — Discriminating SNPs',
+                body: `<p>Positions where samples <strong>differ</strong> in alt allele or SNP presence. All samples have data (no gaps in usable space).</p>
+                       <p><strong>Breakdown (VCF pipelines only):</strong></p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li><strong>GT-consensus:</strong> GT (pileup) shows all samples agree — likely variant calling artifact</li>
+                           <li><strong>Majority-rule:</strong> all but one sample agree — likely single-sample VC miss</li>
+                           <li><strong>Confirmed:</strong> genuine disagreement between samples</li>
+                       </ul>`
+            },
+            'pp_pw_usable': {
+                title: 'Pairwise (Gap-Union) — Avg Usable Space',
+                body: `<p>Average usable genome space across all sample pairs for this pipeline.</p>
+                       <div class="formula">For each pair (A, B): Usable = RefLength − union(pipeline gaps A, pipeline gaps B)</div>`
+            },
+            'pp_pw_disc': {
+                title: 'Pairwise (Gap-Union) — Discriminating SNPs',
+                body: `<p>Pairwise discriminating SNP statistics for this pipeline.</p>
+                       <div class="formula">For each pair (A, B): count positions where A ≠ B, not in pair's gap union</div>
+                       <p>Shows average, minimum, median, and maximum across all pairs.</p>`
+            },
+            'pp_ps_table': {
+                title: 'Per-Sample Pairwise Breakdown',
+                body: `<p>For each sample S, averages are computed across all (N−1) pairs involving S.</p>
+                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
+                           <li><strong>Avg Usable Space:</strong> average usable bp across pairs involving this sample</li>
+                           <li><strong>Avg Discriminating SNPs:</strong> average discriminating SNPs across pairs involving this sample</li>
+                       </ul>
+                       <p>A sample with high avg discriminating SNPs is more distant from the others.</p>`
             }
         };
 
@@ -3119,23 +3196,23 @@ pipelines:
                     };
 
                     phtml += sectionStart('Gap-Intersect', true);
-                    phtml += `<div class="kpi kpi-highlight-green"><div class="label">Usable Space</div><div class="value">${gs.relaxed.usable_space.toLocaleString()} bp <span class="pct">(${gs.relaxed.usable_space_pct.toFixed(2)}%)</span></div></div>`;
+                    phtml += `<div class="kpi kpi-highlight-green"><div class="label">Usable Space ${infoIcon('pp_gi_usable')}</div><div class="value">${gs.relaxed.usable_space.toLocaleString()} bp <span class="pct">(${gs.relaxed.usable_space_pct.toFixed(2)}%)</span></div></div>`;
                     phtml += `<button class="kpi-expand-btn" onclick="this.nextElementSibling.classList.toggle('expanded');this.textContent=this.textContent==='+'?'−':'+'">+</button>`;
                     phtml += `<div class="kpi-collapsible">`;
-                    phtml += `<div class="kpi"><div class="label">Total SNPs</div><div class="value">${gs.relaxed.total_snps.toLocaleString()}</div></div>`;
-                    phtml += `<div class="kpi"><div class="label">Consensus SNPs</div><div class="value">${gs.relaxed.consensus_snps.toLocaleString()}</div></div>`;
+                    phtml += `<div class="kpi"><div class="label">Total SNPs ${infoIcon('pp_gi_total')}</div><div class="value">${gs.relaxed.total_snps.toLocaleString()}</div></div>`;
+                    phtml += `<div class="kpi"><div class="label">Consensus SNPs ${infoIcon('pp_gi_consensus')}</div><div class="value">${gs.relaxed.consensus_snps.toLocaleString()}</div></div>`;
                     phtml += `</div>`;
-                    phtml += `<div class="kpi kpi-highlight-green"><div class="label">Discriminating SNPs</div><div class="value">${gs.relaxed.discriminating_snps.toLocaleString()}${renderDiscBreakdown(gs.relaxed.disc_breakdown)}</div></div>`;
+                    phtml += `<div class="kpi kpi-highlight-green"><div class="label">Discriminating SNPs ${infoIcon('pp_gi_disc')}</div><div class="value">${gs.relaxed.discriminating_snps.toLocaleString()}${renderDiscBreakdown(gs.relaxed.disc_breakdown)}</div></div>`;
                     phtml += sectionEnd();
 
                     phtml += sectionStart('Gap-Union', true);
-                    phtml += `<div class="kpi kpi-highlight-orange"><div class="label">Usable Space</div><div class="value">${gs.strict.usable_space.toLocaleString()} bp <span class="pct">(${gs.strict.usable_space_pct.toFixed(2)}%)</span></div></div>`;
+                    phtml += `<div class="kpi kpi-highlight-orange"><div class="label">Usable Space ${infoIcon('pp_gu_usable')}</div><div class="value">${gs.strict.usable_space.toLocaleString()} bp <span class="pct">(${gs.strict.usable_space_pct.toFixed(2)}%)</span></div></div>`;
                     phtml += `<button class="kpi-expand-btn" onclick="this.nextElementSibling.classList.toggle('expanded');this.textContent=this.textContent==='+'?'−':'+'">+</button>`;
                     phtml += `<div class="kpi-collapsible">`;
-                    phtml += `<div class="kpi"><div class="label">Total SNPs</div><div class="value">${gs.strict.total_snps.toLocaleString()}</div></div>`;
-                    phtml += `<div class="kpi"><div class="label">Consensus SNPs</div><div class="value">${gs.strict.consensus_snps.toLocaleString()}</div></div>`;
+                    phtml += `<div class="kpi"><div class="label">Total SNPs ${infoIcon('pp_gu_total')}</div><div class="value">${gs.strict.total_snps.toLocaleString()}</div></div>`;
+                    phtml += `<div class="kpi"><div class="label">Consensus SNPs ${infoIcon('pp_gu_consensus')}</div><div class="value">${gs.strict.consensus_snps.toLocaleString()}</div></div>`;
                     phtml += `</div>`;
-                    phtml += `<div class="kpi kpi-highlight-orange"><div class="label">Discriminating SNPs</div><div class="value">${gs.strict.discriminating_snps.toLocaleString()}${renderDiscBreakdown(gs.strict.disc_breakdown)}</div></div>`;
+                    phtml += `<div class="kpi kpi-highlight-orange"><div class="label">Discriminating SNPs ${infoIcon('pp_gu_disc')}</div><div class="value">${gs.strict.discriminating_snps.toLocaleString()}${renderDiscBreakdown(gs.strict.disc_breakdown)}</div></div>`;
                     phtml += sectionEnd();
                 }
 
@@ -3144,8 +3221,8 @@ pipelines:
                     const pw = await workerApi.getPairwiseUsableStatsForPipeline(pipelineId);
                     if (pw && pw.num_pairs > 0) {
                         phtml += sectionStart(`Pairwise (Gap-Union) <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${pw.num_pairs} pairs)</span>`, true);
-                        phtml += `<div class="kpi kpi-highlight-orange"><div class="label">Avg Usable Space</div><div class="value">${Math.round(pw.avg_usable_space).toLocaleString()} bp <span class="pct">(${pw.avg_usable_space_pct.toFixed(2)}%)</span></div></div>`;
-                        phtml += `<div class="kpi kpi-highlight-orange"><div class="label">Discriminating SNPs</div><div class="value">avg ${pw.avg_usable_snps.toFixed(1)} &nbsp;|&nbsp; min ${pw.min_usable_snps.toLocaleString()} &nbsp;|&nbsp; med ${pw.median_usable_snps.toFixed(1)} &nbsp;|&nbsp; max ${pw.max_usable_snps.toLocaleString()}</div></div>`;
+                        phtml += `<div class="kpi kpi-highlight-orange"><div class="label">Avg Usable Space ${infoIcon('pp_pw_usable')}</div><div class="value">${Math.round(pw.avg_usable_space).toLocaleString()} bp <span class="pct">(${pw.avg_usable_space_pct.toFixed(2)}%)</span></div></div>`;
+                        phtml += `<div class="kpi kpi-highlight-orange"><div class="label">Discriminating SNPs ${infoIcon('pp_pw_disc')}</div><div class="value">avg ${pw.avg_usable_snps.toFixed(1)} &nbsp;|&nbsp; min ${pw.min_usable_snps.toLocaleString()} &nbsp;|&nbsp; med ${pw.median_usable_snps.toFixed(1)} &nbsp;|&nbsp; max ${pw.max_usable_snps.toLocaleString()}</div></div>`;
                         phtml += sectionEnd();
                     }
                 }
@@ -3156,7 +3233,7 @@ pipelines:
                 if (kpis.samples >= 2) {
                     const pw = await workerApi.getPairwiseUsableStatsForPipeline(pipelineId);
                     if (pw && pw.per_sample && pw.per_sample.length > 0) {
-                        phtml += sectionStart('Per-Sample Pairwise');
+                        phtml += sectionStart(`Per-Sample Pairwise ${infoIcon('pp_ps_table')}`);
                         phtml += `<table class="kpi-table"><thead><tr>
                             <th>Sample</th>
                             <th>Avg Usable Space (bp)</th>

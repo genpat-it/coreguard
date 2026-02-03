@@ -42,9 +42,39 @@ Different SNP pipelines can produce different results on the same data. This mat
 - **Distance matrix**: Calculate pairwise SNP distances between samples per pipeline
 - **Polymorphic sites**: Identify positions where samples differ from each other
 
-### Statistics & KPIs
-- **Per-Pipeline Statistics**: SNPs, gaps, #All (core), #Consensus counts per pipeline
-- **Per-Sample Statistics**: Detailed breakdown per sample with agreement metrics
+### Per-Pipeline KPI Dashboard
+For each pipeline (GT and VCF), CoreGuard computes:
+
+- **Gap-Intersect / Gap-Union**: Two gap-exclusion strategies
+  - *Gap-Intersect*: exclude positions where ALL samples have a gap (permissive)
+  - *Gap-Union*: exclude positions where ANY sample has a gap (restrictive)
+- **Usable Space**: Reference length minus excluded gap positions
+- **Total SNPs**: Positions in usable space where at least one sample has an alt allele
+- **Consensus SNPs**: All samples agree on the same alt allele (non-discriminating)
+- **Discriminating SNPs**: Samples differ — these contribute to Hamming distance
+- **Missing VCF Calls**: Positions where some samples have a VCF call but others don't (variant calling inconsistency)
+
+#### Discriminating SNP Breakdown (VCF pipelines)
+For non-GT pipelines, discriminating SNPs are classified by heuristic:
+- **Gap-affected**: At least one sample was skipped due to gap — partial comparison
+- **GT-consensus**: GT pileup shows all samples agree — likely variant calling artifact
+- **Majority-rule**: All but one sample agree — likely single-sample VC miss
+- **Confirmed**: Genuine disagreement between samples
+
+#### Pairwise Statistics
+- **Avg Usable Space / Discriminating SNPs**: Averaged across all sample pairs (Gap-Union)
+- **Min / Median / Max**: Distribution of pairwise discriminating SNPs
+- **Per-Sample Table**: For each sample, average usable space and discriminating SNPs across all pairs involving that sample
+
+#### BAM Pileup SNP Calling (Ground Truth)
+The ground truth pipeline calls SNPs from BAM pileup using majority vote:
+1. Count reads at each position (A, C, G, T)
+2. If total depth < `min_depth` → **Gap**
+3. If majority base < `min_consensus` (default 80%) → **Ambiguous** (skipped)
+4. If majority base ≠ reference → **SNP**
+
+### Cross-Pipeline Analysis
+- **Per-Pipeline Statistics**: SNPs, gaps, core positions, consensus counts per pipeline
 - **Cross-Pipeline Concordance**: Pairwise comparison of SNP positions between pipelines
 - **Cross-Pipeline Gap Analysis**: SNPs from each pipeline falling in gap regions of other pipelines
 - **Coverage Statistics**: Depth, quality, and consensus metrics per sample/pipeline
@@ -160,6 +190,7 @@ Supported formats: `.json`, `.json.gz`, `.bin`, `.bin.gz`
 |--------|-------------|---------|
 | `min_depth` | Minimum read depth to consider position covered | 1 |
 | `min_qual` | Minimum SNP quality score to include | 20 |
+| `min_consensus` | Minimum fraction of reads agreeing on a base for GT pileup (0.0-1.0) | 0.8 |
 | `include_indels` | Include insertions/deletions | false |
 
 ### Pipeline Options

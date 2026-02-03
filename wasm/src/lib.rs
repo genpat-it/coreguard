@@ -1709,11 +1709,13 @@ impl GenomeData {
     pub fn get_gt_disc_vs_pipelines(&self) -> String {
         #[derive(Serialize)]
         struct GtDiscVsPipeline {
-            gt_discriminating: u32,
-            confirmed: u32,
-            lost_gap: u32,
-            lost_missing_call: u32,
-            lost_pipeline_consensus: u32,
+            gap_intersect_gt_disc: u32,
+            gap_intersect_lost: u32,
+            gap_union_gt_disc: u32,
+            gap_union_lost: u32,
+            pairwise_gt_disc_avg: f64,
+            pairwise_lost_avg: f64,
+            pairwise_num_pairs: u32,
         }
 
         let gt_id = match &self.ground_truth_pipeline {
@@ -1748,6 +1750,19 @@ impl GenomeData {
             gt_gap_union.extend(gs);
         }
 
+        // GT gap intersection (positions where ALL samples have GT gap)
+        let gt_gap_intersection = if gt_gap_sets.len() > 1 {
+            let mut isect = gt_gap_sets[0].clone();
+            for gs in &gt_gap_sets[1..] {
+                isect = isect.intersection(gs).cloned().collect();
+            }
+            isect
+        } else if gt_gap_sets.len() == 1 {
+            gt_gap_sets[0].clone()
+        } else {
+            std::collections::HashSet::new()
+        };
+
         // Build per-sample GT SNP maps
         let mut gt_snp_maps: Vec<HashMap<u32, u8>> = Vec::new();
         for sample_id in &sample_ids {
@@ -1764,23 +1779,74 @@ impl GenomeData {
             all_gt_snp_positions.extend(snp_map.keys());
         }
 
-        // Identify GT discriminating positions (Gap-Union: no sample has gap)
-        let mut gt_disc_positions: Vec<u32> = Vec::new();
+        // --- Gap-Union GT discriminating positions ---
+        let mut gt_disc_union: Vec<u32> = Vec::new();
         for &pos in &all_gt_snp_positions {
             if gt_gap_union.contains(&pos) {
                 continue;
             }
-            // Collect GT alleles: None = ref, Some(alt)
             let alleles: Vec<Option<u8>> = (0..n).map(|idx| gt_snp_maps[idx].get(&pos).copied()).collect();
             let first = alleles[0];
-            let is_disc = alleles.iter().any(|a| *a != first);
-            if is_disc {
-                gt_disc_positions.push(pos);
+            if alleles.iter().any(|a| *a != first) {
+                gt_disc_union.push(pos);
             }
         }
-        let gt_disc_count = gt_disc_positions.len() as u32;
 
-        // For each VCF pipeline, check those positions
+        // --- Gap-Intersect GT discriminating positions ---
+        // Only exclude positions where ALL samples have GT gap; among non-gap samples, check discrimination
+        let mut gt_disc_intersect: Vec<u32> = Vec::new();
+        for &pos in &all_gt_snp_positions {
+            if gt_gap_intersection.contains(&pos) {
+                continue;
+            }
+            // Collect alleles only from samples without GT gap at this position
+            let alleles: Vec<Option<u8>> = (0..n)
+                .filter(|&idx| !gt_gap_sets[idx].contains(&pos))
+                .map(|idx| gt_snp_maps[idx].get(&pos).copied())
+                .collect();
+            if alleles.len() < 2 {
+                continue;
+            }
+            let first = alleles[0];
+            if alleles.iter().any(|a| *a != first) {
+                gt_disc_intersect.push(pos);
+            }
+        }
+
+        // Helper: count how many GT disc positions are NOT confirmed by the VCF pipeline
+        let count_lost = |disc_positions: &[u32],
+                           pl_gap_sets: &[std::collections::HashSet<u32>],
+                           pl_snp_maps: &[HashMap<u32, u8>]| -> u32 {
+            let mut lost: u32 = 0;
+            for &pos in disc_positions {
+                // Gap in pipeline → lost
+                if (0..n).any(|idx| pl_gap_sets[idx].contains(&pos)) {
+                    lost += 1;
+                    continue;
+                }
+                let alleles: Vec<Option<u8>> = (0..n).map(|idx| pl_snp_maps[idx].get(&pos).copied()).collect();
+                let has_snp = alleles.iter().any(|a| a.is_some());
+                let has_no_call = alleles.iter().any(|a| a.is_none());
+                // Missing call → lost
+                if has_snp && has_no_call {
+                    lost += 1;
+                    continue;
+                }
+                // No SNP call at all → lost (pipeline consensus = ref)
+                if !has_snp {
+                    lost += 1;
+                    continue;
+                }
+                // All have calls - check if pipeline agrees they differ
+                let first = alleles[0];
+                if !alleles.iter().any(|a| *a != first) {
+                    lost += 1; // pipeline consensus (same allele)
+                }
+            }
+            lost
+        };
+
+        // For each VCF pipeline
         let mut result: HashMap<String, GtDiscVsPipeline> = HashMap::new();
 
         for pipeline_id in &self.pipeline_ids {
@@ -1803,7 +1869,7 @@ impl GenomeData {
                 pl_gap_sets.push(gaps);
             }
 
-            // Build per-sample pipeline SNP maps (from VCF)
+            // Build per-sample pipeline SNP maps
             let mut pl_snp_maps: Vec<HashMap<u32, u8>> = Vec::new();
             for sample_id in &sample_ids {
                 let sample_data = &self.samples[*sample_id];
@@ -1813,53 +1879,72 @@ impl GenomeData {
                 pl_snp_maps.push(snps);
             }
 
-            let mut confirmed: u32 = 0;
-            let mut lost_gap: u32 = 0;
-            let mut lost_missing: u32 = 0;
-            let mut lost_consensus: u32 = 0;
+            // Gap-Union lost
+            let gu_lost = count_lost(&gt_disc_union, &pl_gap_sets, &pl_snp_maps);
 
-            for &pos in &gt_disc_positions {
-                // Check if any sample has a gap in this pipeline at this position
-                let any_gap = (0..n).any(|idx| pl_gap_sets[idx].contains(&pos));
-                if any_gap {
-                    lost_gap += 1;
-                    continue;
-                }
+            // Gap-Intersect lost
+            let gi_lost = count_lost(&gt_disc_intersect, &pl_gap_sets, &pl_snp_maps);
 
-                // Check if any sample is missing a VCF call (no SNP and not in gap → assumed ref but uncertain)
-                // Collect pipeline alleles: Some(alt) if VCF call, None if no call (assumed ref)
-                let alleles: Vec<Option<u8>> = (0..n).map(|idx| pl_snp_maps[idx].get(&pos).copied()).collect();
-                let has_snp = alleles.iter().any(|a| a.is_some());
-                let has_no_call = alleles.iter().any(|a| a.is_none());
+            // Pairwise (Gap-Union per pair)
+            let mut pw_total_disc: f64 = 0.0;
+            let mut pw_total_lost: f64 = 0.0;
+            let mut num_pairs: u32 = 0;
 
-                if has_snp && has_no_call {
-                    // At least one sample has SNP, at least one has no call → missing
-                    lost_missing += 1;
-                    continue;
-                }
+            for i in 0..n {
+                for j in (i+1)..n {
+                    let pair_gap_union: std::collections::HashSet<u32> = gt_gap_sets[i].union(&gt_gap_sets[j]).cloned().collect();
 
-                if !has_snp {
-                    // No sample has a VCF call at this position → all assumed ref → pipeline consensus (ref)
-                    lost_consensus += 1;
-                    continue;
-                }
+                    // Pairwise GT disc positions
+                    let mut pair_disc: Vec<u32> = Vec::new();
+                    for &pos in &all_gt_snp_positions {
+                        if pair_gap_union.contains(&pos) {
+                            continue;
+                        }
+                        let a_i = gt_snp_maps[i].get(&pos).copied();
+                        let a_j = gt_snp_maps[j].get(&pos).copied();
+                        if a_i != a_j {
+                            pair_disc.push(pos);
+                        }
+                    }
 
-                // All samples have VCF calls - check if discriminating
-                let first = alleles[0];
-                let is_disc = alleles.iter().any(|a| *a != first);
-                if is_disc {
-                    confirmed += 1;
-                } else {
-                    lost_consensus += 1;
+                    // Count lost for this pair (only samples i and j)
+                    let mut p_lost: u32 = 0;
+                    for &pos in &pair_disc {
+                        if pl_gap_sets[i].contains(&pos) || pl_gap_sets[j].contains(&pos) {
+                            p_lost += 1;
+                            continue;
+                        }
+                        let al_i = pl_snp_maps[i].get(&pos).copied();
+                        let al_j = pl_snp_maps[j].get(&pos).copied();
+                        if al_i.is_some() != al_j.is_some() {
+                            // One has call, other doesn't → lost (missing)
+                            p_lost += 1;
+                        } else if al_i.is_none() && al_j.is_none() {
+                            // Neither has call → lost (consensus ref)
+                            p_lost += 1;
+                        } else if al_i == al_j {
+                            // Both have same call → lost (consensus)
+                            p_lost += 1;
+                        }
+                        // else: al_i != al_j → confirmed (not lost)
+                    }
+
+                    pw_total_disc += pair_disc.len() as f64;
+                    pw_total_lost += p_lost as f64;
+                    num_pairs += 1;
                 }
             }
 
+            let np = if num_pairs > 0 { num_pairs as f64 } else { 1.0 };
+
             result.insert(pipeline_id.clone(), GtDiscVsPipeline {
-                gt_discriminating: gt_disc_count,
-                confirmed,
-                lost_gap,
-                lost_missing_call: lost_missing,
-                lost_pipeline_consensus: lost_consensus,
+                gap_intersect_gt_disc: gt_disc_intersect.len() as u32,
+                gap_intersect_lost: gi_lost,
+                gap_union_gt_disc: gt_disc_union.len() as u32,
+                gap_union_lost: gu_lost,
+                pairwise_gt_disc_avg: pw_total_disc / np,
+                pairwise_lost_avg: pw_total_lost / np,
+                pairwise_num_pairs: num_pairs,
             });
         }
 

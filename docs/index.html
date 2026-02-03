@@ -2027,12 +2027,29 @@ pipelines:
                            <li>At least 2 differ → <strong>discriminating</strong></li>
                        </ul>
                        <p><strong>Breakdown (VCF pipelines only):</strong></p>
-                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li><strong>Gap-affected:</strong> ≥1 sample was skipped due to gap — comparison is partial</li>
-                           <li><strong>GT-consensus:</strong> GT (pileup) shows all samples agree — likely variant calling artifact</li>
-                           <li><strong>Majority-rule:</strong> all but one sample agree — likely single-sample VC miss</li>
-                           <li><strong>Confirmed:</strong> genuine disagreement between samples</li>
-                       </ul>`
+                       <table style="width:100%;font-size:11px;border-collapse:collapse;margin:8px 0;">
+                       <tr style="background:var(--bg-tertiary);"><th style="padding:4px 6px;text-align:left;">Heuristic</th><th style="padding:4px 6px;text-align:left;">Description</th><th style="padding:4px 6px;text-align:left;">Example (Ref=T, 4 samples)</th></tr>
+                       <tr style="border-bottom:1px solid var(--border-color);">
+                           <td style="padding:4px 6px;font-weight:600;">Gap-affected</td>
+                           <td style="padding:4px 6px;">≥1 sample skipped due to gap, comparison is partial</td>
+                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, <span style="color:#e6862a;">gap</span>, T → 2 samples differ (A vs T) but one was skipped. Without the gap the result might change.</td>
+                       </tr>
+                       <tr style="border-bottom:1px solid var(--border-color);">
+                           <td style="padding:4px 6px;font-weight:600;">GT-consensus</td>
+                           <td style="padding:4px 6px;">GT pileup shows all samples agree — variant calling artifact</td>
+                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, A, <span style="color:#e6862a;">ref</span> → discriminating (3×A vs 1×ref).<br>GT pileup: A, A, A, A → all agree. The VCF missed the call in sample 4.</td>
+                       </tr>
+                       <tr style="border-bottom:1px solid var(--border-color);">
+                           <td style="padding:4px 6px;font-weight:600;">Majority-rule</td>
+                           <td style="padding:4px 6px;">All but one sample agree — likely single-sample VC miss</td>
+                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, A, <span style="color:#e6862a;">ref</span> → 3 agree on A, 1 has ref. No GT data to confirm, but the majority suggests the 4th sample missed the call.</td>
+                       </tr>
+                       <tr>
+                           <td style="padding:4px 6px;font-weight:600;">Confirmed</td>
+                           <td style="padding:4px 6px;">Genuine disagreement — none of the above apply</td>
+                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, G, G → 2×A vs 2×G. GT also shows disagreement. Real biological variation between samples.</td>
+                       </tr>
+                       </table>`
             },
             'pp_gu_usable': {
                 title: 'Gap-Union — Usable Space',
@@ -2053,11 +2070,25 @@ pipelines:
                 title: 'Gap-Union — Discriminating SNPs',
                 body: `<p>Positions where samples <strong>differ</strong> in alt allele or SNP presence. All samples have data (no gaps in usable space).</p>
                        <p><strong>Breakdown (VCF pipelines only):</strong></p>
-                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li><strong>GT-consensus:</strong> GT (pileup) shows all samples agree — likely variant calling artifact</li>
-                           <li><strong>Majority-rule:</strong> all but one sample agree — likely single-sample VC miss</li>
-                           <li><strong>Confirmed:</strong> genuine disagreement between samples</li>
-                       </ul>`
+                       <table style="width:100%;font-size:11px;border-collapse:collapse;margin:8px 0;">
+                       <tr style="background:var(--bg-tertiary);"><th style="padding:4px 6px;text-align:left;">Heuristic</th><th style="padding:4px 6px;text-align:left;">Description</th><th style="padding:4px 6px;text-align:left;">Example (Ref=T, 4 samples)</th></tr>
+                       <tr style="border-bottom:1px solid var(--border-color);">
+                           <td style="padding:4px 6px;font-weight:600;">GT-consensus</td>
+                           <td style="padding:4px 6px;">GT pileup shows all samples agree — variant calling artifact</td>
+                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, A, <span style="color:#e6862a;">ref</span> → discriminating.<br>GT pileup: A, A, A, A → all agree. The variant caller missed the SNP in sample 4.</td>
+                       </tr>
+                       <tr style="border-bottom:1px solid var(--border-color);">
+                           <td style="padding:4px 6px;font-weight:600;">Majority-rule</td>
+                           <td style="padding:4px 6px;">All but one sample agree — likely single-sample VC miss</td>
+                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, A, <span style="color:#e6862a;">ref</span> → 3×A vs 1×ref. No GT data to confirm, but the majority suggests the 4th missed the call.</td>
+                       </tr>
+                       <tr>
+                           <td style="padding:4px 6px;font-weight:600;">Confirmed</td>
+                           <td style="padding:4px 6px;">Genuine disagreement — none of the above apply</td>
+                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, G, G → 2×A vs 2×G. GT also shows disagreement. Real biological variation.</td>
+                       </tr>
+                       </table>
+                       <p style="font-size:11px;color:var(--text-secondary);"><em>Note: Gap-affected is always 0 in Gap-Union because all positions with any gap are already excluded from usable space.</em></p>`
             },
             'pp_pw_usable': {
                 title: 'Pairwise (Gap-Union) — Avg Usable Space',

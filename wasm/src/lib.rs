@@ -1047,13 +1047,22 @@ impl GenomeData {
         serde_json::to_string(&kpis).unwrap_or_else(|_| "{}".to_string())
     }
 
-    /// Global stats: both union and intersection of GT gaps across all samples
+    /// Global stats for GT pipeline (backward compat)
+    #[wasm_bindgen]
+    pub fn get_global_stats(&self) -> String {
+        match &self.ground_truth_pipeline {
+            Some(id) => self.get_global_stats_for_pipeline(id),
+            None => "null".to_string(),
+        }
+    }
+
+    /// Global stats for a specific pipeline: both union and intersection of gaps
     ///
     /// Strict (union): exclude position if at least 1 sample has gap
     /// Relaxed (intersection): exclude position only if ALL samples have gap
     /// For each: Usable Space, Total SNPs (in usable space), Consensus SNPs, Discriminating SNPs
     #[wasm_bindgen]
-    pub fn get_global_stats(&self) -> String {
+    pub fn get_global_stats_for_pipeline(&self, pipeline_id: &str) -> String {
         #[derive(Serialize)]
         struct GlobalVariant {
             usable_space: u32,
@@ -1069,10 +1078,7 @@ impl GenomeData {
             relaxed: GlobalVariant,
         }
 
-        let gt_id = match &self.ground_truth_pipeline {
-            Some(id) => id.clone(),
-            None => return "null".to_string(),
-        };
+        let gt_id = pipeline_id.to_string();
 
         let sample_ids: Vec<&String> = self.samples.keys().collect();
 
@@ -1212,13 +1218,22 @@ impl GenomeData {
         serde_json::to_string(&stats).unwrap_or_else(|_| "{}".to_string())
     }
 
-    /// Get average pairwise usable stats across all sample pairs
-    /// For each pair (A, B):
-    ///   - usable_space = refLength - union of GT gap bases for A and B
-    ///   - usable_snps per pipeline = discriminating SNPs not in GT gaps
-    /// Returns averages across all N*(N-1)/2 pairs
+    /// Pairwise stats for GT pipeline (backward compat)
     #[wasm_bindgen]
     pub fn get_pairwise_usable_stats(&self) -> String {
+        match &self.ground_truth_pipeline {
+            Some(id) => self.get_pairwise_usable_stats_for_pipeline(id),
+            None => "{}".to_string(),
+        }
+    }
+
+    /// Get average pairwise usable stats for a specific pipeline
+    /// For each pair (A, B):
+    ///   - usable_space = refLength - union of pipeline gap bases for A and B
+    ///   - discriminating SNPs not in gaps
+    /// Returns averages across all N*(N-1)/2 pairs + per-sample breakdown
+    #[wasm_bindgen]
+    pub fn get_pairwise_usable_stats_for_pipeline(&self, pipeline_id: &str) -> String {
         #[derive(Serialize)]
         struct PerSamplePairwise {
             sample_id: String,
@@ -1255,7 +1270,7 @@ impl GenomeData {
             }).unwrap_or_else(|_| "{}".to_string());
         }
 
-        let gt_id = self.ground_truth_pipeline.clone();
+        let gt_id = Some(pipeline_id.to_string());
         let num_pairs = n * (n - 1) / 2;
         let mut total_usable_space: f64 = 0.0;
         let mut total_usable_snps: f64 = 0.0;

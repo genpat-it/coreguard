@@ -60,13 +60,17 @@ export class GenomeData {
      */
     get_generated_at(): string;
     /**
-     * Global stats: both union and intersection of GT gaps across all samples
+     * Global stats for GT pipeline (backward compat)
+     */
+    get_global_stats(): string;
+    /**
+     * Global stats for a specific pipeline: both union and intersection of gaps
      *
      * Strict (union): exclude position if at least 1 sample has gap
      * Relaxed (intersection): exclude position only if ALL samples have gap
      * For each: Usable Space, Total SNPs (in usable space), Consensus SNPs, Discriminating SNPs
      */
-    get_global_stats(): string;
+    get_global_stats_for_pipeline(pipeline_id: string): string;
     /**
      * Get ground truth pileup statistics as JSON
      * Returns: { total_snps, per_sample, covered_positions, pipeline_comparison }
@@ -86,13 +90,17 @@ export class GenomeData {
      */
     get_mnp_stats(): string;
     /**
-     * Get average pairwise usable stats across all sample pairs
-     * For each pair (A, B):
-     *   - usable_space = refLength - union of GT gap bases for A and B
-     *   - usable_snps per pipeline = discriminating SNPs not in GT gaps
-     * Returns averages across all N*(N-1)/2 pairs
+     * Pairwise stats for GT pipeline (backward compat)
      */
     get_pairwise_usable_stats(): string;
+    /**
+     * Get average pairwise usable stats for a specific pipeline
+     * For each pair (A, B):
+     *   - usable_space = refLength - union of pipeline gap bases for A and B
+     *   - discriminating SNPs not in gaps
+     * Returns averages across all N*(N-1)/2 pairs + per-sample breakdown
+     */
+    get_pairwise_usable_stats_for_pipeline(pipeline_id: string): string;
     /**
      * Get per-sample SNP intersection with GT
      * Returns: { sample_id: { pipeline_id: { intersection, pipeline_snps, gt_snps, pct_of_pipeline, pct_of_gt } } }
@@ -261,7 +269,9 @@ export interface InitOutput {
     readonly genomedata_render_region: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly genomedata_get_kpis: (a: number) => [number, number];
     readonly genomedata_get_global_stats: (a: number) => [number, number];
+    readonly genomedata_get_global_stats_for_pipeline: (a: number, b: number, c: number) => [number, number];
     readonly genomedata_get_pairwise_usable_stats: (a: number) => [number, number];
+    readonly genomedata_get_pairwise_usable_stats_for_pipeline: (a: number, b: number, c: number) => [number, number];
     readonly genomedata_get_reviewer_pairwise_stats: (a: number) => [number, number];
     readonly genomedata_get_per_sample_stats: (a: number) => [number, number];
     readonly genomedata_get_snp_intersection: (a: number) => [number, number];

@@ -2159,35 +2159,24 @@ pipelines:
                        <p>A sample with high avg discriminating SNPs is more distant from the others.</p>`
             },
             'gt_disc_vs_pl': {
-                title: 'GT Discriminating SNPs vs Pipelines',
-                body: `<p>Starting from the <strong>GT discriminating SNPs</strong> (positions where samples differ in the ground truth BAM pileup, Gap-Union), this table shows what happens to each of those positions in each VCF pipeline.</p>
-                       <p>Since VCF pipelines can have missing calls (no VCF record at a position), we cannot reliably count discriminating SNPs from VCF alone. Instead, we use the GT as reference and check whether each pipeline <strong>confirms or loses</strong> the GT discriminating positions.</p>`
+                title: 'GT Discriminating SNPs — Lost by Pipelines',
+                body: `<p>For each gap strategy, shows how many <strong>GT discriminating SNPs</strong> are <strong>lost</strong> by each VCF pipeline.</p>
+                       <p>A position is "lost" if the pipeline cannot confirm the GT discrimination: due to a gap, missing VCF call, or pipeline consensus (all samples agree where GT disagrees).</p>`
             },
-            'gt_disc_total': {
-                title: 'GT Discriminating SNPs',
-                body: `<p>Total number of discriminating positions identified by the ground truth pipeline (Gap-Union).</p>
-                       <p>These are positions where at least two samples have different alleles in the GT BAM pileup, and no sample has a gap.</p>`
+            'gt_disc_gi': {
+                title: 'Gap-Intersect Strategy',
+                body: `<p>GT discriminating positions computed using <strong>Gap-Intersect</strong>: only positions where ALL samples have a GT gap are excluded.</p>
+                       <p>More permissive — positions where some (but not all) samples have gaps are still evaluated among the non-gap samples.</p>`
             },
-            'gt_disc_confirmed': {
-                title: 'Confirmed',
-                body: `<p>GT discriminating positions where the VCF pipeline <strong>also sees a difference</strong> between samples.</p>
-                       <p>All samples have a VCF call at this position, and the alleles differ — the pipeline confirms the GT finding.</p>`
+            'gt_disc_gu': {
+                title: 'Gap-Union Strategy',
+                body: `<p>GT discriminating positions computed using <strong>Gap-Union</strong>: positions where ANY sample has a GT gap are excluded.</p>
+                       <p>More strict — all samples must have data at a position for it to be considered.</p>`
             },
-            'gt_disc_lost_gap': {
-                title: 'Lost (Gap)',
-                body: `<p>GT discriminating positions where <strong>at least one sample has a gap</strong> in the VCF pipeline's BAM alignment.</p>
-                       <p>The position cannot be evaluated because one or more samples have insufficient coverage in this pipeline.</p>`
-            },
-            'gt_disc_lost_missing': {
-                title: 'Lost (Missing Call)',
-                body: `<p>GT discriminating positions where <strong>at least one sample has a SNP call but another has no VCF record</strong> (no gap, just no variant call).</p>
-                       <p>The variant caller called a SNP in some samples but not in others. The missing call defaults to reference, making it impossible to know if the position is truly discriminating.</p>
-                       <p style="font-size:11px;color:var(--text-secondary);"><em>This is the most common source of lost discriminating SNPs — it indicates variant calling inconsistency across samples.</em></p>`
-            },
-            'gt_disc_lost_consensus': {
-                title: 'Lost (Pipeline Consensus)',
-                body: `<p>GT discriminating positions where the VCF pipeline has calls for all samples, but <strong>all calls agree</strong> (same allele or all reference).</p>
-                       <p>The GT sees a difference at this position, but the VCF pipeline does not — the pipeline disagrees with the ground truth.</p>`
+            'gt_disc_pw': {
+                title: 'Pairwise Strategy',
+                body: `<p>For each pair of samples, GT discriminating positions are computed using <strong>pairwise Gap-Union</strong> (excluding positions where either sample has a gap).</p>
+                       <p>Values shown are <strong>averages</strong> across all sample pairs.</p>`
             }
         };
 
@@ -3350,33 +3339,34 @@ pipelines:
                 html += sectionEnd(); // close GT pipeline section
             }
 
-            // === GT Discriminating SNPs vs VCF Pipelines ===
+            // === GT Discriminating SNPs Lost by VCF Pipelines ===
             if (gtPipelineId && kpis.samples >= 2) {
                 const gtDiscVsPl = await workerApi.getGtDiscVsPipelines();
                 if (gtDiscVsPl && Object.keys(gtDiscVsPl).length > 0) {
-                    const gtLabel = (pipelineInfo[gtPipelineId] && pipelineInfo[gtPipelineId].label) || gtPipelineId;
-                    html += sectionStart(`GT Discriminating SNPs vs Pipelines ${infoIcon('gt_disc_vs_pl')}`);
+                    html += sectionStart(`GT Discriminating SNPs — Lost by Pipelines ${infoIcon('gt_disc_vs_pl')}`);
                     html += `<table class="kpi-table"><thead><tr>
-                        <th>Pipeline</th>
-                        <th>GT Disc. SNPs ${infoIcon('gt_disc_total')}</th>
-                        <th>Confirmed ${infoIcon('gt_disc_confirmed')}</th>
-                        <th>Lost (Gap) ${infoIcon('gt_disc_lost_gap')}</th>
-                        <th>Lost (Missing Call) ${infoIcon('gt_disc_lost_missing')}</th>
-                        <th>Lost (Pipeline Consensus) ${infoIcon('gt_disc_lost_consensus')}</th>
+                        <th rowspan="2">Pipeline</th>
+                        <th colspan="2" style="text-align:center;">Gap-Intersect ${infoIcon('gt_disc_gi')}</th>
+                        <th colspan="2" style="text-align:center;">Gap-Union ${infoIcon('gt_disc_gu')}</th>
+                        <th colspan="2" style="text-align:center;">Pairwise ${infoIcon('gt_disc_pw')}</th>
+                    </tr><tr>
+                        <th>GT Disc.</th><th>Lost</th>
+                        <th>GT Disc.</th><th>Lost</th>
+                        <th>GT Disc. (avg)</th><th>Lost (avg)</th>
                     </tr></thead><tbody>`;
                     for (const [plId, stats] of Object.entries(gtDiscVsPl)) {
                         const plLabel = (pipelineInfo[plId] && pipelineInfo[plId].label) || plId;
-                        const confirmedPct = stats.gt_discriminating > 0 ? ((stats.confirmed / stats.gt_discriminating) * 100).toFixed(1) : '0.0';
-                        const lostGapPct = stats.gt_discriminating > 0 ? ((stats.lost_gap / stats.gt_discriminating) * 100).toFixed(1) : '0.0';
-                        const lostMissingPct = stats.gt_discriminating > 0 ? ((stats.lost_missing_call / stats.gt_discriminating) * 100).toFixed(1) : '0.0';
-                        const lostConsPct = stats.gt_discriminating > 0 ? ((stats.lost_pipeline_consensus / stats.gt_discriminating) * 100).toFixed(1) : '0.0';
+                        const giLostPct = stats.gap_intersect_gt_disc > 0 ? ((stats.gap_intersect_lost / stats.gap_intersect_gt_disc) * 100).toFixed(1) : '0.0';
+                        const guLostPct = stats.gap_union_gt_disc > 0 ? ((stats.gap_union_lost / stats.gap_union_gt_disc) * 100).toFixed(1) : '0.0';
+                        const pwLostPct = stats.pairwise_gt_disc_avg > 0 ? ((stats.pairwise_lost_avg / stats.pairwise_gt_disc_avg) * 100).toFixed(1) : '0.0';
                         html += `<tr>
                             <td>${plLabel}</td>
-                            <td>${stats.gt_discriminating.toLocaleString()}</td>
-                            <td>${stats.confirmed.toLocaleString()} <span class="pct">(${confirmedPct}%)</span></td>
-                            <td>${stats.lost_gap.toLocaleString()} <span class="pct">(${lostGapPct}%)</span></td>
-                            <td>${stats.lost_missing_call.toLocaleString()} <span class="pct">(${lostMissingPct}%)</span></td>
-                            <td>${stats.lost_pipeline_consensus.toLocaleString()} <span class="pct">(${lostConsPct}%)</span></td>
+                            <td>${stats.gap_intersect_gt_disc.toLocaleString()}</td>
+                            <td>${stats.gap_intersect_lost.toLocaleString()} <span class="pct">(${giLostPct}%)</span></td>
+                            <td>${stats.gap_union_gt_disc.toLocaleString()}</td>
+                            <td>${stats.gap_union_lost.toLocaleString()} <span class="pct">(${guLostPct}%)</span></td>
+                            <td>${stats.pairwise_gt_disc_avg.toFixed(1)}</td>
+                            <td>${stats.pairwise_lost_avg.toFixed(1)} <span class="pct">(${pwLostPct}%)</span></td>
                         </tr>`;
                     }
                     html += `</tbody></table>`;

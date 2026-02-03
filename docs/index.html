@@ -1502,7 +1502,7 @@ pipelines:
                        <p>A position is excluded if <strong>at least one</strong> sample has a GT gap there. This is the most restrictive estimate of usable genome space.</p>`
             },
             'gl_relaxed_space': {
-                title: 'Global All-Gap — Usable Space',
+                title: 'Global Common-Gap — Usable Space',
                 body: `<p>The number of reference base pairs after removing only positions where <strong>ALL samples</strong> have a GT gap.</p>
                        <div class="formula">Usable Space = Reference Length − intersection(GT gaps of all samples)</div>
                        <p>A position is excluded only if <strong>every</strong> sample has a gap there. This is more permissive than Strict.</p>
@@ -1548,19 +1548,19 @@ pipelines:
                        <p>These positions are useful for pairwise distance calculations and phylogenetic analysis.</p>`
             },
             'gl_relaxed_total_snps': {
-                title: 'Global All-Gap — Total SNPs',
+                title: 'Global Common-Gap — Total SNPs',
                 body: `<p>Total SNP positions in the <strong>relaxed usable space</strong> (outside gap intersection) where <strong>at least 1 sample</strong> has an alt allele vs the reference.</p>
                        <div class="formula">Total SNPs = Consensus + Discriminating</div>
                        <p><strong>Relaxed &ge; Strict</strong> total SNPs (larger usable space).</p>`
             },
             'gl_relaxed_consensus_snps': {
-                title: 'Global All-Gap — Consensus SNPs',
+                title: 'Global Common-Gap — Consensus SNPs',
                 body: `<p>SNP positions in the relaxed usable space where <strong>ALL samples agree</strong> on the same alt allele.</p>
                        <div class="formula">Consensus = positions where every sample has the same variant</div>
                        <p>Real mutations vs the reference shared by all samples.</p>`
             },
             'gl_relaxed_disc_snps': {
-                title: 'Global All-Gap — Discriminating SNPs',
+                title: 'Global Common-Gap — Discriminating SNPs',
                 body: `<p>SNP positions in the relaxed usable space where samples <strong>differ</strong> in alt allele or SNP presence.</p>
                        <div class="formula">Discriminating = Total SNPs − Consensus</div>
                        <p><strong>Relaxed &ge; Strict</strong> discriminating SNPs.</p>`
@@ -1939,14 +1939,14 @@ pipelines:
                        <p><strong>Note:</strong> The consensus count is the same for all pipelines since it's the intersection.</p>`
             },
             'rpw_usable_space': {
-                title: 'Pairwise (All-Gap) — Avg Usable Space',
+                title: 'Pairwise (Common-Gap) — Avg Usable Space',
                 body: `<p>Average usable genome space across all sample pairs, using <strong>intersection</strong> of gaps.</p>
                        <div class="formula">For each pair (A, B): Usable = RefLength − intersection(GT gaps A, GT gaps B)</div>
                        <p>A position is excluded only if <strong>both</strong> samples in the pair have a GT gap there. This is less restrictive than Strict mode (which excludes if either has a gap).</p>
                        <p><strong>Relaxed ≥ Strict</strong> usable space, since fewer positions are excluded.</p>`
             },
             'rpw_discriminating': {
-                title: 'Pairwise (All-Gap) — Avg Discriminating SNPs',
+                title: 'Pairwise (Common-Gap) — Avg Discriminating SNPs',
                 body: `<p>Average number of <strong>discriminating SNPs</strong> per sample pair, using intersection-based gap removal.</p>
                        <div class="formula">For each pair (A, B): count GT SNPs where A ≠ B, not in pair gap intersection, not global consensus</div>
                        <p>Excluded positions:</p>
@@ -3024,7 +3024,7 @@ pipelines:
 
             let html = '';
 
-            // === SECTION 1: Overview, Global, Pairwise (Any-Gap), Pairwise (All-Gap) (one row) ===
+            // === SECTION 1: Overview, Global, Pairwise (Any-Gap), Pairwise (Common-Gap) (one row) ===
             html += `<div class="kpi-row">`;
 
             // Overview
@@ -3050,7 +3050,7 @@ pipelines:
                     html += `<div class="kpi kpi-highlight-green"><div class="label">Discriminating SNPs (GT) ${infoIcon('gl_strict_disc_snps')}</div><div class="value">${gs.strict.discriminating_snps.toLocaleString()}</div></div>`;
                     html += sectionEnd();
 
-                    html += sectionStart('Global (All-Gap)', true);
+                    html += sectionStart('Global (Common-Gap)', true);
                     html += `<div class="kpi kpi-highlight-orange"><div class="label">Usable Space ${infoIcon('gl_relaxed_space')}</div><div class="value">${gs.relaxed.usable_space.toLocaleString()} bp <span class="pct">(${gs.relaxed.usable_space_pct.toFixed(2)}%)</span></div></div>`;
                     html += `<div class="kpi"><div class="label">Total SNPs (GT) ${infoIcon('gl_relaxed_total_snps')}</div><div class="value">${gs.relaxed.total_snps.toLocaleString()}</div></div>`;
                     html += `<div class="kpi"><div class="label">Consensus SNPs (GT) ${infoIcon('gl_relaxed_consensus_snps')}</div><div class="value">${gs.relaxed.consensus_snps.toLocaleString()}</div></div>`;

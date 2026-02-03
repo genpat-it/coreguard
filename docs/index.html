@@ -1578,15 +1578,20 @@ pipelines:
             },
             'gl_relaxed_consensus_snps': {
                 title: 'Global Gap-Intersect — Consensus SNPs',
-                body: `<p>SNP positions in the relaxed usable space where <strong>ALL samples agree</strong> on the same alt allele.</p>
-                       <div class="formula">Consensus = positions where every sample has the same variant</div>
-                       <p>Real mutations vs the reference shared by all samples.</p>`
+                body: `<p>SNP positions in the usable space where all samples <strong>with data</strong> (no gap) agree on the same alt allele.</p>
+                       <p>Samples with a gap at the position are ignored. Among the remaining, all must have the same alt allele.</p>
+                       <p>Real mutations vs the reference, but they do not discriminate between samples.</p>`
             },
             'gl_relaxed_disc_snps': {
                 title: 'Global Gap-Intersect — Discriminating SNPs',
-                body: `<p>SNP positions in the relaxed usable space where samples <strong>differ</strong> in alt allele or SNP presence.</p>
-                       <div class="formula">Discriminating = Total SNPs − Consensus</div>
-                       <p><strong>Relaxed &ge; Strict</strong> discriminating SNPs.</p>`
+                body: `<p>SNP positions in the usable space where samples <strong>differ</strong>, considering only samples that have data (no gap) at each position.</p>
+                       <p>For each position, samples with a gap are <strong>ignored</strong>. Among the remaining:</p>
+                       <ul>
+                           <li>If fewer than 2 samples have data → <strong>not counted</strong></li>
+                           <li>If all agree (same alt or all ref) → <strong>not discriminating</strong></li>
+                           <li>If at least 2 differ → <strong>discriminating</strong></li>
+                       </ul>
+                       <p>This avoids counting SNPs where gaps make comparison unreliable.</p>`
             },
             'snps': {
                 title: 'SNP Count',

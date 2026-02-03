@@ -1127,38 +1127,71 @@ impl GenomeData {
         }
 
         // Helper: compute stats for a given gap set
-        let compute_variant = |gap_set: &std::collections::HashSet<u32>| -> GlobalVariant {
+        // When gap_aware=true (Common-Gap/intersection), per-sample gaps are checked:
+        //   a position is discriminating only if among samples WITHOUT gap there,
+        //   at least 2 samples have different alleles.
+        // When gap_aware=false (Gap-Union), all samples have data at every usable position.
+        let compute_variant = |gap_set: &std::collections::HashSet<u32>, gap_aware: bool| -> GlobalVariant {
             let usable_space = self.ref_len - gap_set.len() as u32;
             let usable_space_pct = (usable_space as f64 / self.ref_len as f64) * 100.0;
 
-            // Count SNP positions in usable space (outside gaps)
-            // - total: at least 1 sample has alt allele vs reference
-            // - consensus: ALL samples have same alt allele
-            // - discriminating: total - consensus
             let mut total_count: u32 = 0;
             let mut consensus_count: u32 = 0;
+            let mut discriminating_count: u32 = 0;
+
             for &pos in &all_snp_positions {
                 if gap_set.contains(&pos) {
                     continue;
                 }
                 total_count += 1;
-                // Check if ALL samples have this SNP with same alt
-                let mut all_have = true;
-                let mut first_alt: Option<u8> = None;
-                let mut all_same = true;
-                for snp_map in &gt_snp_maps {
-                    if let Some(&alt) = snp_map.get(&pos) {
-                        match first_alt {
-                            None => first_alt = Some(alt),
-                            Some(f) => if alt != f { all_same = false; }
+
+                if gap_aware {
+                    // Common-Gap: consider only samples that DON'T have a gap at this position
+                    // Collect alleles for non-gap samples (None = matches ref, Some(x) = alt allele)
+                    let mut alleles: Vec<Option<u8>> = Vec::new();
+                    for (idx, snp_map) in gt_snp_maps.iter().enumerate() {
+                        if sample_gap_sets[idx].contains(&pos) {
+                            continue; // skip sample with gap here
                         }
-                    } else {
-                        all_have = false;
-                        break;
+                        alleles.push(snp_map.get(&pos).copied());
                     }
-                }
-                if all_have && all_same && first_alt.is_some() {
-                    consensus_count += 1;
+                    if alleles.len() < 2 {
+                        // fewer than 2 samples with data → can't compare
+                        continue;
+                    }
+                    // Check if all non-gap samples agree
+                    let first = alleles[0];
+                    let all_same = alleles.iter().all(|a| *a == first);
+                    if all_same {
+                        if first.is_some() {
+                            // All agree on same alt allele → consensus
+                            consensus_count += 1;
+                        }
+                        // If all agree on ref (first == None), it's not a real SNP among these samples
+                    } else {
+                        discriminating_count += 1;
+                    }
+                } else {
+                    // Gap-Union: all samples have data, simpler check
+                    let mut all_have = true;
+                    let mut first_alt: Option<u8> = None;
+                    let mut all_same = true;
+                    for snp_map in &gt_snp_maps {
+                        if let Some(&alt) = snp_map.get(&pos) {
+                            match first_alt {
+                                None => first_alt = Some(alt),
+                                Some(f) => if alt != f { all_same = false; }
+                            }
+                        } else {
+                            all_have = false;
+                            break;
+                        }
+                    }
+                    if all_have && all_same && first_alt.is_some() {
+                        consensus_count += 1;
+                    } else {
+                        discriminating_count += 1;
+                    }
                 }
             }
 
@@ -1167,13 +1200,13 @@ impl GenomeData {
                 usable_space_pct,
                 total_snps: total_count,
                 consensus_snps: consensus_count,
-                discriminating_snps: total_count - consensus_count,
+                discriminating_snps: discriminating_count,
             }
         };
 
         let stats = GlobalStats {
-            strict: compute_variant(&gap_union),
-            relaxed: compute_variant(&gap_intersection),
+            strict: compute_variant(&gap_union, false),
+            relaxed: compute_variant(&gap_intersection, true),
         };
 
         serde_json::to_string(&stats).unwrap_or_else(|_| "{}".to_string())

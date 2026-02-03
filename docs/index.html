@@ -3251,25 +3251,25 @@ pipelines:
                     };
 
                     phtml += sectionStart('Gap-Intersect', true);
-                    phtml += `<div class="kpi kpi-highlight-green"><div class="label">Usable Space ${infoIcon('pp_gi_usable')}</div><div class="value">${gs.relaxed.usable_space.toLocaleString()} bp <span class="pct">(${gs.relaxed.usable_space_pct.toFixed(2)}%)</span></div></div>`;
+                    phtml += `<div class="kpi"><div class="label">Usable Space ${infoIcon('pp_gi_usable')}</div><div class="value">${gs.relaxed.usable_space.toLocaleString()} bp <span class="pct">(${gs.relaxed.usable_space_pct.toFixed(2)}%)</span></div></div>`;
                     phtml += `<button class="kpi-expand-btn" onclick="this.nextElementSibling.classList.toggle('expanded');this.textContent=this.textContent==='+'?'−':'+'">+</button>`;
                     phtml += `<div class="kpi-collapsible">`;
                     phtml += `<div class="kpi"><div class="label">Total SNPs ${infoIcon('pp_gi_total')}</div><div class="value">${gs.relaxed.total_snps.toLocaleString()}</div></div>`;
                     phtml += `<div class="kpi"><div class="label">Missing VCF Calls ${infoIcon('pp_missing_calls')}</div><div class="value">${gs.relaxed.missing_calls.toLocaleString()}</div></div>`;
                     phtml += `<div class="kpi"><div class="label">Consensus SNPs ${infoIcon('pp_gi_consensus')}</div><div class="value">${gs.relaxed.consensus_snps.toLocaleString()}</div></div>`;
                     phtml += `</div>`;
-                    phtml += `<div class="kpi kpi-highlight-green"><div class="label">Discriminating SNPs ${infoIcon('pp_gi_disc')}</div><div class="value">${gs.relaxed.discriminating_snps.toLocaleString()}${renderDiscBreakdown(gs.relaxed.disc_breakdown)}</div></div>`;
+                    phtml += `<div class="kpi"><div class="label">Discriminating SNPs ${infoIcon('pp_gi_disc')}</div><div class="value">${gs.relaxed.discriminating_snps.toLocaleString()}${renderDiscBreakdown(gs.relaxed.disc_breakdown)}</div></div>`;
                     phtml += sectionEnd();
 
                     phtml += sectionStart('Gap-Union', true);
-                    phtml += `<div class="kpi kpi-highlight-orange"><div class="label">Usable Space ${infoIcon('pp_gu_usable')}</div><div class="value">${gs.strict.usable_space.toLocaleString()} bp <span class="pct">(${gs.strict.usable_space_pct.toFixed(2)}%)</span></div></div>`;
+                    phtml += `<div class="kpi"><div class="label">Usable Space ${infoIcon('pp_gu_usable')}</div><div class="value">${gs.strict.usable_space.toLocaleString()} bp <span class="pct">(${gs.strict.usable_space_pct.toFixed(2)}%)</span></div></div>`;
                     phtml += `<button class="kpi-expand-btn" onclick="this.nextElementSibling.classList.toggle('expanded');this.textContent=this.textContent==='+'?'−':'+'">+</button>`;
                     phtml += `<div class="kpi-collapsible">`;
                     phtml += `<div class="kpi"><div class="label">Total SNPs ${infoIcon('pp_gu_total')}</div><div class="value">${gs.strict.total_snps.toLocaleString()}</div></div>`;
                     phtml += `<div class="kpi"><div class="label">Missing VCF Calls ${infoIcon('pp_missing_calls')}</div><div class="value">${gs.strict.missing_calls.toLocaleString()}</div></div>`;
                     phtml += `<div class="kpi"><div class="label">Consensus SNPs ${infoIcon('pp_gu_consensus')}</div><div class="value">${gs.strict.consensus_snps.toLocaleString()}</div></div>`;
                     phtml += `</div>`;
-                    phtml += `<div class="kpi kpi-highlight-orange"><div class="label">Discriminating SNPs ${infoIcon('pp_gu_disc')}</div><div class="value">${gs.strict.discriminating_snps.toLocaleString()}${renderDiscBreakdown(gs.strict.disc_breakdown)}</div></div>`;
+                    phtml += `<div class="kpi"><div class="label">Discriminating SNPs ${infoIcon('pp_gu_disc')}</div><div class="value">${gs.strict.discriminating_snps.toLocaleString()}${renderDiscBreakdown(gs.strict.disc_breakdown)}</div></div>`;
                     phtml += sectionEnd();
                 }
 
@@ -3278,8 +3278,8 @@ pipelines:
                     const pw = await workerApi.getPairwiseUsableStatsForPipeline(pipelineId);
                     if (pw && pw.num_pairs > 0) {
                         phtml += sectionStart(`Pairwise (Gap-Union) <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${pw.num_pairs} pairs)</span>`, true);
-                        phtml += `<div class="kpi kpi-highlight-orange"><div class="label">Avg Usable Space ${infoIcon('pp_pw_usable')}</div><div class="value">${Math.round(pw.avg_usable_space).toLocaleString()} bp <span class="pct">(${pw.avg_usable_space_pct.toFixed(2)}%)</span></div></div>`;
-                        phtml += `<div class="kpi kpi-highlight-orange"><div class="label">Discriminating SNPs ${infoIcon('pp_pw_disc')}</div><div class="value">avg ${pw.avg_usable_snps.toFixed(1)} &nbsp;|&nbsp; min ${pw.min_usable_snps.toLocaleString()} &nbsp;|&nbsp; med ${pw.median_usable_snps.toFixed(1)} &nbsp;|&nbsp; max ${pw.max_usable_snps.toLocaleString()}</div></div>`;
+                        phtml += `<div class="kpi"><div class="label">Avg Usable Space ${infoIcon('pp_pw_usable')}</div><div class="value">${Math.round(pw.avg_usable_space).toLocaleString()} bp <span class="pct">(${pw.avg_usable_space_pct.toFixed(2)}%)</span></div></div>`;
+                        phtml += `<div class="kpi"><div class="label">Discriminating SNPs ${infoIcon('pp_pw_disc')}</div><div class="value">avg ${pw.avg_usable_snps.toFixed(1)} &nbsp;|&nbsp; min ${pw.min_usable_snps.toLocaleString()} &nbsp;|&nbsp; med ${pw.median_usable_snps.toFixed(1)} &nbsp;|&nbsp; max ${pw.max_usable_snps.toLocaleString()}</div></div>`;
                         phtml += sectionEnd();
                     }
                 }

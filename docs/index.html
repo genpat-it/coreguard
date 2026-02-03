@@ -3034,13 +3034,6 @@ pipelines:
                     html += sectionEnd();
                 }
 
-                const rpw = await workerApi.getReviewerPairwiseStats();
-                if (rpw) {
-                    html += sectionStart(`Pairwise Relaxed <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${rpw.num_pairs} pairs)</span>`, true);
-                    html += `<div class="kpi"><div class="label">Avg Usable Space ${infoIcon('rpw_usable_space')}</div><div class="value">${Math.round(rpw.avg_usable_space).toLocaleString()} bp <span class="pct">(${rpw.avg_usable_space_pct.toFixed(2)}%)</span></div></div>`;
-                    html += `<div class="kpi"><div class="label">Avg Discriminating SNPs ${infoIcon('rpw_discriminating')}</div><div class="value">${rpw.avg_usable_snps.toFixed(2)}</div></div>`;
-                    html += sectionEnd();
-                }
             }
 
             html += `</div>`; // close kpi-row

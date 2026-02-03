@@ -1516,22 +1516,22 @@ pipelines:
             },
             'usable_snps': {
                 title: 'Global Strict — Usable SNPs',
-                body: `<p>GT SNP positions that are <strong>informative</strong> after removing unreliable and non-discriminating positions (using union of gaps).</p>
-                       <div class="formula">Usable = GT SNPs − SNPs in gap union − Consensus outside gaps</div>
-                       <p>Removed:</p>
+                body: `<p>SNP positions in the <strong>usable space</strong> where <strong>ALL samples agree</strong> on the alt allele (consensus).</p>
+                       <div class="formula">Usable SNPs = consensus positions outside gap union</div>
+                       <p>A position counts if:</p>
                        <ul>
-                           <li><strong>In gap union:</strong> positions where at least 1 sample has a GT gap</li>
-                           <li><strong>Consensus:</strong> ALL samples have the same alt allele outside gaps — reference differences, not variation</li>
+                           <li>Not in the gap union (all samples have GT coverage)</li>
+                           <li>ALL samples have a SNP with the <strong>same</strong> alt allele</li>
                        </ul>`
             },
             'gl_relaxed_snps': {
                 title: 'Global Relaxed — Usable SNPs',
-                body: `<p>GT SNP positions that are <strong>informative</strong> after removing unreliable and non-discriminating positions (using intersection of gaps).</p>
-                       <div class="formula">Usable = GT SNPs − SNPs in gap intersection − Consensus outside gaps</div>
-                       <p>Removed:</p>
+                body: `<p>SNP positions in the <strong>usable space</strong> where <strong>ALL samples agree</strong> on the alt allele (consensus).</p>
+                       <div class="formula">Usable SNPs = consensus positions outside gap intersection</div>
+                       <p>A position counts if:</p>
                        <ul>
-                           <li><strong>In gap intersection:</strong> positions where ALL samples have a GT gap</li>
-                           <li><strong>Consensus:</strong> ALL samples have the same alt allele outside gaps — reference differences, not variation</li>
+                           <li>Not in the gap intersection (not ALL samples have a gap)</li>
+                           <li>ALL samples have a SNP with the <strong>same</strong> alt allele</li>
                        </ul>
                        <p><strong>Relaxed ≥ Strict</strong> usable SNPs.</p>`
             },

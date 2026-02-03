@@ -1158,17 +1158,9 @@ impl GenomeData {
                 }
             }
 
-            // Count usable SNPs: not in gap set, not consensus
-            let mut usable_count = 0u32;
-            for &pos in &all_snp_positions {
-                if gap_set.contains(&pos) {
-                    continue;
-                }
-                if consensus_outside.contains(&pos) {
-                    continue;
-                }
-                usable_count += 1;
-            }
+            // Usable SNPs = consensus positions outside gaps
+            // (all samples agree on alt allele, position not in any gap)
+            let usable_count = consensus_outside.len() as u32;
 
             let total = all_snp_positions.len() as u32;
             let usable_pct = if total > 0 {

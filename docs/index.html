@@ -3284,20 +3284,18 @@ pipelines:
                     }
                 }
 
-                phtml += `</div>`; // close kpi-row
-
-                // Per-sample pairwise table
+                // Per-sample pairwise table (inside kpi-row as a column)
                 if (kpis.samples >= 2) {
-                    const pw = await workerApi.getPairwiseUsableStatsForPipeline(pipelineId);
-                    if (pw && pw.per_sample && pw.per_sample.length > 0) {
-                        phtml += sectionStart(`Per-Sample Pairwise ${infoIcon('pp_ps_table')}`);
+                    const pw2 = await workerApi.getPairwiseUsableStatsForPipeline(pipelineId);
+                    if (pw2 && pw2.per_sample && pw2.per_sample.length > 0) {
+                        phtml += sectionStart(`Per-Sample Pairwise ${infoIcon('pp_ps_table')}`, true);
                         phtml += `<table class="kpi-table"><thead><tr>
                             <th>Sample</th>
                             <th>Avg Usable Space (bp)</th>
                             <th>Avg Usable Space (%)</th>
-                            <th>Avg Discriminating SNPs</th>
+                            <th>Avg Disc. SNPs</th>
                         </tr></thead><tbody>`;
-                        for (const s of pw.per_sample) {
+                        for (const s of pw2.per_sample) {
                             phtml += `<tr>
                                 <td>${s.sample_label}</td>
                                 <td>${Math.round(s.avg_usable_space).toLocaleString()}</td>
@@ -3309,6 +3307,8 @@ pipelines:
                         phtml += sectionEnd();
                     }
                 }
+
+                phtml += `</div>`; // close kpi-row
 
                 phtml += sectionEnd(); // close pipeline section
                 return phtml;

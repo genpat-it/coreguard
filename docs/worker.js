@@ -228,6 +228,14 @@ self.onmessage = async function(e) {
                 result = { stats: JSON.parse(genomeData.get_reviewer_pairwise_stats()) };
                 break;
 
+            case 'getGlobalStatsForPipeline':
+                result = { stats: JSON.parse(genomeData.get_global_stats_for_pipeline(payload.pipelineId)) };
+                break;
+
+            case 'getPairwiseUsableStatsForPipeline':
+                result = { stats: JSON.parse(genomeData.get_pairwise_usable_stats_for_pipeline(payload.pipelineId)) };
+                break;
+
             default:
                 throw new Error(`Unknown action: ${action}`);
         }

@@ -208,11 +208,7 @@ export class GenomeData {
         }
     }
     /**
-     * Global stats: both union and intersection of GT gaps across all samples
-     *
-     * Strict (union): exclude position if at least 1 sample has gap
-     * Relaxed (intersection): exclude position only if ALL samples have gap
-     * For each: Usable Space, Total SNPs (in usable space), Consensus SNPs, Discriminating SNPs
+     * Global stats for GT pipeline (backward compat)
      * @returns {string}
      */
     get_global_stats() {
@@ -225,6 +221,29 @@ export class GenomeData {
             return getStringFromWasm0(ret[0], ret[1]);
         } finally {
             wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Global stats for a specific pipeline: both union and intersection of gaps
+     *
+     * Strict (union): exclude position if at least 1 sample has gap
+     * Relaxed (intersection): exclude position only if ALL samples have gap
+     * For each: Usable Space, Total SNPs (in usable space), Consensus SNPs, Discriminating SNPs
+     * @param {string} pipeline_id
+     * @returns {string}
+     */
+    get_global_stats_for_pipeline(pipeline_id) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ptr0 = passStringToWasm0(pipeline_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.genomedata_get_global_stats_for_pipeline(this.__wbg_ptr, ptr0, len0);
+            deferred2_0 = ret[0];
+            deferred2_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
         }
     }
     /**
@@ -291,11 +310,7 @@ export class GenomeData {
         }
     }
     /**
-     * Get average pairwise usable stats across all sample pairs
-     * For each pair (A, B):
-     *   - usable_space = refLength - union of GT gap bases for A and B
-     *   - usable_snps per pipeline = discriminating SNPs not in GT gaps
-     * Returns averages across all N*(N-1)/2 pairs
+     * Pairwise stats for GT pipeline (backward compat)
      * @returns {string}
      */
     get_pairwise_usable_stats() {
@@ -308,6 +323,29 @@ export class GenomeData {
             return getStringFromWasm0(ret[0], ret[1]);
         } finally {
             wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Get average pairwise usable stats for a specific pipeline
+     * For each pair (A, B):
+     *   - usable_space = refLength - union of pipeline gap bases for A and B
+     *   - discriminating SNPs not in gaps
+     * Returns averages across all N*(N-1)/2 pairs + per-sample breakdown
+     * @param {string} pipeline_id
+     * @returns {string}
+     */
+    get_pairwise_usable_stats_for_pipeline(pipeline_id) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ptr0 = passStringToWasm0(pipeline_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.genomedata_get_pairwise_usable_stats_for_pipeline(this.__wbg_ptr, ptr0, len0);
+            deferred2_0 = ret[0];
+            deferred2_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
         }
     }
     /**

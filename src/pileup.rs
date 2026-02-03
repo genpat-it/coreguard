@@ -181,6 +181,7 @@ pub fn get_bases_with_stats(
     chrom: &str,
     positions: &[u32],  // 0-based positions
     min_depth: u32,
+    min_consensus: f64,
 ) -> Result<HashMap<u32, BaseCallWithStats>> {
     if positions.is_empty() {
         return Ok(HashMap::new());
@@ -284,7 +285,7 @@ pub fn get_bases_with_stats(
 
                 let consensus = best_count as f64 / total_depth as f64;
 
-                if consensus < 0.8 {
+                if consensus < min_consensus {
                     BaseCallWithStats {
                         call: BaseCall::Ambiguous,
                         depth: total_depth,

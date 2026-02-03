@@ -236,6 +236,10 @@ self.onmessage = async function(e) {
                 result = { stats: JSON.parse(genomeData.get_pairwise_usable_stats_for_pipeline(payload.pipelineId)) };
                 break;
 
+            case 'getGtDiscVsPipelines':
+                result = { stats: JSON.parse(genomeData.get_gt_disc_vs_pipelines()) };
+                break;
+
             default:
                 throw new Error(`Unknown action: ${action}`);
         }

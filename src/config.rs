@@ -100,6 +100,10 @@ pub struct Options {
     #[serde(default = "default_min_qual")]
     pub min_qual: f64,
 
+    /// Minimum consensus fraction for BAM pileup SNP calling (0.0-1.0)
+    #[serde(default = "default_min_consensus")]
+    pub min_consensus: f64,
+
     /// Include insertions/deletions
     #[serde(default)]
     pub include_indels: bool,
@@ -110,7 +114,11 @@ fn default_min_depth() -> usize {
 }
 
 fn default_min_qual() -> f64 {
-    20.0
+    0.0
+}
+
+fn default_min_consensus() -> f64 {
+    0.8
 }
 
 impl Config {

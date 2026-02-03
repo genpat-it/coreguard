@@ -1064,12 +1064,21 @@ impl GenomeData {
     #[wasm_bindgen]
     pub fn get_global_stats_for_pipeline(&self, pipeline_id: &str) -> String {
         #[derive(Serialize)]
+        struct DiscBreakdown {
+            gap_affected: u32,
+            gt_consensus: u32,
+            majority_rule: u32,
+            confirmed: u32,
+        }
+
+        #[derive(Serialize)]
         struct GlobalVariant {
             usable_space: u32,
             usable_space_pct: f64,
             total_snps: u32,
             consensus_snps: u32,
             discriminating_snps: u32,
+            disc_breakdown: DiscBreakdown,
         }
 
         #[derive(Serialize)]
@@ -1078,17 +1087,17 @@ impl GenomeData {
             relaxed: GlobalVariant,
         }
 
-        let gt_id = pipeline_id.to_string();
+        let pid = pipeline_id.to_string();
 
         let sample_ids: Vec<&String> = self.samples.keys().collect();
 
-        // Build per-sample gap sets
+        // Build per-sample gap sets for the target pipeline
         let mut sample_gap_sets: Vec<std::collections::HashSet<u32>> = Vec::new();
         for sample_id in &sample_ids {
             let sample_data = &self.samples[*sample_id];
             let mut gap_positions: std::collections::HashSet<u32> = std::collections::HashSet::new();
-            if let Some(gt_data) = sample_data.pipelines.get(&gt_id) {
-                for gap in &gt_data.gaps {
+            if let Some(p_data) = sample_data.pipelines.get(&pid) {
+                for gap in &p_data.gaps {
                     for pos in gap.start..gap.end {
                         gap_positions.insert(pos);
                     }
@@ -1116,27 +1125,60 @@ impl GenomeData {
             std::collections::HashSet::new()
         };
 
-        // Build per-sample GT SNP maps
-        let mut gt_snp_maps: Vec<HashMap<u32, u8>> = Vec::new();
+        // Build per-sample SNP maps for the target pipeline
+        let mut snp_maps: Vec<HashMap<u32, u8>> = Vec::new();
         for sample_id in &sample_ids {
             let sample_data = &self.samples[*sample_id];
-            let snps: HashMap<u32, u8> = sample_data.pipelines.get(&gt_id)
+            let snps: HashMap<u32, u8> = sample_data.pipelines.get(&pid)
                 .map(|p| p.snps.iter().map(|s| (s.pos, s.alt_allele)).collect())
                 .unwrap_or_default();
-            gt_snp_maps.push(snps);
+            snp_maps.push(snps);
         }
 
-        // All GT SNP positions
+        // Build per-sample GT SNP maps (for cross-check heuristic)
+        let gt_id = self.ground_truth_pipeline.clone().unwrap_or_default();
+        let is_gt_pipeline = pid == gt_id;
+        let mut gt_snp_maps: Vec<HashMap<u32, u8>> = Vec::new();
+        if !is_gt_pipeline && !gt_id.is_empty() {
+            for sample_id in &sample_ids {
+                let sample_data = &self.samples[*sample_id];
+                let snps: HashMap<u32, u8> = sample_data.pipelines.get(&gt_id)
+                    .map(|p| p.snps.iter().map(|s| (s.pos, s.alt_allele)).collect())
+                    .unwrap_or_default();
+                gt_snp_maps.push(snps);
+            }
+        }
+
+        // All SNP positions for this pipeline
         let mut all_snp_positions: std::collections::HashSet<u32> = std::collections::HashSet::new();
-        for snp_map in &gt_snp_maps {
+        for snp_map in &snp_maps {
             all_snp_positions.extend(snp_map.keys());
         }
 
-        // Helper: compute stats for a given gap set
-        // When gap_aware=true (Common-Gap/intersection), per-sample gaps are checked:
-        //   a position is discriminating only if among samples WITHOUT gap there,
-        //   at least 2 samples have different alleles.
-        // When gap_aware=false (Gap-Union), all samples have data at every usable position.
+        // Helper: check if GT shows consensus at a position
+        // Returns true if all samples agree in GT (all same alt, or all ref)
+        let gt_is_consensus_at = |pos: u32| -> bool {
+            if is_gt_pipeline || gt_snp_maps.is_empty() {
+                return false;
+            }
+            let first = gt_snp_maps[0].get(&pos).copied();
+            gt_snp_maps.iter().all(|m| m.get(&pos).copied() == first)
+        };
+
+        // Helper: check majority rule on a set of alleles
+        // Returns true if all-but-one agree (N-1 have same allele, 1 differs)
+        let is_majority = |alleles: &[Option<u8>]| -> bool {
+            if alleles.len() < 3 { return false; } // need ≥3 to have meaningful majority
+            // Count occurrences of each allele
+            let mut counts: HashMap<Option<u8>, usize> = HashMap::new();
+            for a in alleles {
+                *counts.entry(*a).or_insert(0) += 1;
+            }
+            // Check if one allele has N-1 and another has 1
+            let max_count = counts.values().max().copied().unwrap_or(0);
+            max_count == alleles.len() - 1 && counts.len() == 2
+        };
+
         let compute_variant = |gap_set: &std::collections::HashSet<u32>, gap_aware: bool| -> GlobalVariant {
             let usable_space = self.ref_len - gap_set.len() as u32;
             let usable_space_pct = (usable_space as f64 / self.ref_len as f64) * 100.0;
@@ -1144,6 +1186,10 @@ impl GenomeData {
             let mut total_count: u32 = 0;
             let mut consensus_count: u32 = 0;
             let mut discriminating_count: u32 = 0;
+            let mut h_gap_affected: u32 = 0;
+            let mut h_gt_consensus: u32 = 0;
+            let mut h_majority: u32 = 0;
+            let mut h_confirmed: u32 = 0;
 
             for &pos in &all_snp_positions {
                 if gap_set.contains(&pos) {
@@ -1152,37 +1198,44 @@ impl GenomeData {
                 total_count += 1;
 
                 if gap_aware {
-                    // Common-Gap: consider only samples that DON'T have a gap at this position
-                    // Collect alleles for non-gap samples (None = matches ref, Some(x) = alt allele)
+                    // Gap-Intersect: consider only samples without gap
                     let mut alleles: Vec<Option<u8>> = Vec::new();
-                    for (idx, snp_map) in gt_snp_maps.iter().enumerate() {
+                    let mut any_gap = false;
+                    for (idx, snp_map) in snp_maps.iter().enumerate() {
                         if sample_gap_sets[idx].contains(&pos) {
-                            continue; // skip sample with gap here
+                            any_gap = true;
+                            continue;
                         }
                         alleles.push(snp_map.get(&pos).copied());
                     }
                     if alleles.len() < 2 {
-                        // fewer than 2 samples with data → can't compare
                         continue;
                     }
-                    // Check if all non-gap samples agree
                     let first = alleles[0];
                     let all_same = alleles.iter().all(|a| *a == first);
                     if all_same {
                         if first.is_some() {
-                            // All agree on same alt allele → consensus
                             consensus_count += 1;
                         }
-                        // If all agree on ref (first == None), it's not a real SNP among these samples
                     } else {
                         discriminating_count += 1;
+                        // Classify: priority order gap > gt > majority > confirmed
+                        if any_gap {
+                            h_gap_affected += 1;
+                        } else if gt_is_consensus_at(pos) {
+                            h_gt_consensus += 1;
+                        } else if is_majority(&alleles) {
+                            h_majority += 1;
+                        } else {
+                            h_confirmed += 1;
+                        }
                     }
                 } else {
-                    // Gap-Union: all samples have data, simpler check
+                    // Gap-Union: all samples have data
                     let mut all_have = true;
                     let mut first_alt: Option<u8> = None;
                     let mut all_same = true;
-                    for snp_map in &gt_snp_maps {
+                    for snp_map in &snp_maps {
                         if let Some(&alt) = snp_map.get(&pos) {
                             match first_alt {
                                 None => first_alt = Some(alt),
@@ -1197,6 +1250,18 @@ impl GenomeData {
                         consensus_count += 1;
                     } else {
                         discriminating_count += 1;
+                        // Classify: no gap_affected possible in Gap-Union (no gaps in usable space)
+                        // Collect alleles for majority check
+                        let alleles: Vec<Option<u8>> = snp_maps.iter()
+                            .map(|m| m.get(&pos).copied())
+                            .collect();
+                        if gt_is_consensus_at(pos) {
+                            h_gt_consensus += 1;
+                        } else if is_majority(&alleles) {
+                            h_majority += 1;
+                        } else {
+                            h_confirmed += 1;
+                        }
                     }
                 }
             }
@@ -1207,6 +1272,12 @@ impl GenomeData {
                 total_snps: total_count,
                 consensus_snps: consensus_count,
                 discriminating_snps: discriminating_count,
+                disc_breakdown: DiscBreakdown {
+                    gap_affected: h_gap_affected,
+                    gt_consensus: h_gt_consensus,
+                    majority_rule: h_majority,
+                    confirmed: h_confirmed,
+                },
             }
         };
 

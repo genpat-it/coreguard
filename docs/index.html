@@ -389,6 +389,12 @@
         .kpi-row > .kpi-section:first-child {
             border-top: 1px solid var(--border-color);
         }
+        .kpi-row > .kpi-section.bg-gi { background: rgba(59,130,246,0.06); border-color: rgba(59,130,246,0.25); }
+        .kpi-row > .kpi-section.bg-gu { background: rgba(16,185,129,0.06); border-color: rgba(16,185,129,0.25); }
+        .kpi-row > .kpi-section.bg-pw { background: rgba(245,158,11,0.06); border-color: rgba(245,158,11,0.25); }
+        [data-theme="dark"] .kpi-row > .kpi-section.bg-gi { background: rgba(59,130,246,0.10); border-color: rgba(59,130,246,0.30); }
+        [data-theme="dark"] .kpi-row > .kpi-section.bg-gu { background: rgba(16,185,129,0.10); border-color: rgba(16,185,129,0.30); }
+        [data-theme="dark"] .kpi-row > .kpi-section.bg-pw { background: rgba(245,158,11,0.10); border-color: rgba(245,158,11,0.30); }
         .kpi-table {
             width: 100%;
             border-collapse: collapse;
@@ -446,9 +452,6 @@
         [data-theme="dark"] .bg-gi, [data-theme="dark"] .kpi-table .bg-gi { background: rgba(59,130,246,0.10); }
         [data-theme="dark"] .bg-gu, [data-theme="dark"] .kpi-table .bg-gu { background: rgba(16,185,129,0.10); }
         [data-theme="dark"] .bg-pw, [data-theme="dark"] .kpi-table .bg-pw { background: rgba(245,158,11,0.10); }
-        .section-color-gi { color: rgba(59,130,246,1); }
-        .section-color-gu { color: rgba(16,185,129,1); }
-        .section-color-pw { color: rgba(245,158,11,1); }
         .kpi.kpi-gt {
             border-color: #7cb342;
         }
@@ -2179,7 +2182,7 @@ pipelines:
             const infoIcon = (type) => `<span class="info-icon" onclick="event.stopPropagation();showKpiInfo('${type}')">ⓘ</span>`;
 
             // Helper to create collapsible section
-            const sectionStart = (title, open = false) => `<details class="kpi-section"${open ? ' open' : ''}><summary>${title}</summary><div class="kpi-section-content">`;
+            const sectionStart = (title, open = false, extraClass = '') => `<details class="kpi-section${extraClass ? ' ' + extraClass : ''}"${open ? ' open' : ''}><summary>${title}</summary><div class="kpi-section-content">`;
             const sectionEnd = () => `</div></details>`;
 
             let html = '';
@@ -2213,7 +2216,7 @@ pipelines:
                 // Global stats
                 const gs = await workerApi.getGlobalStatsForPipeline(gtPipelineId);
                 if (gs) {
-                    html += sectionStart(`<span class="section-color-gi">Gap-Intersect</span>`, true);
+                    html += sectionStart('Gap-Intersect', true, 'bg-gi');
                     html += `<div class="kpi"><div class="label">Usable Space ${infoIcon('pp_gi_usable')}</div><div class="value">${gs.relaxed.usable_space.toLocaleString()} bp <span class="pct">(${gs.relaxed.usable_space_pct.toFixed(2)}%)</span></div></div>`;
                     html += `<button class="kpi-expand-btn" onclick="this.nextElementSibling.classList.toggle('expanded');this.textContent=this.textContent==='+'?'−':'+'">+</button>`;
                     html += `<div class="kpi-collapsible">`;
@@ -2223,7 +2226,7 @@ pipelines:
                     html += `<div class="kpi"><div class="label">Discriminating SNPs ${infoIcon('pp_gi_disc')}</div><div class="value">${gs.relaxed.discriminating_snps.toLocaleString()}</div></div>`;
                     html += sectionEnd();
 
-                    html += sectionStart(`<span class="section-color-gu">Gap-Union</span>`, true);
+                    html += sectionStart('Gap-Union', true, 'bg-gu');
                     html += `<div class="kpi"><div class="label">Usable Space ${infoIcon('pp_gu_usable')}</div><div class="value">${gs.strict.usable_space.toLocaleString()} bp <span class="pct">(${gs.strict.usable_space_pct.toFixed(2)}%)</span></div></div>`;
                     html += `<button class="kpi-expand-btn" onclick="this.nextElementSibling.classList.toggle('expanded');this.textContent=this.textContent==='+'?'−':'+'">+</button>`;
                     html += `<div class="kpi-collapsible">`;
@@ -2238,19 +2241,21 @@ pipelines:
                 if (kpis.samples >= 2) {
                     const pw = await workerApi.getPairwiseUsableStatsForPipeline(gtPipelineId);
                     if (pw && pw.num_pairs > 0) {
-                        html += sectionStart(`<span class="section-color-pw">Pairwise (Gap-Union)</span> <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${pw.num_pairs} pairs)</span>`, true);
+                        html += sectionStart(`Pairwise (Gap-Union) <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${pw.num_pairs} pairs)</span>`, true, 'bg-pw');
                         html += `<div class="kpi"><div class="label">Avg Usable Space ${infoIcon('pp_pw_usable')}</div><div class="value">${Math.round(pw.avg_usable_space).toLocaleString()} bp <span class="pct">(${pw.avg_usable_space_pct.toFixed(2)}%)</span></div></div>`;
                         html += `<div class="kpi"><div class="label">Discriminating SNPs ${infoIcon('pp_pw_disc')}</div><div class="value">avg ${pw.avg_usable_snps.toFixed(1)} &nbsp;|&nbsp; min ${pw.min_usable_snps.toLocaleString()} &nbsp;|&nbsp; med ${pw.median_usable_snps.toFixed(1)} &nbsp;|&nbsp; max ${pw.max_usable_snps.toLocaleString()}</div></div>`;
                         html += sectionEnd();
                     }
                 }
 
-                // Per-sample pairwise table
+                html += `</div>`; // close kpi-row
+
+                // Per-sample pairwise table (collapsed by default, inside GT section)
                 if (kpis.samples >= 2) {
                     const pw2 = await workerApi.getPairwiseUsableStatsForPipeline(gtPipelineId);
                     if (pw2 && pw2.per_sample && pw2.per_sample.length > 0) {
                         const allSamples = pw2.per_sample.map(s => ({ id: s.sample_id, label: s.sample_label }));
-                        html += sectionStart(`Per-Sample Pairwise ${infoIcon('pp_ps_table')}`, true);
+                        html += sectionStart(`Per-Sample Pairwise ${infoIcon('pp_ps_table')}`, false);
                         const refLen = workerApi.refLength;
                         const sepPs = 'border-left:2px solid var(--text-muted);';
                         html += `<table class="kpi-table"><thead><tr>
@@ -2295,7 +2300,6 @@ pipelines:
                     }
                 }
 
-                html += `</div>`; // close kpi-row
                 html += sectionEnd(); // close GT pipeline section
             }
 
@@ -2310,9 +2314,9 @@ pipelines:
                     html += `<thead><tr>
                         <th rowspan="2">Pipeline</th>
                         <th rowspan="2">Disc. SNPs ${infoIcon('pl_disc_snps')}</th>
-                        <th colspan="4" class="bg-gi" style="text-align:center;${sep}"><span class="section-color-gi">Gap-Intersect</span> ${infoIcon('gt_disc_gi')}</th>
-                        <th colspan="4" class="bg-gu" style="text-align:center;${sep}"><span class="section-color-gu">Gap-Union</span> ${infoIcon('gt_disc_gu')}</th>
-                        <th colspan="2" class="bg-pw" style="text-align:center;${sep}"><span class="section-color-pw">Pairwise</span> ${infoIcon('gt_disc_pw')}</th>
+                        <th colspan="4" class="bg-gi" style="text-align:center;${sep}">Gap-Intersect ${infoIcon('gt_disc_gi')}</th>
+                        <th colspan="4" class="bg-gu" style="text-align:center;${sep}">Gap-Union ${infoIcon('gt_disc_gu')}</th>
+                        <th colspan="2" class="bg-pw" style="text-align:center;${sep}">Pairwise ${infoIcon('gt_disc_pw')}</th>
                     </tr><tr>
                         <th class="bg-gi" style="${sep}">Same Pos</th><th class="bg-gi">Concordant</th><th class="bg-gi">In GT Gaps</th><th class="bg-gi">Lost ${infoIcon('pl_lost_snps')}</th>
                         <th class="bg-gu" style="${sep}">Same Pos</th><th class="bg-gu">Concordant</th><th class="bg-gu">In GT Gaps</th><th class="bg-gu">Lost ${infoIcon('pl_lost_snps')}</th>

@@ -384,8 +384,6 @@ pub fn compute_gt_disc_vs_pipelines(
     for (pipeline_id, core_data) in core_snp_data {
         if pipeline_id == gt_pipeline_id { continue; }
 
-        let core_positions: HashSet<usize> = core_data.positions.iter().map(|p| p.pos).collect();
-
         // Build lookup: pos -> CoreSnpPosition
         let core_pos_map: HashMap<usize, &CoreSnpPosition> = core_data.positions.iter()
             .map(|p| (p.pos, p))
@@ -404,11 +402,9 @@ pub fn compute_gt_disc_vs_pipelines(
             gaps
         }).collect();
 
-        // Compute true discriminating count: for each core position,
-        // remove samples with gaps/N, then check if remaining samples
-        // have discordant alleles (>= 2 distinct alleles among valid samples).
-        let pl_discriminating_core_snps = if core_data.has_alleles {
-            core_data.positions.iter().filter(|p| {
+        // Helper: check if a core SNP position is discriminating
+        let is_discriminating = |p: &CoreSnpPosition| -> bool {
+            if core_data.has_alleles {
                 let valid: Vec<&str> = p.alleles.values()
                     .map(|a| a.as_str())
                     .filter(|a| *a != "-" && *a != "N")
@@ -416,10 +412,7 @@ pub fn compute_gt_disc_vs_pipelines(
                 if valid.len() < 2 { return false; }
                 let first = valid[0];
                 valid.iter().any(|a| *a != first)
-            }).count() as u32
-        } else {
-            // Without alleles: use BAM gaps + samples_with_snp as fallback
-            core_data.positions.iter().filter(|p| {
+            } else {
                 let active_samples: Vec<usize> = (0..n)
                     .filter(|&idx| !pl_gap_sets[idx].contains(&p.pos))
                     .collect();
@@ -428,8 +421,15 @@ pub fn compute_gt_disc_vs_pipelines(
                 let has_alt = active_samples.iter().any(|&idx| snp_set.contains(sample_ids[idx].as_str()));
                 let has_ref = active_samples.iter().any(|&idx| !snp_set.contains(sample_ids[idx].as_str()));
                 has_alt && has_ref
-            }).count() as u32
+            }
         };
+
+        // Only use discriminating positions for comparison with GT
+        let disc_positions: HashSet<usize> = core_data.positions.iter()
+            .filter(|p| is_discriminating(p))
+            .map(|p| p.pos)
+            .collect();
+        let pl_discriminating_core_snps = disc_positions.len() as u32;
 
         // --- Helper: check allele concordance at a position ---
         let check_concordance = |pos: usize, active_indices: &[usize]| -> bool {
@@ -453,7 +453,7 @@ pub fn compute_gt_disc_vs_pipelines(
         let mut gu_same_pos: u32 = 0;
         let mut gu_concordant: u32 = 0;
         for &pos in &gt_disc_union {
-            if !core_positions.contains(&pos) { continue; }
+            if !disc_positions.contains(&pos) { continue; }
             gu_same_pos += 1;
             if core_data.has_alleles {
                 let all_indices: Vec<usize> = (0..n).collect();
@@ -462,7 +462,7 @@ pub fn compute_gt_disc_vs_pipelines(
                 }
             }
         }
-        let gu_pl_in_gaps: u32 = core_positions.iter()
+        let gu_pl_in_gaps: u32 = disc_positions.iter()
             .filter(|p| gt_gap_union.contains(p))
             .count() as u32;
 
@@ -470,7 +470,7 @@ pub fn compute_gt_disc_vs_pipelines(
         let mut gi_same_pos: u32 = 0;
         let mut gi_concordant: u32 = 0;
         for &pos in &gt_disc_intersect {
-            if !core_positions.contains(&pos) { continue; }
+            if !disc_positions.contains(&pos) { continue; }
             let active: Vec<usize> = (0..n).filter(|&idx| !gt_gap_sets[idx].contains(&pos)).collect();
             if active.len() < 2 { continue; }
             gi_same_pos += 1;
@@ -478,7 +478,7 @@ pub fn compute_gt_disc_vs_pipelines(
                 gi_concordant += 1;
             }
         }
-        let gi_pl_in_gaps: u32 = core_positions.iter()
+        let gi_pl_in_gaps: u32 = disc_positions.iter()
             .filter(|p| gt_gap_intersection.contains(p))
             .count() as u32;
 
@@ -506,7 +506,7 @@ pub fn compute_gt_disc_vs_pipelines(
                 let mut p_conc: u32 = 0;
                 let pair_indices = vec![i, j];
                 for &pos in &pair_disc {
-                    if !core_positions.contains(&pos) { continue; }
+                    if !disc_positions.contains(&pos) { continue; }
                     p_same += 1;
                     if core_data.has_alleles && check_concordance(pos, &pair_indices) {
                         p_conc += 1;

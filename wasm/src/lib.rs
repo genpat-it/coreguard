@@ -2115,13 +2115,19 @@ impl GenomeData {
             }));
         }
 
-        // Also collect "in_gt_gap" positions: ALL pipeline SNP positions that fall in GT gap regions
-        // (matches the aggregated count_pl_snps_in_gt_gaps logic which counts all, not just discriminating)
+        // Collect "in_gt_gap" positions: pipeline DISCRIMINATING SNP positions that fall in GT gap regions
+        // (matches the CLI core_snps path which filters disc_positions by GT gaps)
         let gt_gap_set_for_strategy = if use_union { &gt_gap_union } else { &gt_gap_intersection };
         let mut in_gt_gap_positions: Vec<u32> = Vec::new();
         for &pos in &all_pl_snp_pos {
             if !gt_gap_set_for_strategy.contains(&pos) { continue; }
-            in_gt_gap_positions.push(pos);
+            // Only include if discriminating in pipeline (at least 2 samples with different alleles)
+            let alleles: Vec<Option<u8>> = pl_snp_maps.iter().map(|m| m.get(&pos).copied()).collect();
+            if alleles.len() < 2 { continue; }
+            let first = alleles[0];
+            if alleles.iter().any(|a| *a != first) {
+                in_gt_gap_positions.push(pos);
+            }
         }
         in_gt_gap_positions.sort_unstable();
 

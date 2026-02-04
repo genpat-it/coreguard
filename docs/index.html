@@ -2620,7 +2620,7 @@ pipelines:
                 // Global stats
                 const gs = await workerApi.getGlobalStatsForPipeline(gtPipelineId);
                 if (gs) {
-                    html += sectionStart('Gap-Intersect', true, 'bg-gi');
+                    html += sectionStart(`Gap-Intersect ${infoIcon('gt_disc_gi')}`, true, 'bg-gi');
                     html += `<div class="kpi"><div class="label">Usable Space ${infoIcon('pp_gi_usable')}</div><div class="value">${gs.relaxed.usable_space.toLocaleString()} bp <span class="pct">(${gs.relaxed.usable_space_pct.toFixed(2)}%)</span></div></div>`;
                     html += `<button class="kpi-expand-btn" onclick="this.nextElementSibling.classList.toggle('expanded');this.textContent=this.textContent==='+'?'−':'+'">+</button>`;
                     html += `<div class="kpi-collapsible">`;
@@ -2630,7 +2630,7 @@ pipelines:
                     html += `<div class="kpi"><div class="label">Discriminating SNPs ${infoIcon('pp_gi_disc')}</div><div class="value">${gs.relaxed.discriminating_snps.toLocaleString()}</div></div>`;
                     html += sectionEnd();
 
-                    html += sectionStart('Gap-Union', true, 'bg-gu');
+                    html += sectionStart(`Gap-Union ${infoIcon('gt_disc_gu')}`, true, 'bg-gu');
                     html += `<div class="kpi"><div class="label">Usable Space ${infoIcon('pp_gu_usable')}</div><div class="value">${gs.strict.usable_space.toLocaleString()} bp <span class="pct">(${gs.strict.usable_space_pct.toFixed(2)}%)</span></div></div>`;
                     html += `<button class="kpi-expand-btn" onclick="this.nextElementSibling.classList.toggle('expanded');this.textContent=this.textContent==='+'?'−':'+'">+</button>`;
                     html += `<div class="kpi-collapsible">`;
@@ -2645,7 +2645,7 @@ pipelines:
                 if (kpis.samples >= 2) {
                     const pw = await workerApi.getPairwiseUsableStatsForPipeline(gtPipelineId);
                     if (pw && pw.num_pairs > 0) {
-                        html += sectionStart(`Pairwise (Gap-Union) <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${pw.num_pairs} pairs)</span>`, true, 'bg-pw');
+                        html += sectionStart(`Pairwise (Gap-Union) ${infoIcon('gt_disc_pw')} <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${pw.num_pairs} pairs)</span>`, true, 'bg-pw');
                         html += `<div class="kpi"><div class="label">Avg Usable Space ${infoIcon('pp_pw_usable')}</div><div class="value">${Math.round(pw.avg_usable_space).toLocaleString()} bp <span class="pct">(${pw.avg_usable_space_pct.toFixed(2)}%)</span></div></div>`;
                         html += `<div class="kpi"><div class="label">Discriminating SNPs ${infoIcon('pp_pw_disc')}</div><div class="value">avg ${pw.avg_usable_snps.toFixed(1)} &nbsp;|&nbsp; min ${pw.min_usable_snps.toLocaleString()} &nbsp;|&nbsp; med ${pw.median_usable_snps.toFixed(1)} &nbsp;|&nbsp; max ${pw.max_usable_snps.toLocaleString()}</div></div>`;
                         html += sectionEnd();

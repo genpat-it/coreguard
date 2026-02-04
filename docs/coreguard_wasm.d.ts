@@ -8,13 +8,6 @@ export class GenomeData {
     free(): void;
     [Symbol.dispose](): void;
     /**
-     * Calculate SNP distance matrix between all samples using polymorphic_sites
-     * Returns JSON: { "samples": [...], "matrix": [[...], ...], "comparable": [[...], ...] }
-     * pipeline_filter: which pipeline's data to use
-     * mode: "vcf_bam" (use BAM bases when no VCF) or "vcf_ref" (use reference when no VCF, matches Snippy)
-     */
-    calculate_distance_matrix(pipeline_filter: string, mode: string): string;
-    /**
      * Calculate distance matrix with quality filters
      * mode: "vcf_ref", "vcf_bam", or "bam_only"
      * min_depth: minimum depth to consider a position
@@ -40,10 +33,6 @@ export class GenomeData {
      * Get file paths for reproducibility (sample -> pipeline -> {vcf_path, bam_path})
      */
     get_file_paths(): string;
-    /**
-     * Legacy method for backwards compatibility
-     */
-    get_filtered_positions(samples_json: string, filters: string): string;
     /**
      * Get all SNP positions that match the given filters
      * filters: comma-separated list of pipeline IDs, or special filters:
@@ -71,11 +60,6 @@ export class GenomeData {
      * For each: Usable Space, Total SNPs (in usable space), Consensus SNPs, Discriminating SNPs
      */
     get_global_stats_for_pipeline(pipeline_id: string): string;
-    /**
-     * Get ground truth pileup statistics as JSON
-     * Returns: { total_snps, per_sample, covered_positions, pipeline_comparison }
-     */
-    get_ground_truth_pileup(): string;
     /**
      * Get ground truth pipeline ID (if any)
      */
@@ -151,10 +135,6 @@ export class GenomeData {
      */
     get_ref_name(): string;
     /**
-     * Get reference nucleotide at position (0-based index)
-     */
-    get_ref_nuc(pos: number): string;
-    /**
      * Pairwise Relaxed: per-pair stats with intersection-based gap removal
      *
      * For each pair (A, B):
@@ -175,23 +155,10 @@ export class GenomeData {
      */
     get_snp(sample: string, pipeline: string, pos: number): string;
     /**
-     * Get SNP alt allele at position (returns empty if no SNP)
-     */
-    get_snp_alt(sample: string, pipeline: string, pos: number): string;
-    /**
-     * Get SNP intersection statistics between pipelines
-     * Returns: { pipeline_a: { pipeline_b: { intersection, pct_of_a, pct_of_b } } }
-     */
-    get_snp_intersection(): string;
-    /**
      * Get SNPs in gaps for ALL pipeline pairs as JSON
      * Returns: { gap_pipeline: { snp_pipeline: { total_snps, snps_in_gaps, percentage } } }
      */
     get_snps_in_gaps(): string;
-    /**
-     * Get SNPs in ground truth gaps statistics as JSON (DEPRECATED - use get_snps_in_gaps)
-     */
-    get_snps_in_gt_gaps(): string;
     /**
      * Get pipelines that have VCF data (used for consensus/discordant)
      */
@@ -204,10 +171,6 @@ export class GenomeData {
      * Check if a pipeline's SNPs come from BAM pileup (no variant calling)
      */
     is_from_bam_pileup(pipeline_id: string): boolean;
-    /**
-     * Check if position is in a gap for a sample/pipeline
-     */
-    is_gap(sample: string, pipeline: string, pos: number): boolean;
     /**
      * Check if a pipeline is the ground truth
      */
@@ -228,10 +191,6 @@ export class GenomeData {
      * Render filtered view (compact, only SNP positions)
      */
     render_filtered(samples_json: string, positions_json: string, offset: number, limit: number): string;
-    /**
-     * Render HTML for a region
-     */
-    render_region(samples_json: string, start: number, end: number): string;
 }
 
 /**
@@ -260,18 +219,12 @@ export interface InitOutput {
     readonly genomedata_get_vcf_pipelines: (a: number) => [number, number];
     readonly genomedata_get_generated_at: (a: number) => [number, number];
     readonly genomedata_get_warnings: (a: number) => [number, number];
-    readonly genomedata_get_snps_in_gt_gaps: (a: number) => [number, number];
     readonly genomedata_get_snps_in_gaps: (a: number) => [number, number];
-    readonly genomedata_get_ground_truth_pileup: (a: number) => [number, number];
     readonly genomedata_get_mnp_stats: (a: number) => [number, number];
     readonly genomedata_get_description: (a: number) => [number, number];
     readonly genomedata_get_pipeline_distance_matrices: (a: number) => [number, number];
     readonly genomedata_get_file_paths: (a: number) => [number, number];
-    readonly genomedata_get_ref_nuc: (a: number, b: number) => number;
-    readonly genomedata_is_gap: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
     readonly genomedata_get_snp: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
-    readonly genomedata_get_snp_alt: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
-    readonly genomedata_render_region: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly genomedata_get_kpis: (a: number) => [number, number];
     readonly genomedata_get_global_stats: (a: number) => [number, number];
     readonly genomedata_get_global_stats_for_pipeline: (a: number, b: number, c: number) => [number, number];
@@ -280,14 +233,11 @@ export interface InitOutput {
     readonly genomedata_get_reviewer_pairwise_stats: (a: number) => [number, number];
     readonly genomedata_get_gt_disc_vs_pipelines: (a: number) => [number, number];
     readonly genomedata_get_per_sample_stats: (a: number) => [number, number];
-    readonly genomedata_get_snp_intersection: (a: number) => [number, number];
     readonly genomedata_get_pipeline_concordance: (a: number) => [number, number];
     readonly genomedata_get_per_sample_intersection_with_gt: (a: number) => [number, number];
     readonly genomedata_get_consensus_stats: (a: number) => [number, number];
     readonly genomedata_get_filtered_positions_v2: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number];
-    readonly genomedata_get_filtered_positions: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly genomedata_render_filtered: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
-    readonly genomedata_calculate_distance_matrix: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly genomedata_get_coverage_stats: (a: number) => [number, number];
     readonly genomedata_calculate_distance_matrix_filtered: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number];
     readonly init: () => void;

@@ -1425,7 +1425,7 @@ pipelines:
                        <ul>
                            <li><strong>GT Disc:</strong> number of GT discriminating positions in the usable space</li>
                            <li><strong>Same Pos:</strong> how many GT disc positions also exist in the pipeline's core SNP list (overlap)</li>
-                           <li><strong>Concordant:</strong> among overlapping positions, how many have matching alleles across all samples</li>
+                           <li><strong>Concordant:</strong> among Same Pos, how many positions have the <em>same allele for every sample</em> in both GT and pipeline. A position is concordant only if GT and pipeline agree on the called base for all samples. Low concordance (e.g. 0) can occur when the pipeline has gaps where the GT calls a base.</li>
                            <li><strong>In GT Gaps:</strong> pipeline core SNP positions that fall within GT gap regions</li>
                        </ul>`
             },

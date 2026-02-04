@@ -72,6 +72,10 @@ pub struct PipelineConfig {
     #[serde(default)]
     pub distance_matrix: Option<String>,
 
+    /// Path to pipeline core SNP output file (snippycore.tab or snplist.txt)
+    #[serde(default)]
+    pub core_snps: Option<String>,
+
     /// Sample files for this pipeline
     #[serde(default)]
     pub samples: HashMap<String, PipelineSampleFiles>,
@@ -149,6 +153,16 @@ impl Config {
 
         // Check pipeline files exist
         for (pipeline_id, pipeline) in &self.pipelines {
+            if let Some(core_snps) = &pipeline.core_snps {
+                if !Path::new(core_snps).exists() {
+                    anyhow::bail!(
+                        "Core SNPs file not found for pipeline '{}': {}",
+                        pipeline_id,
+                        core_snps
+                    );
+                }
+            }
+
             for (sample_id, files) in &pipeline.samples {
                 if let Some(vcf) = &files.vcf {
                     if !Path::new(vcf).exists() {

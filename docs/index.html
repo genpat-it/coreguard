@@ -927,15 +927,9 @@ pipelines:
             <div class="warnings-container" id="warnings"></div>
         </details>
 
-        <details class="collapsible-panel" id="distance-matrix-panel">
-            <summary>SNP Distance Matrix <span id="matrix-info"></span></summary>
+        <details class="collapsible-panel" id="distance-matrix-panel" open>
+            <summary>SNP Distance Matrices</summary>
             <div class="distance-matrix-content" id="distance-matrix-content">
-                <div style="display:flex;align-items:center;gap:15px;margin:10px 0;flex-wrap:wrap;">
-                    <label style="color:var(--text-secondary);font-size:11px;">Pipeline:
-                        <select id="matrix-pipeline" onchange="onMatrixPipelineChange()" style="margin-left:5px;background:var(--btn-bg);color:var(--text-primary);border:1px solid var(--btn-border);padding:4px 8px;border-radius:4px;font-size:11px;">
-                        </select>
-                    </label>
-                </div>
                 <div id="matrix-result"></div>
             </div>
         </details>
@@ -1669,7 +1663,7 @@ pipelines:
             // Phase 3: Pipeline info (fast)
             await nextFrame();
             populatePipelineInfo();
-            populateMatrixPipelineSelector();
+            populateAllMatrices();
             console.log(`Phase 3 (pipelines): ${(performance.now() - t0).toFixed(0)}ms`);
 
             // Phase 4: KPIs (medium)
@@ -2245,16 +2239,17 @@ pipelines:
                 const gtDiscVsPl = await workerApi.getGtDiscVsPipelines();
                 if (gtDiscVsPl && Object.keys(gtDiscVsPl).length > 0) {
                     html += sectionStart(`GT Discriminating SNPs vs Pipelines ${infoIcon('gt_disc_vs_pl')}`, true);
+                    const sep = 'border-left:2px solid var(--text-muted);';
                     html += `<table class="kpi-table"><thead><tr>
                         <th rowspan="2">Pipeline</th>
                         <th rowspan="2">Disc. SNPs</th>
-                        <th colspan="3" style="text-align:center;">Gap-Intersect ${infoIcon('gt_disc_gi')}</th>
-                        <th colspan="3" style="text-align:center;">Gap-Union ${infoIcon('gt_disc_gu')}</th>
-                        <th colspan="2" style="text-align:center;">Pairwise ${infoIcon('gt_disc_pw')}</th>
+                        <th colspan="3" style="text-align:center;${sep}">Gap-Intersect ${infoIcon('gt_disc_gi')}</th>
+                        <th colspan="3" style="text-align:center;${sep}">Gap-Union ${infoIcon('gt_disc_gu')}</th>
+                        <th colspan="2" style="text-align:center;${sep}">Pairwise ${infoIcon('gt_disc_pw')}</th>
                     </tr><tr>
-                        <th>Same Pos</th><th>Concordant</th><th>In GT Gaps</th>
-                        <th>Same Pos</th><th>Concordant</th><th>In GT Gaps</th>
-                        <th>Same Pos (avg)</th><th>Concordant (avg)</th>
+                        <th style="${sep}">Same Pos</th><th>Concordant</th><th>In GT Gaps</th>
+                        <th style="${sep}">Same Pos</th><th>Concordant</th><th>In GT Gaps</th>
+                        <th style="${sep}">Same Pos (avg)</th><th>Concordant (avg)</th>
                     </tr></thead><tbody>`;
                     for (const [plId, stats] of Object.entries(gtDiscVsPl)) {
                         const plLabel = (pipelineInfo[plId] && pipelineInfo[plId].label) || plId;
@@ -2269,13 +2264,13 @@ pipelines:
                         html += `<tr>
                             <td>${plLabel}</td>
                             <td>${plDiscSnps != null ? plDiscSnps.toLocaleString() : 'N/A'}</td>
-                            <td>${stats.gap_intersect_same_pos.toLocaleString()}</td>
+                            <td style="${sep}">${stats.gap_intersect_same_pos.toLocaleString()}</td>
                             <td>${fmtConc(stats.gap_intersect_concordant, giConcPct, giHasConc)}</td>
                             <td>${stats.gap_intersect_pl_snps_in_gt_gaps.toLocaleString()}</td>
-                            <td>${stats.gap_union_same_pos.toLocaleString()}</td>
+                            <td style="${sep}">${stats.gap_union_same_pos.toLocaleString()}</td>
                             <td>${fmtConc(stats.gap_union_concordant, guConcPct, guHasConc)}</td>
                             <td>${stats.gap_union_pl_snps_in_gt_gaps.toLocaleString()}</td>
-                            <td>${stats.pairwise_same_pos_avg.toFixed(1)}</td>
+                            <td style="${sep}">${stats.pairwise_same_pos_avg.toFixed(1)}</td>
                             <td>${pwHasConc ? `${stats.pairwise_concordant_avg.toFixed(1)} <span class="pct">(${pwConcPct}%)</span>` : 'N/A'}</td>
                         </tr>`;
                     }
@@ -2291,78 +2286,58 @@ pipelines:
         // Store pipeline distance matrices
         let pipelineDistanceMatrices = {};
 
-        function populateMatrixPipelineSelector() {
-            const select = document.getElementById('matrix-pipeline');
-            if (!select) return;
+        function populateAllMatrices() {
+            const matrixResult = document.getElementById('matrix-result');
+            if (!matrixResult) return;
 
-            // Load pipeline distance matrices
             try {
                 pipelineDistanceMatrices = workerApi.pipelineDistanceMatrices;
-                console.log('Pipeline distance matrices:', pipelineDistanceMatrices);
             } catch (e) {
                 pipelineDistanceMatrices = {};
             }
 
-            select.innerHTML = '';
-            for (const p of pipelines) {
-                const label = workerApi.getPipelineLabel(p);
-                select.innerHTML += `<option value="${p}">${label}</option>`;
-            }
+            let html = '';
+            let hasAny = false;
 
-            // Initialize source selector for first pipeline
-            onMatrixPipelineChange();
-        }
+            for (const pipelineId of pipelines) {
+                const matrixData = pipelineDistanceMatrices[pipelineId];
+                if (!matrixData) continue;
+                hasAny = true;
 
-        window.onMatrixPipelineChange = function() {
-            showPipelineMatrix();
-        }
+                const pipelineLabel = workerApi.getPipelineLabel(pipelineId);
+                const { samples: matrixSamples, matrix } = matrixData;
+                const labels = matrixSamples.map(s => workerApi.getSampleLabel(s));
 
-        function showPipelineMatrix() {
-            const pipelineSelect = document.getElementById('matrix-pipeline');
-            const matrixResult = document.getElementById('matrix-result');
-            if (!pipelineSelect || !matrixResult) return;
-
-            const pipelineId = pipelineSelect.value;
-            const pipelineLabel = workerApi.getPipelineLabel(pipelineId);
-            const matrixData = pipelineDistanceMatrices[pipelineId];
-
-            if (!matrixData) {
-                matrixResult.innerHTML = '<p style="color:var(--text-secondary);font-size:11px;">No pipeline distance matrix available.</p>';
-                return;
-            }
-
-            const { samples: matrixSamples, matrix } = matrixData;
-
-            // Get sample labels
-            const labels = matrixSamples.map(s => workerApi.getSampleLabel(s));
-
-            // Build table HTML
-            let html = `<p style="color:var(--accent);font-size:11px;margin-bottom:8px;">
-                <strong>Source:</strong> Pre-computed by ${pipelineLabel} pipeline
-            </p>`;
-            html += '<div class="table-wrapper"><table class="distance-matrix-table"><thead><tr><th></th>';
-            for (const label of labels) {
-                html += `<th>${label}</th>`;
-            }
-            html += '</tr></thead><tbody>';
-
-            for (let i = 0; i < matrixSamples.length; i++) {
-                html += `<tr><th>${labels[i]}</th>`;
-                for (let j = 0; j < matrixSamples.length; j++) {
-                    const dist = matrix[i][j];
-                    let cellClass = 'diagonal';
-                    if (i !== j) {
-                        if (dist <= 5) cellClass = 'low-dist';
-                        else if (dist <= 20) cellClass = 'medium-dist';
-                        else cellClass = 'high-dist';
-                    }
-                    html += `<td class="${cellClass}">${dist}</td>`;
+                html += `<div style="margin-bottom:16px;">`;
+                html += `<p style="color:var(--accent);font-size:11px;margin-bottom:6px;"><strong>${pipelineLabel}</strong></p>`;
+                html += '<div class="table-wrapper"><table class="distance-matrix-table"><thead><tr><th></th>';
+                for (const label of labels) {
+                    html += `<th>${label}</th>`;
                 }
-                html += '</tr>';
-            }
-            html += '</tbody></table></div>';
+                html += '</tr></thead><tbody>';
 
-            matrixResult.innerHTML = html;
+                for (let i = 0; i < matrixSamples.length; i++) {
+                    html += `<tr><th>${labels[i]}</th>`;
+                    for (let j = 0; j < matrixSamples.length; j++) {
+                        const dist = matrix[i][j];
+                        let cellClass = 'diagonal';
+                        if (i !== j) {
+                            if (dist <= 5) cellClass = 'low-dist';
+                            else if (dist <= 20) cellClass = 'medium-dist';
+                            else cellClass = 'high-dist';
+                        }
+                        html += `<td class="${cellClass}">${dist}</td>`;
+                    }
+                    html += '</tr>';
+                }
+                html += '</tbody></table></div></div>';
+            }
+
+            if (!hasAny) {
+                document.getElementById('distance-matrix-panel').style.display = 'none';
+            } else {
+                matrixResult.innerHTML = html;
+            }
         }
 
         main();

@@ -1293,7 +1293,7 @@ impl GenomeData {
                 let pw = &ps.pairwise;
 
                 #[derive(Serialize)]
-                struct PairDetailOut { other_sample: String, other_label: String, disc_snps: u32 }
+                struct PairDetailOut { other_sample: String, other_label: String, usable_space: u32, disc_snps: u32 }
                 #[derive(Serialize)]
                 struct PerSamplePairwiseOut { sample_id: String, sample_label: String, avg_usable_space: f64, avg_usable_space_pct: f64, avg_disc_snps: f64, pairs: Vec<PairDetailOut> }
                 #[derive(Serialize)]
@@ -1304,6 +1304,7 @@ impl GenomeData {
                         PairDetailOut {
                             other_sample: other_id.clone(),
                             other_label: self.sample_labels.get(other_id).cloned().unwrap_or_else(|| other_id.clone()),
+                            usable_space: detail.usable_space,
                             disc_snps: detail.disc_snps,
                         }
                     }).collect();

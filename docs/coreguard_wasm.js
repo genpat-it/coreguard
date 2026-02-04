@@ -1,5 +1,3 @@
-/* @ts-self-types="./coreguard_wasm.d.ts" */
-
 /**
  * Main data store - holds all samples and pipeline data
  */
@@ -13,68 +11,6 @@ export class GenomeData {
     free() {
         const ptr = this.__destroy_into_raw();
         wasm.__wbg_genomedata_free(ptr, 0);
-    }
-    /**
-     * Calculate distance matrix with quality filters
-     * mode: "vcf_ref", "vcf_bam", or "bam_only"
-     * min_depth: minimum depth to consider a position
-     * min_consensus: minimum consensus percentage (0-100)
-     * min_qual: minimum VCF QUAL score (only applies to VCF-sourced alleles)
-     * @param {string} pipeline_filter
-     * @param {string} mode
-     * @param {number} min_depth
-     * @param {number} min_consensus
-     * @param {number} min_qual
-     * @returns {string}
-     */
-    calculate_distance_matrix_filtered(pipeline_filter, mode, min_depth, min_consensus, min_qual) {
-        let deferred3_0;
-        let deferred3_1;
-        try {
-            const ptr0 = passStringToWasm0(pipeline_filter, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-            const len0 = WASM_VECTOR_LEN;
-            const ptr1 = passStringToWasm0(mode, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-            const len1 = WASM_VECTOR_LEN;
-            const ret = wasm.genomedata_calculate_distance_matrix_filtered(this.__wbg_ptr, ptr0, len0, ptr1, len1, min_depth, min_consensus, min_qual);
-            deferred3_0 = ret[0];
-            deferred3_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
-        }
-    }
-    /**
-     * Get consensus SNP statistics (positions where ALL VCF pipelines agree)
-     * Returns global and per-sample consensus vs GT comparison
-     * @returns {string}
-     */
-    get_consensus_stats() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.genomedata_get_consensus_stats(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
-     * Get coverage statistics per sample per pipeline
-     * @returns {string}
-     */
-    get_coverage_stats() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.genomedata_get_coverage_stats(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
     }
     /**
      * Get report description (markdown content)
@@ -91,57 +27,6 @@ export class GenomeData {
             return getStringFromWasm0(ret[0], ret[1]);
         } finally {
             wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
-     * Get file paths for reproducibility (sample -> pipeline -> {vcf_path, bam_path})
-     * @returns {string}
-     */
-    get_file_paths() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.genomedata_get_file_paths(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
-     * Get all SNP positions that match the given filters
-     * filters: comma-separated list of pipeline IDs, or special filters:
-     * - "consensus": positions where all pipelines agree
-     * - "discordant": positions where pipelines disagree
-     * - "exclusive:<pipeline>": positions only in that pipeline
-     * - "gaps:<pipeline>": positions where pipeline has a gap
-     * filter_mode: "and" (all filters must match) or "or" (any filter matches)
-     * sample_mode: "any" (at least one sample) or "all" (all samples)
-     * @param {string} samples_json
-     * @param {string} filters
-     * @param {string} filter_mode
-     * @param {string} sample_mode
-     * @returns {string}
-     */
-    get_filtered_positions_v2(samples_json, filters, filter_mode, sample_mode) {
-        let deferred5_0;
-        let deferred5_1;
-        try {
-            const ptr0 = passStringToWasm0(samples_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-            const len0 = WASM_VECTOR_LEN;
-            const ptr1 = passStringToWasm0(filters, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-            const len1 = WASM_VECTOR_LEN;
-            const ptr2 = passStringToWasm0(filter_mode, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-            const len2 = WASM_VECTOR_LEN;
-            const ptr3 = passStringToWasm0(sample_mode, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-            const len3 = WASM_VECTOR_LEN;
-            const ret = wasm.genomedata_get_filtered_positions_v2(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
-            deferred5_0 = ret[0];
-            deferred5_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred5_0, deferred5_1, 1);
         }
     }
     /**
@@ -248,23 +133,6 @@ export class GenomeData {
         }
     }
     /**
-     * Get MNP (Multi-Nucleotide Polymorphism) statistics per pipeline
-     * Returns: { pipeline_id: { mnps_found, snps_from_mnps } }
-     * @returns {string}
-     */
-    get_mnp_stats() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.genomedata_get_mnp_stats(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
      * Pairwise stats for GT pipeline (backward compat)
      * @returns {string}
      */
@@ -304,40 +172,6 @@ export class GenomeData {
         }
     }
     /**
-     * Get per-sample SNP intersection with GT
-     * Returns: { sample_id: { pipeline_id: { intersection, pipeline_snps, gt_snps, pct_of_pipeline, pct_of_gt } } }
-     * @returns {string}
-     */
-    get_per_sample_intersection_with_gt() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.genomedata_get_per_sample_intersection_with_gt(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
-     * Get per-sample statistics as JSON
-     * Returns: { sample_id: { pipeline_id: { snps, snps_in_gt_gaps, agreement_with_gt, ... } } }
-     * @returns {string}
-     */
-    get_per_sample_stats() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.genomedata_get_per_sample_stats(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
      * Get command for a pipeline (if any)
      * @param {string} pipeline_id
      * @returns {string | undefined}
@@ -352,27 +186,6 @@ export class GenomeData {
             wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
         }
         return v2;
-    }
-    /**
-     * Get detailed pipeline concordance statistics
-     * Returns 4 metrics for each pipeline pair:
-     * - concordance_any: positions where at least 1 sample has SNP in both pipelines
-     * - concordance_all: positions where ALL samples have SNP in both pipelines
-     * - consensus_any: positions where at least 1 sample has same allele in both pipelines
-     * - consensus_all: positions where ALL samples have same allele in both pipelines
-     * @returns {string}
-     */
-    get_pipeline_concordance() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.genomedata_get_pipeline_concordance(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
     }
     /**
      * Get pre-computed distance matrices from pipelines
@@ -451,26 +264,6 @@ export class GenomeData {
         }
     }
     /**
-     * Pairwise Relaxed: per-pair stats with intersection-based gap removal
-     *
-     * For each pair (A, B):
-     *   Usable Space = refLength - positions where BOTH A and B have GT gap (intersection)
-     *   Discriminating SNPs = GT SNPs not in pair's gap intersection, not consensus (global), and different between A and B
-     * @returns {string}
-     */
-    get_reviewer_pairwise_stats() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.genomedata_get_reviewer_pairwise_stats(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
      * Get all sample IDs as JSON array
      * @returns {string}
      */
@@ -503,46 +296,6 @@ export class GenomeData {
             return getStringFromWasm0(ret[0], ret[1]);
         } finally {
             wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
-        }
-    }
-    /**
-     * Get SNP at position (returns "ref,alt,qual,depth" or empty string)
-     * @param {string} sample
-     * @param {string} pipeline
-     * @param {number} pos
-     * @returns {string}
-     */
-    get_snp(sample, pipeline, pos) {
-        let deferred3_0;
-        let deferred3_1;
-        try {
-            const ptr0 = passStringToWasm0(sample, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-            const len0 = WASM_VECTOR_LEN;
-            const ptr1 = passStringToWasm0(pipeline, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-            const len1 = WASM_VECTOR_LEN;
-            const ret = wasm.genomedata_get_snp(this.__wbg_ptr, ptr0, len0, ptr1, len1, pos);
-            deferred3_0 = ret[0];
-            deferred3_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
-        }
-    }
-    /**
-     * Get SNPs in gaps for ALL pipeline pairs as JSON
-     * Returns: { gap_pipeline: { snp_pipeline: { total_snps, snps_in_gaps, percentage } } }
-     * @returns {string}
-     */
-    get_snps_in_gaps() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.genomedata_get_snps_in_gaps(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
     }
     /**
@@ -631,30 +384,6 @@ export class GenomeData {
         this.__wbg_ptr = ret >>> 0;
         GenomeDataFinalization.register(this, this.__wbg_ptr, this);
         return this;
-    }
-    /**
-     * Render filtered view (compact, only SNP positions)
-     * @param {string} samples_json
-     * @param {string} positions_json
-     * @param {number} offset
-     * @param {number} limit
-     * @returns {string}
-     */
-    render_filtered(samples_json, positions_json, offset, limit) {
-        let deferred3_0;
-        let deferred3_1;
-        try {
-            const ptr0 = passStringToWasm0(samples_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-            const len0 = WASM_VECTOR_LEN;
-            const ptr1 = passStringToWasm0(positions_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-            const len1 = WASM_VECTOR_LEN;
-            const ret = wasm.genomedata_render_filtered(this.__wbg_ptr, ptr0, len0, ptr1, len1, offset, limit);
-            deferred3_0 = ret[0];
-            deferred3_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
-        }
     }
 }
 if (Symbol.dispose) GenomeData.prototype[Symbol.dispose] = GenomeData.prototype.free;

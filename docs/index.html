@@ -2237,11 +2237,15 @@ pipelines:
                         // Collect all sample labels for column headers
                         const allSamples = pw2.per_sample.map(s => ({ id: s.sample_id, label: s.sample_label }));
                         html += sectionStart(`Per-Sample Pairwise ${infoIcon('pp_ps_table')}`, true);
+                        const refLen = workerApi.refLength;
+                        const sepPs = 'border-left:2px solid var(--text-muted);';
                         html += `<table class="kpi-table"><thead><tr>
                             <th>Sample</th>`;
                         for (const s of allSamples) {
                             html += `<th>${s.label}</th>`;
                         }
+                        html += `<th style="${sepPs}">Avg Usable Space</th>`;
+                        html += `<th>Avg Disc. SNPs</th>`;
                         html += `</tr></thead><tbody>`;
                         for (const s of pw2.per_sample) {
                             html += `<tr><td>${s.sample_label}</td>`;
@@ -2262,6 +2266,9 @@ pipelines:
                                     html += `<td class="${cls}">${typeof val === 'number' ? val.toLocaleString() : val}</td>`;
                                 }
                             }
+                            const avgPct = refLen > 0 ? ((s.avg_usable_space / refLen) * 100).toFixed(2) : '0.00';
+                            html += `<td style="${sepPs}">${Math.round(s.avg_usable_space).toLocaleString()} <span class="pct">(${avgPct}%)</span></td>`;
+                            html += `<td>${s.avg_disc_snps.toFixed(1)}</td>`;
                             html += `</tr>`;
                         }
                         html += `</tbody></table>`;

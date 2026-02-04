@@ -2049,8 +2049,18 @@ impl GenomeData {
 
         let mut positions = Vec::new();
         for &pos in &gt_disc_positions {
-            // Check if pipeline has this position as a SNP in any sample
-            let pl_has_snp = (0..n).any(|idx| pl_snp_maps[idx].contains_key(&pos));
+            // Check if pipeline has this position as a DISCRIMINATING SNP
+            // (matches CLI logic: disc_positions.contains(&pos))
+            let pl_alleles_at_pos: Vec<Option<u8>> = (0..n)
+                .map(|idx| pl_snp_maps[idx].get(&pos).copied())
+                .collect();
+            let pl_has_snp = pl_alleles_at_pos.iter().any(|a| a.is_some());
+            let pl_is_disc = if pl_alleles_at_pos.len() >= 2 {
+                let first = pl_alleles_at_pos[0];
+                pl_alleles_at_pos.iter().any(|a| *a != first)
+            } else {
+                false
+            };
 
             // Build per-sample alleles
             let gt_alleles: Vec<(&str, char)> = (0..n).map(|idx| {
@@ -2072,21 +2082,26 @@ impl GenomeData {
             }).collect();
 
             // Classify status
-            let status = if !pl_has_snp {
-                // Pipeline doesn't have a SNP here at all
-                if pl_gap_union.contains(&pos) {
-                    "in_pl_gap"
+            // "same_pos" in CLI = GT disc position that is also DISCRIMINATING in pipeline
+            let status = if !pl_is_disc {
+                // Pipeline doesn't have a discriminating SNP here
+                if !pl_has_snp {
+                    if pl_gap_union.contains(&pos) {
+                        "in_pl_gap"
+                    } else {
+                        "lost"
+                    }
                 } else {
-                    "lost"
+                    // Pipeline has SNP but not discriminating — not "same_pos"
+                    "not_disc_in_pl"
                 }
             } else {
-                // Pipeline has SNP — check concordance
+                // Pipeline has discriminating SNP — this is a "same_pos" position
+                // Check concordance
                 let any_pl_gap = (0..n).any(|idx| pl_gap_sets[idx].contains(&pos));
                 if any_pl_gap {
-                    // At least one sample has a pipeline gap at this position
                     "in_pl_gap"
                 } else {
-                    // Check if all sample alleles match between GT and pipeline
                     let active_indices: Vec<usize> = if use_union {
                         (0..n).collect()
                     } else {

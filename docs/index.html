@@ -3165,6 +3165,7 @@ pipelines:
                     html += sectionStart(`GT Discriminating SNPs vs Pipelines ${infoIcon('gt_disc_vs_pl')}`);
                     html += `<table class="kpi-table"><thead><tr>
                         <th rowspan="2">Pipeline</th>
+                        <th rowspan="2">Core SNPs</th>
                         <th colspan="4" style="text-align:center;">Gap-Intersect ${infoIcon('gt_disc_gi')}</th>
                         <th colspan="4" style="text-align:center;">Gap-Union ${infoIcon('gt_disc_gu')}</th>
                         <th colspan="3" style="text-align:center;">Pairwise ${infoIcon('gt_disc_pw')}</th>
@@ -3185,8 +3186,10 @@ pipelines:
                         const pwHasConc = stats.pairwise_concordant_avg != null;
                         const pwConcPct = pwHasConc && stats.pairwise_same_pos_avg > 0 ? ((stats.pairwise_concordant_avg / stats.pairwise_same_pos_avg) * 100).toFixed(1) : '0.0';
                         const fmtConc = (val, pct, hasConc) => hasConc ? `${val.toLocaleString()} <span class="pct">(${pct}%)</span>` : 'N/A';
+                        const plCoreSnps = stats.pl_total_core_snps || 0;
                         html += `<tr>
                             <td>${plLabel}</td>
+                            <td>${plCoreSnps > 0 ? plCoreSnps.toLocaleString() : 'N/A'}</td>
                             <td>${stats.gap_intersect_gt_disc.toLocaleString()}</td>
                             <td>${stats.gap_intersect_same_pos.toLocaleString()} <span class="pct">(${giSamePct}%)</span></td>
                             <td>${fmtConc(stats.gap_intersect_concordant, giConcPct, giHasConc)}</td>

@@ -2668,8 +2668,8 @@ pipelines:
             await new Promise(r => requestAnimationFrame(r));
 
             try {
-                // Load binary format (faster than JSON)
-                const response = await fetch('demo.bin.gz');
+                // Load JSON gzip format
+                const response = await fetch('demo.json.gz');
                 if (!response.ok) throw new Error('Failed to fetch demo file');
 
                 const compressedSize = parseInt(response.headers.get('content-length') || '0');
@@ -2678,15 +2678,15 @@ pipelines:
                 const arrayBuffer = await response.arrayBuffer();
 
                 showLoader('Decompressing...', '0 MB');
-                const binaryData = await decompressGzipBinary(arrayBuffer, (bytes) => {
+                const jsonText = await decompressGzipWithProgress(arrayBuffer, (bytes) => {
                     showLoader('Decompressing...', `${(bytes / 1024 / 1024).toFixed(1)} MB`);
                 });
 
-                showLoader('Loading data...', `${(binaryData.length / 1024 / 1024).toFixed(0)} MB (in background)`);
+                showLoader('Loading data...', `${(jsonText.length / 1024 / 1024).toFixed(0)} MB (in background)`);
                 await new Promise(r => requestAnimationFrame(r));
 
                 // Load in worker - UI stays responsive!
-                await workerApi.loadBinary(binaryData.buffer);
+                await workerApi.loadJson(jsonText);
 
                 showLoader('Preparing view...', '');
                 await new Promise(r => requestAnimationFrame(r));

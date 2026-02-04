@@ -48,7 +48,7 @@ testdata/demo_config.yaml
 # Keep docs files needed for GitHub Pages
 !docs/index.html
 !docs/worker.js
-!docs/demo.bin.gz
+!docs/demo.json.gz
 !docs/package.json
 !docs/coreguard_wasm.js
 !docs/coreguard_wasm.d.ts

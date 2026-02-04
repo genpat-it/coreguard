@@ -1421,13 +1421,24 @@ pipelines:
             },
             'gt_disc_vs_pl': {
                 title: 'GT Discriminating SNPs vs Pipelines',
-                body: `<p>For each gap strategy, compares <strong>GT discriminating SNPs</strong> against each VCF pipeline:</p>
+                body: `<p>For each gap strategy, compares <strong>GT discriminating SNPs</strong> against each pipeline's core SNP positions:</p>
                        <ul>
                            <li><strong>GT Disc:</strong> number of GT discriminating positions in the usable space</li>
-                           <li><strong>Same Pos:</strong> how many GT disc positions the pipeline also calls as a SNP (% of GT Disc)</li>
-                           <li><strong>Concordant:</strong> among same-position SNPs, how many have matching alleles across all samples (% of Same Pos)</li>
-                           <li><strong>In GT Gaps:</strong> pipeline SNP positions that fall within GT gap regions</li>
+                           <li><strong>Same Pos:</strong> how many GT disc positions also exist in the pipeline's core SNP list (overlap)</li>
+                           <li><strong>Concordant:</strong> among overlapping positions, how many have matching alleles across all samples</li>
+                           <li><strong>In GT Gaps:</strong> pipeline core SNP positions that fall within GT gap regions</li>
                        </ul>`
+            },
+            'pl_disc_snps': {
+                title: 'Pipeline Discriminating SNPs',
+                body: `<p><strong>Disc. SNPs</strong> counts discriminating positions within the pipeline's own core SNP output.</p>
+                       <p>For each core SNP position, samples with gaps or N are removed. Among the remaining samples, the position is <strong>discriminating</strong> if at least 2 samples have different alleles.</p>
+                       <p>This value can be 0 even when <strong>Same Pos &gt; 0</strong> because:</p>
+                       <ul>
+                           <li><strong>Disc. SNPs</strong> uses the pipeline's own allele calls (e.g. from snpma.fasta or core.tab)</li>
+                           <li><strong>Same Pos</strong> counts GT discriminating positions that overlap with the pipeline's core SNP positions — the GT may see discordance (from BAM pileup) at positions where the pipeline has gaps for some samples</li>
+                       </ul>
+                       <p>In other words: the GT calls a base where the pipeline has a gap, so the GT sees discordance that the pipeline cannot detect.</p>`
             },
             'gt_disc_gi': {
                 title: 'Gap-Intersect Strategy',
@@ -2238,7 +2249,7 @@ pipelines:
                     const sep = 'border-left:2px solid var(--text-muted);';
                     html += `<table class="kpi-table"><thead><tr>
                         <th rowspan="2">Pipeline</th>
-                        <th rowspan="2">Disc. SNPs</th>
+                        <th rowspan="2">Disc. SNPs ${infoIcon('pl_disc_snps')}</th>
                         <th colspan="3" style="text-align:center;${sep}">Gap-Intersect ${infoIcon('gt_disc_gi')}</th>
                         <th colspan="3" style="text-align:center;${sep}">Gap-Union ${infoIcon('gt_disc_gu')}</th>
                         <th colspan="2" style="text-align:center;${sep}">Pairwise ${infoIcon('gt_disc_pw')}</th>

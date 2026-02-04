@@ -26,7 +26,6 @@ Different SNP pipelines can produce different results on the same data. This mat
 - **Pipeline validation**: When adopting a new pipeline, you need to verify it produces consistent results with established methods.
 - **Troubleshooting**: When results seem wrong, CoreGuard helps visualize exactly where and why pipelines disagree.
 - **Quality control**: Identify problematic samples or genomic regions where pipelines consistently fail.
-- **Consensus SNPs**: Find high-confidence variants where all pipelines agree.
 
 ## Features
 
@@ -39,8 +38,8 @@ Different SNP pipelines can produce different results on the same data. This mat
 ### SNP Analysis
 - **Smart filtering**: Filter by consensus, discordant calls, gaps, and pipeline-specific SNPs
 - **MNP decomposition**: Multi-nucleotide polymorphisms (e.g., `TTGGCG→CCGGCT`) are automatically decomposed into individual SNPs
-- **Distance matrix**: Calculate pairwise SNP distances between samples per pipeline
-- **Polymorphic sites**: Identify positions where samples differ from each other
+- **Pre-computed distance matrices**: Display pairwise SNP distance matrices from each pipeline's native output
+- **GT discriminating SNPs vs pipelines**: Compare ground truth discriminating positions against each pipeline's core SNP output
 
 ### Per-Pipeline KPI Dashboard
 For each pipeline (GT and VCF), CoreGuard computes:
@@ -73,22 +72,19 @@ The ground truth pipeline calls SNPs from BAM pileup using majority vote:
 3. If majority base < `min_consensus` (default 80%) → **Ambiguous** (skipped)
 4. If majority base ≠ reference → **SNP**
 
-### Cross-Pipeline Analysis
-- **Per-Pipeline Statistics**: SNPs, gaps, core positions, consensus counts per pipeline
-- **Cross-Pipeline Concordance**: Pairwise comparison of SNP positions between pipelines
-- **Cross-Pipeline Gap Analysis**: SNPs from each pipeline falling in gap regions of other pipelines
-- **Coverage Statistics**: Depth, quality, and consensus metrics per sample/pipeline
-
-### Ground Truth Comparison
-- **SNPs in GT Gaps**: Detect SNPs called in low-coverage regions of the ground truth
-- **GT SNPs Filtered**: Identify ground truth SNPs missed by other pipelines
-- **BAM Pileup Warning**: Visual indicator when GT SNPs come from BAM pileup (no variant calling)
+### Viewer Panels
+- **Description**: Project description in Markdown (from config)
+- **Pipelines**: Pipeline metadata (labels, commands, data types)
+- **Statistics**: KPI dashboard with GT metrics and GT discriminating SNPs vs pipelines
+- **SNP Distance Matrix**: Pre-computed distance matrices from each pipeline
+- **Genome Overview**: Canvas visualization of SNPs and gaps across the reference
+- **View Settings**: Row visibility, nucleotide display options, legend
+- **Filters & Navigation**: Filter by pipeline SNPs, consensus, discordant calls, gaps; AND/OR logic; go-to position
 
 ### User Interface
 - **Dark/Light theme**: Toggle between themes
 - **Collapsible panels**: Organize information in expandable sections
 - **Info icons**: Hover/click for detailed explanations of each metric
-- **Export options**: Download distance matrices and statistics
 
 ## Installation
 
@@ -113,8 +109,13 @@ reference:
   path: reference.fasta
   label: "My Reference Genome"
 
+# Optional: project description (inline markdown or path to .md file)
+description: "## My Study\nComparison of Snippy vs CFSAN on *Listeria* dataset."
+# Or: description: docs/study_description.md
+
 samples:
-  sample1: {}
+  sample1:
+    label: "Sample 1"   # optional display label
   sample2: {}
   sample3: {}
 
@@ -132,10 +133,12 @@ pipelines:
       sample3:
         bam: alignments/sample3.bam
 
-  # SNP pipeline with VCF + BAM
+  # SNP pipeline with VCF + BAM + optional pipeline outputs
   snippy:
     label: "Snippy v4.6"
     command: "snippy --ref reference.fa --R1 reads_1.fq.gz --R2 reads_2.fq.gz --outdir out"
+    distance_matrix: snippy/core.distances.tsv     # pre-computed distance matrix (optional)
+    core_snps: snippy/core.tab                      # core SNP output file (optional)
     samples:
       sample1:
         vcf: snippy/sample1/snps.vcf
@@ -151,6 +154,8 @@ pipelines:
   cfsan:
     label: "CFSAN SNP Pipeline"
     command: "cfsan_snp_pipeline run -m soft -o output reference.fasta"
+    distance_matrix: cfsan/snp_distance_matrix.tsv  # pre-computed distance matrix (optional)
+    core_snps: cfsan/snplist.txt                     # core SNP positions (optional)
     samples:
       sample1:
         vcf: cfsan/sample1/var.flt.vcf
@@ -161,7 +166,7 @@ pipelines:
 
 options:
   min_depth: 1
-  min_qual: 20
+  min_qual: 0
   include_indels: false
 ```
 
@@ -171,11 +176,11 @@ options:
 # JSON format (human-readable)
 coreguard compare --config project.yaml -o report.json
 
-# Binary format with gzip compression (recommended for large datasets, ~10x faster loading)
-coreguard compare --config project.yaml -o report.bin.gz --binary --gzip
-
-# Compact JSON with gzip
+# Compact JSON with gzip (smaller file)
 coreguard compare --config project.yaml -o report.json.gz --gzip --compact
+
+# Binary format with gzip compression (recommended, ~10x faster loading)
+coreguard compare --config project.yaml -o report.bin.gz --binary --gzip
 ```
 
 ### 3. Visualize the results
@@ -184,12 +189,14 @@ Open [https://genpat-it.github.io/coreguard/](https://genpat-it.github.io/coregu
 
 Supported formats: `.json`, `.json.gz`, `.bin`, `.bin.gz`
 
-## Configuration Options
+## Configuration Reference
+
+### Global Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
 | `min_depth` | Minimum read depth to consider position covered | 1 |
-| `min_qual` | Minimum VCF QUAL score to include (0 = no filtering, recommended since variant callers already apply their own filters) | 0 |
+| `min_qual` | Minimum VCF QUAL score (0 = no filtering; recommended since variant callers already apply their own filters) | 0 |
 | `min_consensus` | Minimum fraction of reads agreeing on a base for GT pileup (0.0-1.0) | 0.8 |
 | `include_indels` | Include insertions/deletions | false |
 
@@ -197,9 +204,11 @@ Supported formats: `.json`, `.json.gz`, `.bin`, `.bin.gz`
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `ground_truth` | Mark pipeline as ground truth (BAM-only baseline) | false |
 | `label` | Display name in the viewer | pipeline ID |
-| `command` | Command line used (shown in viewer for reproducibility) | - |
+| `command` | Command line used (shown in viewer) | - |
+| `ground_truth` | Mark as ground truth (BAM-only baseline) | false |
+| `distance_matrix` | Path to pre-computed SNP distance matrix (TSV) | - |
+| `core_snps` | Path to core SNP output (snippy `core.tab` or CFSAN `snplist.txt`) | - |
 
 ### Per-Sample Options
 
@@ -207,6 +216,32 @@ Supported formats: `.json`, `.json.gz`, `.bin`, `.bin.gz`
 |--------|-------------|
 | `vcf` | Path to VCF file with SNP calls |
 | `bam` | Path to BAM file for coverage/gap detection |
+| `label` | Display name for the sample (optional) |
+
+### Description
+
+The `description` field accepts either inline markdown or a path to a `.md`/`.txt` file:
+
+```yaml
+# Inline
+description: "## My Study\nComparing pipelines on *Listeria* outbreak data."
+
+# File reference
+description: docs/study_description.md
+```
+
+### Core SNPs
+
+The `core_snps` field points to a pipeline's native core SNP output. Supported formats:
+
+- **Snippy**: `core.tab` — TSV with CHR, POS, REF, and per-sample alleles
+- **CFSAN**: `snplist.txt` — one position per line
+
+These are used to compute the "GT Discriminating SNPs vs Pipelines" comparison, showing how many ground truth discriminating positions each pipeline captures.
+
+### Distance Matrix
+
+The `distance_matrix` field points to a TSV file with pairwise SNP distances between samples, as produced by the pipeline itself. These are displayed in the viewer's "SNP Distance Matrix" panel.
 
 ## Output Formats
 

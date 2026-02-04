@@ -1,16 +1,32 @@
 # Build
 /target/
+wasm/target/
 
 # IDE
 .idea/
 .vscode/
 *.swp
 
-# Output files
+# Output / temp files
 *.json
 *.html
 *.tsv
 *.bed
+*.json.gz
+*.bin
+*.bin.gz
+*.tgz
+*.tar.gz
+
+# Large data files
+*.bam
+*.bam.bai
+*.fa
+*.fasta
+*.fq
+*.fq.gz
+*.fastq
+*.fastq.gz
 
 # Temp directories
 bed_files/
@@ -29,6 +45,12 @@ CLAUDE.md
 # Config with local paths (use template instead)
 testdata/demo_config.yaml
 
-# But keep these docs files
+# Keep docs files needed for GitHub Pages
 !docs/index.html
 !docs/worker.js
+!docs/demo.bin.gz
+!docs/package.json
+!docs/coreguard_wasm.js
+!docs/coreguard_wasm.d.ts
+!docs/coreguard_wasm_bg.wasm
+!docs/coreguard_wasm_bg.wasm.d.ts

@@ -188,6 +188,22 @@ export class GenomeData {
         }
     }
     /**
+     * Get pileup options as JSON
+     * @returns {string}
+     */
+    get_pileup_options() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_pileup_options(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get command for a pipeline (if any)
      * @param {string} pipeline_id
      * @returns {string | undefined}

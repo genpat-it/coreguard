@@ -225,6 +225,16 @@ struct JsonSummary {
     coreguard_version: String,
     #[serde(default)]
     warnings: Vec<String>,
+    #[serde(default)]
+    pileup_options: Option<JsonPileupOptions>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct JsonPileupOptions {
+    min_depth: usize,
+    min_qual: f64,
+    min_consensus: f64,
+    include_indels: bool,
 }
 
 /// Main data store - holds all samples and pipeline data
@@ -246,6 +256,8 @@ pub struct GenomeData {
     report_version: String,
     generated_at: String,
     warnings: Vec<String>,
+    /// Pileup options
+    pileup_options: Option<JsonPileupOptions>,
     /// Description (markdown content)
     description: Option<String>,
     /// Raw YAML configuration
@@ -280,6 +292,7 @@ impl GenomeData {
             report_version: String::new(),
             generated_at: String::new(),
             warnings: Vec::new(),
+            pileup_options: None,
             description: None,
             config_yaml: None,
             pipeline_distance_matrices: HashMap::new(),
@@ -328,6 +341,7 @@ impl GenomeData {
         self.report_version = report.version;
         self.generated_at = report.summary.generated_at;
         self.warnings = report.summary.warnings;
+        self.pileup_options = report.summary.pileup_options;
         self.description = report.description;
         self.config_yaml = report.config_yaml;
         self.pipeline_distance_matrices = report.pipeline_distance_matrices;
@@ -542,6 +556,15 @@ impl GenomeData {
     #[wasm_bindgen]
     pub fn get_warnings(&self) -> String {
         serde_json::to_string(&self.warnings).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Get pileup options as JSON
+    #[wasm_bindgen]
+    pub fn get_pileup_options(&self) -> String {
+        match &self.pileup_options {
+            Some(opts) => serde_json::to_string(opts).unwrap_or_else(|_| "null".to_string()),
+            None => "null".to_string(),
+        }
     }
 
     /// Get report description (markdown content)

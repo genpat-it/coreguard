@@ -387,6 +387,46 @@ pub fn compute_gt_disc_vs_pipelines(
             .map(|p| (p.pos, p))
             .collect();
 
+        // Build per-sample pipeline gap sets (from VCF/BAM data)
+        let pl_gap_sets: Vec<HashSet<usize>> = sample_ids.iter().map(|sid| {
+            let mut gaps = HashSet::new();
+            if let Some(sample_data) = data.get(sid) {
+                if let Some(pl_data) = sample_data.get(pipeline_id.as_str()) {
+                    for gap in &pl_data.gaps {
+                        for pos in gap[0]..gap[1] { gaps.insert(pos); }
+                    }
+                }
+            }
+            gaps
+        }).collect();
+
+        // Compute true discriminating count: for each core position,
+        // remove samples with gaps/N, then check if remaining samples
+        // have discordant alleles (>= 2 distinct alleles among valid samples).
+        let pl_discriminating_core_snps = if core_data.has_alleles {
+            core_data.positions.iter().filter(|p| {
+                let valid: Vec<&str> = p.alleles.values()
+                    .map(|a| a.as_str())
+                    .filter(|a| *a != "-" && *a != "N")
+                    .collect();
+                if valid.len() < 2 { return false; }
+                let first = valid[0];
+                valid.iter().any(|a| *a != first)
+            }).count() as u32
+        } else {
+            // Without alleles: use BAM gaps + samples_with_snp as fallback
+            core_data.positions.iter().filter(|p| {
+                let active_samples: Vec<usize> = (0..n)
+                    .filter(|&idx| !pl_gap_sets[idx].contains(&p.pos))
+                    .collect();
+                if active_samples.len() < 2 { return false; }
+                let snp_set: HashSet<&str> = p.samples_with_snp.iter().map(|s| s.as_str()).collect();
+                let has_alt = active_samples.iter().any(|&idx| snp_set.contains(sample_ids[idx].as_str()));
+                let has_ref = active_samples.iter().any(|&idx| !snp_set.contains(sample_ids[idx].as_str()));
+                has_alt && has_ref
+            }).count() as u32
+        };
+
         // --- Helper: check allele concordance at a position ---
         let check_concordance = |pos: usize, active_indices: &[usize]| -> bool {
             if !core_data.has_alleles { return false; }
@@ -481,7 +521,7 @@ pub fn compute_gt_disc_vs_pipelines(
         results.push(GtDiscVsPipelineResult {
             pipeline_id: pipeline_id.clone(),
             pl_total_core_snps: core_data.positions.len() as u32,
-            pl_discriminating_core_snps: core_data.discriminating_count as u32,
+            pl_discriminating_core_snps,
             gap_intersect: GapStrategyResult {
                 gt_disc: gt_disc_intersect.len() as u32,
                 same_pos: gi_same_pos,
@@ -634,9 +674,13 @@ pub fn compute_gt_disc_vs_pipelines_from_vcf(
         for m in &pl_snp_maps { all_pl_snp_pos.extend(m.keys()); }
         let pl_total_core_snps = all_pl_snp_pos.len() as u32;
 
-        // Discriminating: positions where at least 2 samples have different alleles
+        // Discriminating: for each position, remove samples with gaps,
+        // then check if remaining samples have discordant alleles
         let pl_disc = all_pl_snp_pos.iter().filter(|&&pos| {
-            let alleles: Vec<Option<u8>> = pl_snp_maps.iter().map(|m| m.get(&pos).copied()).collect();
+            let alleles: Vec<Option<u8>> = (0..n)
+                .filter(|&idx| !pl_gap_sets[idx].contains(&pos))
+                .map(|idx| pl_snp_maps[idx].get(&pos).copied())
+                .collect();
             if alleles.len() < 2 { return false; }
             let first = alleles[0];
             alleles.iter().any(|a| *a != first)

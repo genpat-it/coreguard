@@ -32,11 +32,10 @@ Different SNP pipelines can produce different results on the same data. This mat
 ### Core Features
 - **Multi-pipeline comparison**: Compare SNP calls from any number of pipelines side-by-side
 - **Ground truth support** (optional): Designate a baseline BAM alignment for gap detection and validation
-- **Interactive viewer**: Navigate through genomic positions with zoom/pan on HTML5 Canvas
-- **Client-side processing**: Viewer runs entirely in the browser via WebAssembly (no server needed)
+- **Dashboard viewer**: KPI dashboard with pre-computed statistics, runs entirely in the browser via WebAssembly
+- **Pre-computed statistics**: All KPIs computed at CLI time — the viewer loads instantly with no recomputation
 
 ### SNP Analysis
-- **Smart filtering**: Filter by consensus, discordant calls, gaps, and pipeline-specific SNPs
 - **MNP decomposition**: Multi-nucleotide polymorphisms (e.g., `TTGGCG→CCGGCT`) are automatically decomposed into individual SNPs
 - **Pre-computed distance matrices**: Display pairwise SNP distance matrices from each pipeline's native output
 - **GT discriminating SNPs vs pipelines**: Compare ground truth discriminating positions against each pipeline's core SNP output
@@ -77,9 +76,6 @@ The ground truth pipeline calls SNPs from BAM pileup using majority vote:
 - **Pipelines**: Pipeline metadata (labels, commands, data types)
 - **Statistics**: KPI dashboard with GT metrics and GT discriminating SNPs vs pipelines
 - **SNP Distance Matrix**: Pre-computed distance matrices from each pipeline
-- **Genome Overview**: Canvas visualization of SNPs and gaps across the reference
-- **View Settings**: Row visibility, nucleotide display options, legend
-- **Filters & Navigation**: Filter by pipeline SNPs, consensus, discordant calls, gaps; AND/OR logic; go-to position
 
 ### User Interface
 - **Dark/Light theme**: Toggle between themes
@@ -239,6 +235,23 @@ The `core_snps` field points to a pipeline's native core SNP output. Supported f
 
 These are used to compute the "GT Discriminating SNPs vs Pipelines" comparison, showing how many ground truth discriminating positions each pipeline captures.
 
+#### Adding a New Core SNP Parser
+
+CoreGuard uses a plugin system (`CoreSnpParser` trait in `src/compare.rs`) for parsing pipeline-specific core SNP output files. To add support for a new format:
+
+```rust
+pub trait CoreSnpParser {
+    fn format_name(&self) -> &str;
+    fn can_parse(&self, path: &Path) -> bool;
+    fn parse(&self, path: &Path) -> anyhow::Result<CoreSnpData>;
+}
+```
+
+1. Implement the trait for your format
+2. Register it in `parse_core_snps()` (add to the `parsers` vector)
+
+Current implementations: `SnippyCoreTabParser` (Snippy `core.tab`), `CfsanSnplistParser` (CFSAN `snplist.txt`).
+
 ### Distance Matrix
 
 The `distance_matrix` field points to a TSV file with pairwise SNP distances between samples, as produced by the pipeline itself. These are displayed in the viewer's "SNP Distance Matrix" panel.
@@ -256,9 +269,9 @@ The `distance_matrix` field points to a TSV file with pairwise SNP distances bet
 
 ## Technology
 
-- **CLI**: Rust (fast VCF/BAM processing)
-- **Viewer**: Vanilla JavaScript + HTML5 Canvas
-- **Computation**: Rust compiled to WebAssembly (runs entirely in browser)
+- **CLI**: Rust (fast VCF/BAM processing, pre-computes all KPIs)
+- **Viewer**: Vanilla JavaScript dashboard
+- **WASM**: Rust compiled to WebAssembly (for backward compatibility with v1 reports)
 - **No backend required**: All processing happens client-side
 
 ## Dependencies

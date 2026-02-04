@@ -538,6 +538,74 @@
         .info-modal-close:hover {
             color: var(--text-primary);
         }
+        /* Detail modal (wider variant for position tables) */
+        .detail-modal-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 92vw;
+            max-height: 85vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        .detail-modal-content h3 {
+            margin: 0 0 12px 0;
+            color: var(--accent);
+            font-size: 15px;
+        }
+        .detail-modal-content table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .detail-modal-content th,
+        .detail-modal-content td {
+            padding: 3px 6px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+            white-space: nowrap;
+        }
+        .detail-modal-content th {
+            background: var(--bg-tertiary);
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        .detail-modal-content .status-concordant { color: #4caf50; font-weight: bold; }
+        .detail-modal-content .status-discordant { color: #f44336; font-weight: bold; }
+        .detail-modal-content .status-lost { color: #9e9e9e; }
+        .detail-modal-content .status-in_gt_gap { color: #ff9800; }
+        .detail-modal-content .status-in_pl_gap { color: #ff9800; }
+        .detail-modal-content .allele-mismatch { color: #f44336; font-weight: bold; }
+        .detail-modal-content .allele-gap { color: #9e9e9e; }
+        .gt-disc-link { cursor: pointer; text-decoration: underline; color: var(--accent); }
+        .gt-disc-link:hover { color: var(--text-primary); }
+        .detail-modal-content .filter-bar {
+            margin-bottom: 10px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .detail-modal-content .filter-btn {
+            padding: 3px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .detail-modal-content .filter-btn.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+        .detail-loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
         /* Scroll to top button */
         .scroll-top-btn {
             position: fixed;
@@ -826,6 +894,15 @@
             <button class="info-modal-close" onclick="closeInfoModal()">&times;</button>
             <h3 id="info-modal-title">KPI Info</h3>
             <div id="info-modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Detail modal for GT Disc position-level data -->
+    <div class="info-modal" id="detail-modal" onclick="if(event.target===this)closeDetailModal()">
+        <div class="detail-modal-content">
+            <button class="info-modal-close" onclick="closeDetailModal()">&times;</button>
+            <h3 id="detail-modal-title">Position Details</h3>
+            <div id="detail-modal-body"></div>
         </div>
     </div>
 
@@ -1499,9 +1576,111 @@ pipelines:
             document.getElementById('info-modal').classList.remove('active');
         }
 
+        function closeDetailModal() {
+            document.getElementById('detail-modal').classList.remove('active');
+        }
+
+        async function showGtDiscDetail(plId, strategy, statusFilter) {
+            const modal = document.getElementById('detail-modal');
+            const title = document.getElementById('detail-modal-title');
+            const body = document.getElementById('detail-modal-body');
+            const plLabel = (workerApi.cachedData.pipelineInfo &&
+                workerApi.cachedData.pipelineInfo[plId] &&
+                workerApi.cachedData.pipelineInfo[plId].label) || plId;
+            const strategyLabel = strategy === 'gap_union' ? 'Gap-Union' : 'Gap-Intersect';
+
+            title.textContent = `${plLabel} — ${strategyLabel} — ${statusFilter} positions`;
+            body.innerHTML = '<div class="detail-loading">Loading position details...</div>';
+            modal.classList.add('active');
+
+            try {
+                const data = await workerApi.getGtDiscPositionDetails(plId, strategy);
+                if (!data || !data.positions || data.positions.length === 0) {
+                    body.innerHTML = '<p style="color:var(--text-secondary)">No position data available.</p>';
+                    return;
+                }
+
+                const samples = data.samples || [];
+                const sampleLabels = workerApi.cachedData.sampleLabels || {};
+
+                // Count by status
+                const counts = {};
+                for (const p of data.positions) {
+                    counts[p.status] = (counts[p.status] || 0) + 1;
+                }
+
+                // Filter buttons
+                const statusLabels = {
+                    'all': 'All',
+                    'concordant': 'Concordant',
+                    'discordant': 'Discordant',
+                    'lost': 'Lost',
+                    'in_gt_gap': 'In GT Gaps',
+                    'in_pl_gap': 'In PL Gaps'
+                };
+                let filterHtml = '<div class="filter-bar">';
+                filterHtml += `<button class="filter-btn${statusFilter === 'all' ? ' active' : ''}" onclick="filterGtDiscPositions('all')">All (${data.positions.length})</button>`;
+                for (const [st, label] of Object.entries(statusLabels)) {
+                    if (st === 'all') continue;
+                    if (!counts[st]) continue;
+                    filterHtml += `<button class="filter-btn${statusFilter === st ? ' active' : ''}" onclick="filterGtDiscPositions('${st}')">${label} (${counts[st]})</button>`;
+                }
+                filterHtml += '</div>';
+
+                // Filter positions
+                const filtered = statusFilter === 'all'
+                    ? data.positions
+                    : data.positions.filter(p => p.status === statusFilter);
+
+                // Update title with count
+                title.textContent = `${plLabel} — ${strategyLabel} — ${filtered.length} ${statusFilter === 'all' ? 'total' : statusFilter} positions`;
+
+                // Build table
+                let tbl = '<table><thead><tr><th>Pos</th><th>Ref</th>';
+                for (const s of samples) {
+                    const lbl = sampleLabels[s] || s;
+                    tbl += `<th>${lbl}<br><span style="font-size:10px;color:var(--text-secondary)">GT→PL</span></th>`;
+                }
+                tbl += '<th>Status</th></tr></thead><tbody>';
+
+                for (const p of filtered) {
+                    tbl += `<tr><td style="text-align:right">${p.pos.toLocaleString()}</td><td>${p.ref}</td>`;
+                    for (const s of samples) {
+                        const gtA = (p.gt && p.gt[s]) || '?';
+                        const plA = (p.pl && p.pl[s]) || '?';
+                        const mismatch = gtA !== '-' && plA !== '-' && gtA !== plA;
+                        const gapClass = (gtA === '-' || plA === '-') ? ' allele-gap' : '';
+                        const cls = mismatch ? ' allele-mismatch' : gapClass;
+                        tbl += `<td class="${cls}">${gtA}→${plA}</td>`;
+                    }
+                    tbl += `<td class="status-${p.status}">${p.status}</td></tr>`;
+                }
+
+                tbl += '</tbody></table>';
+                body.innerHTML = filterHtml + tbl;
+
+                // Store data for filter switching
+                window._gtDiscDetailData = data;
+                window._gtDiscDetailPlId = plId;
+                window._gtDiscDetailStrategy = strategy;
+
+            } catch (err) {
+                body.innerHTML = `<p style="color:#f44336">Error: ${err.message}</p>`;
+            }
+        }
+
+        function filterGtDiscPositions(status) {
+            if (!window._gtDiscDetailData) return;
+            showGtDiscDetail(
+                window._gtDiscDetailPlId,
+                window._gtDiscDetailStrategy,
+                status
+            );
+        }
+
         // Close modal on Escape key
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') closeInfoModal();
+            if (e.key === 'Escape') { closeInfoModal(); closeDetailModal(); }
         });
 
         // Scroll to top button
@@ -1606,6 +1785,10 @@ pipelines:
 
             async getGtDiscVsPipelines() {
                 return (await this.send('getGtDiscVsPipelines', {})).stats;
+            }
+
+            async getGtDiscPositionDetails(pipelineId, strategy) {
+                return (await this.send('getGtDiscPositionDetails', { pipelineId, strategy })).details;
             }
 
             // Cached accessors (no worker call needed after load)
@@ -2339,17 +2522,19 @@ pipelines:
                         const guLost = Math.max(0, plDiscSnps - stats.gap_union_same_pos - stats.gap_union_pl_snps_in_gt_gaps);
                         const giLostPct = plDiscSnps > 0 ? ((giLost / plDiscSnps) * 100).toFixed(1) : '0.0';
                         const guLostPct = plDiscSnps > 0 ? ((guLost / plDiscSnps) * 100).toFixed(1) : '0.0';
+                        const dLink = (plId, strat, status, text) => `<a class="gt-disc-link" onclick="event.stopPropagation();showGtDiscDetail('${plId}','${strat}','${status}')">${text}</a>`;
+                        const fmtConcLink = (plId, strat, val, pct, hasConc) => hasConc ? dLink(plId, strat, 'concordant', `${val.toLocaleString()} <span class="pct">(${pct}%)</span>`) : 'N/A';
                         html += `<tr>
                             <td>${plLabel}</td>
                             <td>${stats.pl_discriminating_core_snps != null ? plDiscSnps.toLocaleString() : 'N/A'}</td>
-                            <td class="bg-gi" style="${sep}">${stats.gap_intersect_same_pos.toLocaleString()}</td>
-                            <td class="bg-gi">${fmtConc(stats.gap_intersect_concordant, giConcPct, giHasConc)}</td>
-                            <td class="bg-gi">${stats.gap_intersect_pl_snps_in_gt_gaps.toLocaleString()}</td>
-                            <td class="bg-gi">${giLost.toLocaleString()} <span class="pct">(${giLostPct}%)</span></td>
-                            <td class="bg-gu" style="${sep}">${stats.gap_union_same_pos.toLocaleString()}</td>
-                            <td class="bg-gu">${fmtConc(stats.gap_union_concordant, guConcPct, guHasConc)}</td>
-                            <td class="bg-gu">${stats.gap_union_pl_snps_in_gt_gaps.toLocaleString()}</td>
-                            <td class="bg-gu">${guLost.toLocaleString()} <span class="pct">(${guLostPct}%)</span></td>
+                            <td class="bg-gi" style="${sep}">${dLink(plId, 'gap_intersect', 'all', stats.gap_intersect_same_pos.toLocaleString())}</td>
+                            <td class="bg-gi">${fmtConcLink(plId, 'gap_intersect', stats.gap_intersect_concordant, giConcPct, giHasConc)}</td>
+                            <td class="bg-gi">${dLink(plId, 'gap_intersect', 'in_gt_gap', stats.gap_intersect_pl_snps_in_gt_gaps.toLocaleString())}</td>
+                            <td class="bg-gi">${dLink(plId, 'gap_intersect', 'lost', `${giLost.toLocaleString()} <span class="pct">(${giLostPct}%)</span>`)}</td>
+                            <td class="bg-gu" style="${sep}">${dLink(plId, 'gap_union', 'all', stats.gap_union_same_pos.toLocaleString())}</td>
+                            <td class="bg-gu">${fmtConcLink(plId, 'gap_union', stats.gap_union_concordant, guConcPct, guHasConc)}</td>
+                            <td class="bg-gu">${dLink(plId, 'gap_union', 'in_gt_gap', stats.gap_union_pl_snps_in_gt_gaps.toLocaleString())}</td>
+                            <td class="bg-gu">${dLink(plId, 'gap_union', 'lost', `${guLost.toLocaleString()} <span class="pct">(${guLostPct}%)</span>`)}</td>
                             <td class="bg-pw" style="${sep}">${stats.pairwise_same_pos_avg.toFixed(1)}</td>
                             <td class="bg-pw">${pwHasConc ? `${stats.pairwise_concordant_avg.toFixed(1)} <span class="pct">(${pwConcPct}%)</span>` : 'N/A'}</td>
                         </tr>`;

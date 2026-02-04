@@ -545,6 +545,55 @@
             font-size: 12px;
             margin: 10px 0;
         }
+        /* Strategy diagram grid */
+        .strategy-diagram {
+            display: inline-grid;
+            gap: 0;
+            font-family: monospace;
+            font-size: 11px;
+            margin: 10px 0;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .strategy-diagram .sd-cell {
+            padding: 3px 8px;
+            text-align: center;
+            border-right: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+        }
+        .strategy-diagram .sd-cell:last-child { border-right: none; }
+        .strategy-diagram .sd-header {
+            background: var(--bg-tertiary);
+            font-weight: bold;
+            font-size: 10px;
+            color: var(--text-secondary);
+        }
+        .strategy-diagram .sd-label {
+            background: var(--bg-tertiary);
+            font-weight: 600;
+            text-align: left;
+            font-size: 10px;
+        }
+        .strategy-diagram .sd-base { background: rgba(129,199,132,0.15); color: #4caf50; }
+        .strategy-diagram .sd-snp { background: rgba(129,199,132,0.15); color: #4caf50; font-weight: bold; }
+        .strategy-diagram .sd-gap { background: rgba(158,158,158,0.15); color: #9e9e9e; }
+        .strategy-diagram .sd-excluded {
+            background: repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(244,67,54,0.08) 3px, rgba(244,67,54,0.08) 6px);
+            color: var(--text-muted);
+            text-decoration: line-through;
+        }
+        .strategy-diagram .sd-excluded.sd-gap {
+            background: repeating-linear-gradient(45deg, rgba(158,158,158,0.10), rgba(158,158,158,0.10) 3px, rgba(244,67,54,0.12) 3px, rgba(244,67,54,0.12) 6px);
+        }
+        .strategy-diagram .sd-legend {
+            font-size: 10px;
+            padding: 4px 8px;
+            color: var(--text-secondary);
+            grid-column: 1 / -1;
+            text-align: left;
+            border-bottom: none;
+        }
         .info-modal-close {
             position: absolute;
             top: 10px;
@@ -1444,7 +1493,16 @@ pipelines:
                 title: 'Gap-Intersect — Usable Space',
                 body: `<p>Reference positions remaining after removing only those where <strong>ALL samples</strong> have a gap in this pipeline.</p>
                        <div class="formula">Usable Space = Reference Length − intersection(pipeline gaps of all samples)</div>
-                       <p>More permissive: a position is excluded only if every sample has a gap there.</p>`
+                       <p>More permissive: a position is excluded only if every sample has a gap there.</p>
+                       <div class="strategy-diagram" style="grid-template-columns: auto repeat(7, 1fr);">
+                         <div class="sd-cell sd-header"></div><div class="sd-cell sd-header">Pos 1</div><div class="sd-cell sd-header">Pos 2</div><div class="sd-cell sd-header">Pos 3</div><div class="sd-cell sd-header">Pos 4</div><div class="sd-cell sd-header">Pos 5</div><div class="sd-cell sd-header">Pos 6</div><div class="sd-cell sd-header">Pos 7</div>
+                         <div class="sd-cell sd-label">Ref</div><div class="sd-cell">T</div><div class="sd-cell">A</div><div class="sd-cell">G</div><div class="sd-cell">C</div><div class="sd-cell">A</div><div class="sd-cell">T</div><div class="sd-cell">G</div>
+                         <div class="sd-cell sd-label">S1</div><div class="sd-cell sd-snp">A</div><div class="sd-cell sd-gap">—</div><div class="sd-cell sd-base">G</div><div class="sd-cell sd-snp">T</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-base">T</div><div class="sd-cell sd-snp">A</div>
+                         <div class="sd-cell sd-label">S2</div><div class="sd-cell sd-snp">A</div><div class="sd-cell sd-base">A</div><div class="sd-cell sd-snp">T</div><div class="sd-cell sd-snp">T</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-base">T</div><div class="sd-cell sd-snp">C</div>
+                         <div class="sd-cell sd-label">S3</div><div class="sd-cell sd-base">T</div><div class="sd-cell sd-gap">—</div><div class="sd-cell sd-base">G</div><div class="sd-cell sd-base">C</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-snp">A</div><div class="sd-cell sd-snp">A</div>
+                         <div class="sd-cell sd-legend">✗ <strong>Pos 5</strong> excluded: ALL samples have gap → <strong>6 usable positions</strong> remain</div>
+                         <div class="sd-cell sd-legend" style="border-bottom:none;">✓ Pos 2: S1,S3 have gap but S2 has data → <strong>kept</strong> (only gap samples excluded from comparison)</div>
+                       </div>`
             },
             'pp_gi_total': {
                 title: 'Gap-Intersect — Total SNPs',
@@ -1493,7 +1551,16 @@ pipelines:
                 title: 'Gap-Union — Usable Space',
                 body: `<p>Reference positions remaining after removing those where <strong>at least 1 sample</strong> has a gap in this pipeline.</p>
                        <div class="formula">Usable Space = Reference Length − union(pipeline gaps of all samples)</div>
-                       <p>Most restrictive: a position is excluded if any sample has a gap there.</p>`
+                       <p>Most restrictive: a position is excluded if any sample has a gap there.</p>
+                       <div class="strategy-diagram" style="grid-template-columns: auto repeat(7, 1fr);">
+                         <div class="sd-cell sd-header"></div><div class="sd-cell sd-header">Pos 1</div><div class="sd-cell sd-header">Pos 2</div><div class="sd-cell sd-header">Pos 3</div><div class="sd-cell sd-header">Pos 4</div><div class="sd-cell sd-header">Pos 5</div><div class="sd-cell sd-header">Pos 6</div><div class="sd-cell sd-header">Pos 7</div>
+                         <div class="sd-cell sd-label">Ref</div><div class="sd-cell">T</div><div class="sd-cell sd-excluded">A</div><div class="sd-cell">G</div><div class="sd-cell">C</div><div class="sd-cell sd-excluded">A</div><div class="sd-cell">T</div><div class="sd-cell">G</div>
+                         <div class="sd-cell sd-label">S1</div><div class="sd-cell sd-snp">A</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-base">G</div><div class="sd-cell sd-snp">T</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-base">T</div><div class="sd-cell sd-snp">A</div>
+                         <div class="sd-cell sd-label">S2</div><div class="sd-cell sd-snp">A</div><div class="sd-cell sd-excluded">A</div><div class="sd-cell sd-snp">T</div><div class="sd-cell sd-snp">T</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-base">T</div><div class="sd-cell sd-snp">C</div>
+                         <div class="sd-cell sd-label">S3</div><div class="sd-cell sd-base">T</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-base">G</div><div class="sd-cell sd-base">C</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-snp">A</div><div class="sd-cell sd-snp">A</div>
+                         <div class="sd-cell sd-legend">✗ <strong>Pos 2, 5</strong> excluded: at least 1 sample has gap → <strong>5 usable positions</strong> remain</div>
+                         <div class="sd-cell sd-legend" style="border-bottom:none;">Compare with Gap-Intersect: same data but Pos 2 is kept there (only Pos 5 excluded)</div>
+                       </div>`
             },
             'pp_gu_total': {
                 title: 'Gap-Union — Total SNPs',
@@ -1531,7 +1598,23 @@ pipelines:
             'pp_pw_usable': {
                 title: 'Pairwise (Gap-Union) — Avg Usable Space',
                 body: `<p>Average usable genome space across all sample pairs for this pipeline.</p>
-                       <div class="formula">For each pair (A, B): Usable = RefLength − union(pipeline gaps A, pipeline gaps B)</div>`
+                       <div class="formula">For each pair (A, B): Usable = RefLength − union(gaps A, gaps B)</div>
+                       <p>Each pair has its own gap exclusion — different pairs can have different usable space:</p>
+                       <div class="strategy-diagram" style="grid-template-columns: auto repeat(7, 1fr);">
+                         <div class="sd-cell sd-header" style="grid-column:1/-1;text-align:left;font-size:11px;">Pair S1 vs S2</div>
+                         <div class="sd-cell sd-header"></div><div class="sd-cell sd-header">Pos 1</div><div class="sd-cell sd-header">Pos 2</div><div class="sd-cell sd-header">Pos 3</div><div class="sd-cell sd-header">Pos 4</div><div class="sd-cell sd-header">Pos 5</div><div class="sd-cell sd-header">Pos 6</div><div class="sd-cell sd-header">Pos 7</div>
+                         <div class="sd-cell sd-label">S1</div><div class="sd-cell sd-snp">A</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-base">G</div><div class="sd-cell sd-snp">T</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-base">T</div><div class="sd-cell sd-snp">A</div>
+                         <div class="sd-cell sd-label">S2</div><div class="sd-cell sd-snp">A</div><div class="sd-cell sd-excluded">A</div><div class="sd-cell sd-snp">T</div><div class="sd-cell sd-snp">T</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-base">T</div><div class="sd-cell sd-snp">C</div>
+                         <div class="sd-cell sd-legend">✗ Pos 2 (S1 gap), Pos 5 (both gap) → <strong>5 usable</strong>, Pos 3,7 differ → <strong>2 disc SNPs</strong></div>
+                       </div>
+                       <div class="strategy-diagram" style="grid-template-columns: auto repeat(7, 1fr);">
+                         <div class="sd-cell sd-header" style="grid-column:1/-1;text-align:left;font-size:11px;">Pair S1 vs S3</div>
+                         <div class="sd-cell sd-header"></div><div class="sd-cell sd-header">Pos 1</div><div class="sd-cell sd-header">Pos 2</div><div class="sd-cell sd-header">Pos 3</div><div class="sd-cell sd-header">Pos 4</div><div class="sd-cell sd-header">Pos 5</div><div class="sd-cell sd-header">Pos 6</div><div class="sd-cell sd-header">Pos 7</div>
+                         <div class="sd-cell sd-label">S1</div><div class="sd-cell sd-snp">A</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-base">G</div><div class="sd-cell sd-snp">T</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-base">T</div><div class="sd-cell sd-snp">A</div>
+                         <div class="sd-cell sd-label">S3</div><div class="sd-cell sd-base">T</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-base">G</div><div class="sd-cell sd-base">C</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-snp">A</div><div class="sd-cell sd-snp">A</div>
+                         <div class="sd-cell sd-legend" style="border-bottom:none;">✗ Pos 2 (both gap), Pos 5 (both gap) → <strong>5 usable</strong>, Pos 1,4,6 differ → <strong>3 disc SNPs</strong></div>
+                       </div>
+                       <p style="font-size:11px;color:var(--text-secondary);">Avg usable = (5+5)/2 = 5.0 — Avg disc SNPs = (2+3)/2 = 2.5</p>`
             },
             'pp_pw_disc': {
                 title: 'Pairwise (Gap-Union) — Discriminating SNPs',
@@ -1579,12 +1662,30 @@ pipelines:
                 title: 'Gap-Intersect Strategy',
                 body: `<p>Ref discriminating positions computed using <strong>Gap-Intersect</strong>: only positions where ALL samples have a Ref gap are excluded.</p>
                        <p>More permissive — positions where some (but not all) samples have gaps are still evaluated among the non-gap samples.</p>
+                       <div class="strategy-diagram" style="grid-template-columns: auto repeat(5, 1fr);">
+                         <div class="sd-cell sd-header"></div><div class="sd-cell sd-header">Pos 1</div><div class="sd-cell sd-header">Pos 2</div><div class="sd-cell sd-header">Pos 3</div><div class="sd-cell sd-header">Pos 4</div><div class="sd-cell sd-header">Pos 5</div>
+                         <div class="sd-cell sd-label">S1</div><div class="sd-cell sd-snp">A</div><div class="sd-cell sd-gap">—</div><div class="sd-cell sd-snp">T</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-snp">A</div>
+                         <div class="sd-cell sd-label">S2</div><div class="sd-cell sd-snp">A</div><div class="sd-cell sd-snp">C</div><div class="sd-cell sd-snp">G</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-snp">A</div>
+                         <div class="sd-cell sd-label">S3</div><div class="sd-cell sd-base">T</div><div class="sd-cell sd-gap">—</div><div class="sd-cell sd-snp">T</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-base">T</div>
+                         <div class="sd-cell sd-legend">✗ Pos 4: ALL have gap → excluded</div>
+                         <div class="sd-cell sd-legend">✓ Pos 2: S1,S3 gap → excluded from check; S2 alone → not disc</div>
+                         <div class="sd-cell sd-legend" style="border-bottom:none;">✓ Pos 3: S1,S2 differ (T vs G) → <strong>discriminating</strong></div>
+                       </div>
                        <p><strong>In Ref Gaps</strong> counts pipeline SNPs falling in the Ref gap-intersection set.</p>`
             },
             'gt_disc_gu': {
                 title: 'Gap-Union Strategy',
                 body: `<p>Ref discriminating positions computed using <strong>Gap-Union</strong>: positions where ANY sample has a Ref gap are excluded.</p>
                        <p>More strict — all samples must have data at a position for it to be considered.</p>
+                       <div class="strategy-diagram" style="grid-template-columns: auto repeat(5, 1fr);">
+                         <div class="sd-cell sd-header"></div><div class="sd-cell sd-header">Pos 1</div><div class="sd-cell sd-header">Pos 2</div><div class="sd-cell sd-header">Pos 3</div><div class="sd-cell sd-header">Pos 4</div><div class="sd-cell sd-header">Pos 5</div>
+                         <div class="sd-cell sd-label">S1</div><div class="sd-cell sd-snp">A</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-snp">T</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-snp">A</div>
+                         <div class="sd-cell sd-label">S2</div><div class="sd-cell sd-snp">A</div><div class="sd-cell sd-excluded">C</div><div class="sd-cell sd-snp">G</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-snp">A</div>
+                         <div class="sd-cell sd-label">S3</div><div class="sd-cell sd-base">T</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-snp">T</div><div class="sd-cell sd-gap sd-excluded">—</div><div class="sd-cell sd-base">T</div>
+                         <div class="sd-cell sd-legend">✗ Pos 2: S1,S3 have gap → excluded (any gap = out)</div>
+                         <div class="sd-cell sd-legend">✗ Pos 4: ALL have gap → excluded</div>
+                         <div class="sd-cell sd-legend" style="border-bottom:none;">→ <strong>3 usable</strong> (vs 4 in Gap-Intersect with same data)</div>
+                       </div>
                        <p><strong>In Ref Gaps</strong> counts pipeline SNPs falling in the Ref gap-union set.</p>`
             },
             'gt_disc_pw': {

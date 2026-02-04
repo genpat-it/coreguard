@@ -10,7 +10,7 @@ use std::path::Path;
 use std::process::Command;
 
 use crate::config::Config;
-use crate::pileup::{self, BaseCall, BaseCallWithStats};
+use crate::pileup;
 
 /// Compact report structure for WASM visualization
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,11 +31,6 @@ pub struct CompareReport {
     /// Data: sample -> pipeline -> gaps/snps
     pub data: HashMap<String, HashMap<String, PipelineData>>,
 
-    /// Polymorphic sites for distance matrix calculation (per pipeline)
-    /// Key: pipeline_id -> position (as string for JSON compatibility) -> allele data per sample
-    #[serde(default)]
-    pub polymorphic_sites: HashMap<String, HashMap<String, PolymorphicSite>>,
-
     /// Summary statistics
     pub summary: Summary,
 
@@ -50,34 +45,6 @@ pub struct CompareReport {
     /// Pre-computed GT discriminating SNPs vs pipeline core SNP results
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gt_disc_vs_pipelines: Option<Vec<GtDiscVsPipelineResult>>,
-}
-
-/// Allele information at a polymorphic site
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PolymorphicSite {
-    /// Reference allele at this position
-    #[serde(rename = "ref")]
-    pub ref_allele: char,
-    /// Allele for each sample (key: sample_id, value: allele info)
-    pub alleles: HashMap<String, SampleAllele>,
-}
-
-/// Allele call for a single sample at a polymorphic site
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SampleAllele {
-    /// The base called (A, C, G, T, or N for ambiguous)
-    pub base: char,
-    /// Source of the call: "vcf", "bam", or "gap"
-    pub source: String,
-    /// Depth at this position (if available)
-    #[serde(default)]
-    pub depth: Option<u32>,
-    /// Quality score from VCF (if available)
-    #[serde(default)]
-    pub qual: Option<f64>,
-    /// Consensus percentage from BAM (0.0 - 1.0, if available)
-    #[serde(default)]
-    pub consensus: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -149,60 +116,6 @@ pub struct Summary {
     /// Warnings (e.g., MNP decomposition notices)
     #[serde(default)]
     pub warnings: Vec<String>,
-    /// SNPs in ground truth gaps statistics (pipeline_id -> stats) - DEPRECATED, use snps_in_gaps
-    #[serde(default)]
-    pub snps_in_gt_gaps: Option<HashMap<String, SnpsInGapsStats>>,
-    /// SNPs in gaps for ALL pipeline pairs (gap_pipeline -> snp_pipeline -> stats)
-    #[serde(default)]
-    pub snps_in_gaps: Option<HashMap<String, HashMap<String, SnpsInGapsStats>>>,
-    /// Ground truth pileup SNP statistics (raw count from BAM without variant calling)
-    #[serde(default)]
-    pub ground_truth_pileup: Option<GroundTruthPileupStats>,
-    /// Per-pipeline MNP decomposition statistics
-    #[serde(default)]
-    pub mnp_stats: Option<HashMap<String, MnpStats>>,
-}
-
-/// Ground truth SNP count from BAM pileup (without variant calling)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GroundTruthPileupStats {
-    /// Total SNPs counted from ground truth BAM pileup (all samples combined)
-    pub total_snps: usize,
-    /// SNP count per sample (sample_id -> count)
-    pub per_sample: HashMap<String, usize>,
-    /// Covered positions (where we could make a call)
-    pub covered_positions: usize,
-    /// Comparison with VCF pipelines (pipeline_id -> comparison)
-    pub pipeline_comparison: HashMap<String, PipelineVsGroundTruth>,
-}
-
-/// Comparison of a pipeline's SNP count vs ground truth pileup
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PipelineVsGroundTruth {
-    /// Pipeline SNP count (from VCF)
-    pub pipeline_snps: usize,
-    /// Ground truth SNP count (from BAM pileup)
-    pub ground_truth_snps: usize,
-    /// Numerical difference (pipeline - ground_truth)
-    pub difference: i64,
-    /// Percentage difference ((pipeline - ground_truth) / ground_truth * 100)
-    pub percentage_diff: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SnpsInGapsStats {
-    pub total_snps: usize,
-    pub snps_in_gaps: usize,
-    pub percentage: f64,
-}
-
-/// MNP (Multi-Nucleotide Polymorphism) statistics per pipeline
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MnpStats {
-    /// Number of MNPs found and decomposed
-    pub mnps_found: usize,
-    /// Total individual SNPs resulting from MNP decomposition
-    pub snps_from_mnps: usize,
 }
 
 /// Pre-computed distance matrix from a pipeline
@@ -225,6 +138,9 @@ pub struct CoreSnpData {
     pub positions: Vec<CoreSnpPosition>,
     /// True for snippycore.tab (has alleles), false for snplist.txt (positions only)
     pub has_alleles: bool,
+    /// Number of positions where at least 2 samples have different alleles (contribute to Hamming distance).
+    /// Exact for Snippy (allele comparison), conservative underestimate for CFSAN (subset check).
+    pub discriminating_count: usize,
 }
 
 /// A single position from a core SNP file
@@ -240,126 +156,200 @@ pub struct CoreSnpPosition {
     pub samples_with_snp: Vec<String>,
 }
 
-/// Parse a core SNP file, auto-detecting format (snippycore.tab vs snplist.txt)
-pub fn parse_core_snps(path: &str) -> anyhow::Result<CoreSnpData> {
-    let content = std::fs::read_to_string(path)
-        .with_context(|| format!("Failed to read core SNPs file: {}", path))?;
+/// Trait for parsing pipeline-specific core SNP output files.
+/// Implement this for each pipeline format (Snippy, CFSAN, etc.)
+pub trait CoreSnpParser {
+    /// Human-readable name of the format (e.g., "snippycore.tab")
+    fn format_name(&self) -> &str;
 
-    let first_line = content.lines().next().unwrap_or("");
+    /// Check if this parser can handle the given file (peek at header/content)
+    fn can_parse(&self, path: &Path) -> bool;
 
-    if first_line.starts_with("CHR\t") || first_line.starts_with("CHR ") {
-        // snippycore.tab format
-        parse_snippycore_tab_for_core(path)
-    } else {
-        // snplist.txt format (CFSAN)
-        parse_cfsan_snplist_for_core(path)
-    }
+    /// Parse the file and return core SNP data
+    fn parse(&self, path: &Path) -> anyhow::Result<CoreSnpData>;
 }
 
-/// Parse snippycore.tab format: CHR\tPOS\tREF\tsample1\tsample2\t...
-fn parse_snippycore_tab_for_core(path: &str) -> anyhow::Result<CoreSnpData> {
-    use std::io::{BufRead, BufReader};
+/// Parser for Snippy core.tab format: CHR\tPOS\tREF\tsample1\tsample2\t...
+pub struct SnippyCoreTabParser;
 
-    let file = std::fs::File::open(path)
-        .with_context(|| format!("Failed to open core SNPs file: {}", path))?;
-    let reader = BufReader::new(file);
+impl CoreSnpParser for SnippyCoreTabParser {
+    fn format_name(&self) -> &str {
+        "snippycore.tab"
+    }
 
-    let mut positions = Vec::new();
-    let mut sample_names: Vec<String> = Vec::new();
+    fn can_parse(&self, path: &Path) -> bool {
+        let Ok(content) = std::fs::read_to_string(path) else { return false };
+        let first_line = content.lines().next().unwrap_or("");
+        first_line.starts_with("CHR\t") || first_line.starts_with("CHR ")
+    }
 
-    for line in reader.lines() {
-        let line = line?;
-        let parts: Vec<&str> = line.split('\t').collect();
+    fn parse(&self, path: &Path) -> anyhow::Result<CoreSnpData> {
+        use std::io::{BufRead, BufReader};
 
-        if line.starts_with("CHR\t") {
-            // Header line — extract sample names
-            sample_names = parts.iter()
-                .skip(3) // Skip CHR, POS, REF
-                .map(|s| s.trim_end_matches("_snippy").to_string())
-                .collect();
-            continue;
-        }
+        let file = std::fs::File::open(path)
+            .with_context(|| format!("Failed to open core SNPs file: {}", path.display()))?;
+        let reader = BufReader::new(file);
 
-        if parts.len() < 4 || sample_names.is_empty() {
-            continue;
-        }
+        let mut positions = Vec::new();
+        let mut sample_names: Vec<String> = Vec::new();
 
-        let pos: usize = parts[1].parse().unwrap_or(0);
-        if pos == 0 { continue; }
-        let pos = pos - 1; // Convert to 0-based
+        for line in reader.lines() {
+            let line = line?;
+            let parts: Vec<&str> = line.split('\t').collect();
 
-        let ref_allele = parts[2].to_string();
-
-        let mut alleles = HashMap::new();
-        let mut samples_with_snp = Vec::new();
-
-        for (i, sample) in sample_names.iter().enumerate() {
-            if let Some(allele) = parts.get(3 + i) {
-                let allele = allele.to_string();
-                // A sample has a SNP if its allele differs from ref and isn't N or -
-                if allele != ref_allele && allele != "N" && allele != "-" {
-                    samples_with_snp.push(sample.clone());
-                }
-                alleles.insert(sample.clone(), allele);
+            if line.starts_with("CHR\t") {
+                // Header line — extract sample names
+                sample_names = parts.iter()
+                    .skip(3) // Skip CHR, POS, REF
+                    .map(|s| s.trim_end_matches("_snippy").to_string())
+                    .collect();
+                continue;
             }
+
+            if parts.len() < 4 || sample_names.is_empty() {
+                continue;
+            }
+
+            let pos: usize = parts[1].parse().unwrap_or(0);
+            if pos == 0 { continue; }
+            let pos = pos - 1; // Convert to 0-based
+
+            let ref_allele = parts[2].to_string();
+
+            let mut alleles = HashMap::new();
+            let mut samples_with_snp = Vec::new();
+
+            for (i, sample) in sample_names.iter().enumerate() {
+                if let Some(allele) = parts.get(3 + i) {
+                    let allele = allele.to_string();
+                    // A sample has a SNP if its allele differs from ref and isn't N or -
+                    if allele != ref_allele && allele != "N" && allele != "-" {
+                        samples_with_snp.push(sample.clone());
+                    }
+                    alleles.insert(sample.clone(), allele);
+                }
+            }
+
+            positions.push(CoreSnpPosition {
+                pos,
+                ref_allele: Some(ref_allele),
+                alleles,
+                samples_with_snp,
+            });
         }
 
-        positions.push(CoreSnpPosition {
-            pos,
-            ref_allele: Some(ref_allele),
-            alleles,
-            samples_with_snp,
-        });
+        // Count discriminating positions: at least 2 samples with different valid alleles
+        let discriminating_count = positions.iter().filter(|p| {
+            let valid: Vec<&str> = p.alleles.values()
+                .map(|a| a.as_str())
+                .filter(|a| *a != "N" && *a != "-")
+                .collect();
+            if valid.len() < 2 { return false; }
+            let first = valid[0];
+            valid.iter().any(|a| *a != first)
+        }).count();
+
+        log::info!(
+            "Parsed {} core SNP positions from snippycore.tab (with alleles, {} discriminating)",
+            positions.len(), discriminating_count
+        );
+
+        Ok(CoreSnpData {
+            positions,
+            has_alleles: true,
+            discriminating_count,
+        })
     }
-
-    log::info!("Parsed {} core SNP positions from snippycore.tab (with alleles)", positions.len());
-
-    Ok(CoreSnpData {
-        positions,
-        has_alleles: true,
-    })
 }
 
-/// Parse CFSAN snplist.txt format: CHROM\tPOS\tCOUNT\tsample1\tsample2\t...
-fn parse_cfsan_snplist_for_core(path: &str) -> anyhow::Result<CoreSnpData> {
-    use std::io::{BufRead, BufReader};
+/// Parser for CFSAN snplist.txt format: CHROM\tPOS\tCOUNT\tsample1\tsample2\t...
+pub struct CfsanSnplistParser;
 
-    let file = std::fs::File::open(path)
-        .with_context(|| format!("Failed to open core SNPs file: {}", path))?;
-    let reader = BufReader::new(file);
-
-    let mut positions = Vec::new();
-
-    for line in reader.lines() {
-        let line = line?;
-        let parts: Vec<&str> = line.split('\t').collect();
-        if parts.len() < 4 {
-            continue;
-        }
-
-        let pos: usize = parts[1].parse().unwrap_or(0);
-        if pos == 0 { continue; }
-        let pos = pos - 1; // Convert to 0-based
-
-        let samples_with_snp: Vec<String> = parts.iter()
-            .skip(3)
-            .map(|s| s.to_string())
-            .collect();
-
-        positions.push(CoreSnpPosition {
-            pos,
-            ref_allele: None,
-            alleles: HashMap::new(),
-            samples_with_snp,
-        });
+impl CoreSnpParser for CfsanSnplistParser {
+    fn format_name(&self) -> &str {
+        "snplist.txt"
     }
 
-    log::info!("Parsed {} core SNP positions from snplist.txt (no alleles)", positions.len());
+    fn can_parse(&self, path: &Path) -> bool {
+        // Fallback parser — accepts any readable file
+        path.exists()
+    }
 
-    Ok(CoreSnpData {
-        positions,
-        has_alleles: false,
-    })
+    fn parse(&self, path: &Path) -> anyhow::Result<CoreSnpData> {
+        use std::io::{BufRead, BufReader};
+
+        let file = std::fs::File::open(path)
+            .with_context(|| format!("Failed to open core SNPs file: {}", path.display()))?;
+        let reader = BufReader::new(file);
+
+        let mut positions = Vec::new();
+
+        for line in reader.lines() {
+            let line = line?;
+            let parts: Vec<&str> = line.split('\t').collect();
+            if parts.len() < 4 {
+                continue;
+            }
+
+            let pos: usize = parts[1].parse().unwrap_or(0);
+            if pos == 0 { continue; }
+            let pos = pos - 1; // Convert to 0-based
+
+            let samples_with_snp: Vec<String> = parts.iter()
+                .skip(3)
+                .map(|s| s.to_string())
+                .collect();
+
+            positions.push(CoreSnpPosition {
+                pos,
+                ref_allele: None,
+                alleles: HashMap::new(),
+                samples_with_snp,
+            });
+        }
+
+        // Collect all unique sample names to determine total sample count
+        let all_samples: std::collections::HashSet<&str> = positions.iter()
+            .flat_map(|p| p.samples_with_snp.iter().map(|s| s.as_str()))
+            .collect();
+        let total_samples = all_samples.len();
+
+        // Discriminating: positions where only a subset of samples has the SNP.
+        // If all samples appear → all mutated the same way vs ref → not discriminating.
+        // Conservative underestimate: two samples could have different ALT alleles
+        // but we count them as non-discriminating since we lack allele info.
+        let discriminating_count = positions.iter().filter(|p| {
+            let n = p.samples_with_snp.len();
+            n > 0 && n < total_samples
+        }).count();
+
+        log::info!(
+            "Parsed {} core SNP positions from snplist.txt (no alleles, {} discriminating, {} total samples)",
+            positions.len(), discriminating_count, total_samples
+        );
+
+        Ok(CoreSnpData {
+            positions,
+            has_alleles: false,
+            discriminating_count,
+        })
+    }
+}
+
+/// Try all registered parsers, return the first that can handle the file
+pub fn parse_core_snps(path: &str) -> anyhow::Result<CoreSnpData> {
+    let path = Path::new(path);
+    let parsers: Vec<Box<dyn CoreSnpParser>> = vec![
+        Box::new(SnippyCoreTabParser),
+        Box::new(CfsanSnplistParser),
+    ];
+    for parser in &parsers {
+        if parser.can_parse(path) {
+            log::info!("Detected core SNP format: {}", parser.format_name());
+            return parser.parse(path);
+        }
+    }
+    anyhow::bail!("No parser found for core SNP file: {}", path.display())
 }
 
 /// Result of GT disc vs pipeline comparison
@@ -368,6 +358,9 @@ pub struct GtDiscVsPipelineResult {
     pub pipeline_id: String,
     /// Total core SNP positions in the pipeline's core_snps file
     pub pl_total_core_snps: u32,
+    /// Discriminating core SNPs: positions where at least 2 samples differ (contribute to Hamming distance).
+    /// Exact for Snippy (allele comparison), conservative underestimate for CFSAN (subset check).
+    pub pl_discriminating_core_snps: u32,
     pub gap_intersect: GapStrategyResult,
     pub gap_union: GapStrategyResult,
     pub pairwise: PairwiseGtDiscResult,
@@ -608,6 +601,7 @@ pub fn compute_gt_disc_vs_pipelines(
         results.push(GtDiscVsPipelineResult {
             pipeline_id: pipeline_id.clone(),
             pl_total_core_snps: core_data.positions.len() as u32,
+            pl_discriminating_core_snps: core_data.discriminating_count as u32,
             gap_intersect: GapStrategyResult {
                 gt_disc: gt_disc_intersect.len() as u32,
                 same_pos: gi_same_pos,
@@ -691,8 +685,6 @@ impl CompareReport {
         let mut data: HashMap<String, HashMap<String, PipelineData>> = HashMap::new();
         let mut total_mnps_found = 0;
         let mut total_snps_from_mnps = 0;
-        // Per-pipeline MNP stats
-        let mut pipeline_mnp_stats: HashMap<String, MnpStats> = HashMap::new();
 
         for sample_id in &sample_ids {
             let mut sample_data: HashMap<String, PipelineData> = HashMap::new();
@@ -736,13 +728,6 @@ impl CompareReport {
                             pipeline_data.vcf_path = Some(vcf_path.clone());
                             total_mnps_found += result.mnps_found;
                             total_snps_from_mnps += result.snps_from_mnps;
-                            // Track per-pipeline MNP stats
-                            let entry = pipeline_mnp_stats.entry(pipeline_id.clone()).or_insert(MnpStats {
-                                mnps_found: 0,
-                                snps_from_mnps: 0,
-                            });
-                            entry.mnps_found += result.mnps_found;
-                            entry.snps_from_mnps += result.snps_from_mnps;
                             log::info!("  Found {} SNPs", pipeline_data.snps.len());
                         } else if pipeline.ground_truth && files.bam.is_some() {
                             // For ground truth without VCF, load SNPs from BAM pileup
@@ -787,216 +772,12 @@ impl CompareReport {
             ));
         }
 
-        // Build polymorphic sites for distance matrix calculation
-        log::info!("Building polymorphic sites for distance matrix...");
-        let polymorphic_sites = build_polymorphic_sites(
-            &data,
-            &sample_ids,
-            &pipeline_ids,
-            config,
-            &ref_name,
-            &ref_seq,
-        )?;
-        let total_sites: usize = polymorphic_sites.values().map(|v| v.len()).max().unwrap_or(0);
-        log::info!("Built polymorphic sites for {} pipelines ({} positions each)", polymorphic_sites.len(), total_sites);
-
-        // Helper function to check if position is in any gap
-        fn pos_in_gaps(pos: usize, gaps: &[[usize; 2]]) -> bool {
-            gaps.iter().any(|[start, end]| pos >= *start && pos < *end)
-        }
-
-        // Calculate SNPs in gaps for ALL pipeline pairs (gap_pipeline -> snp_pipeline -> stats)
-        // This replaces the old snps_in_gt_gaps which only worked for ground truth
-        let snps_in_gaps: Option<HashMap<String, HashMap<String, SnpsInGapsStats>>> = {
-            let mut all_stats: HashMap<String, HashMap<String, SnpsInGapsStats>> = HashMap::new();
-
-            // For each pipeline that has BAM data (source of gaps)
-            for gap_pipeline_id in &pipeline_ids {
-                if let Some(gap_pipeline_info) = pipelines.get(gap_pipeline_id) {
-                    if !gap_pipeline_info.has_bam {
-                        continue;  // No BAM = no gap information
-                    }
-                }
-
-                let mut gap_pipeline_stats: HashMap<String, SnpsInGapsStats> = HashMap::new();
-
-                // For each OTHER pipeline that has SNPs
-                for snp_pipeline_id in &pipeline_ids {
-                    if snp_pipeline_id == gap_pipeline_id {
-                        continue;  // Don't compare pipeline with itself
-                    }
-                    if let Some(snp_pipeline_info) = pipelines.get(snp_pipeline_id) {
-                        if !snp_pipeline_info.has_vcf {
-                            continue;  // No VCF = no SNP information
-                        }
-                    }
-
-                    let mut total_snps = 0usize;
-                    let mut snps_in_gap = 0usize;
-
-                    for sample_id in &sample_ids {
-                        // Get gaps from gap_pipeline for this sample
-                        let gaps = data
-                            .get(sample_id)
-                            .and_then(|s| s.get(gap_pipeline_id))
-                            .map(|d| d.gaps.as_slice())
-                            .unwrap_or(&[]);
-
-                        // Get SNPs from snp_pipeline for this sample
-                        if let Some(sample_data) = data.get(sample_id) {
-                            if let Some(pipeline_data) = sample_data.get(snp_pipeline_id) {
-                                for snp in &pipeline_data.snps {
-                                    total_snps += 1;
-                                    if pos_in_gaps(snp.pos, gaps) {
-                                        snps_in_gap += 1;
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    let percentage = if total_snps > 0 {
-                        (snps_in_gap as f64 / total_snps as f64) * 100.0
-                    } else {
-                        0.0
-                    };
-
-                    gap_pipeline_stats.insert(snp_pipeline_id.clone(), SnpsInGapsStats {
-                        total_snps,
-                        snps_in_gaps: snps_in_gap,
-                        percentage,
-                    });
-                }
-
-                if !gap_pipeline_stats.is_empty() {
-                    all_stats.insert(gap_pipeline_id.clone(), gap_pipeline_stats);
-                }
-            }
-
-            if !all_stats.is_empty() {
-                Some(all_stats)
-            } else {
-                None
-            }
-        };
-
-        // Calculate SNPs in ground truth gaps (DEPRECATED - kept for backwards compatibility)
-        let snps_in_gt_gaps = if let Some(gt_pipeline) = config.ground_truth_pipeline() {
-            // Use the new snps_in_gaps data if available
-            snps_in_gaps.as_ref().and_then(|all| all.get(&gt_pipeline).cloned())
-        } else {
-            None
-        };
-
-        // Calculate ground truth pileup SNPs (raw count from BAM without variant calling)
-        let ground_truth_pileup = if let Some(gt_pipeline) = config.ground_truth_pipeline() {
-            log::info!("Calculating ground truth pileup SNP count...");
-
-            let mut per_sample: HashMap<String, usize> = HashMap::new();
-            let mut total_snps = 0usize;
-            let mut total_covered = 0usize;
-
-            // For each sample, count SNPs from the ground truth BAM
-            for sample_id in &sample_ids {
-                let bam_path: Option<String> = config.pipelines.get(&gt_pipeline)
-                    .and_then(|p| p.samples.get(sample_id))
-                    .and_then(|f| f.bam.clone());
-
-                if let Some(ref path) = bam_path {
-                    match pileup::count_snps_from_pileup(
-                        Path::new(path),
-                        &ref_seq,
-                        &ref_name,
-                        config.options.min_depth as u32,
-                        config.options.min_consensus,
-                    ) {
-                        Ok((snp_count, covered_positions)) => {
-                            log::info!("  {}: {} SNPs from pileup ({} covered positions)",
-                                sample_id, snp_count, covered_positions);
-                            per_sample.insert(sample_id.clone(), snp_count);
-                            total_snps += snp_count;
-                            total_covered = total_covered.max(covered_positions);
-                        }
-                        Err(e) => {
-                            log::warn!("Failed to count pileup SNPs for {}: {}", sample_id, e);
-                        }
-                    }
-                }
-            }
-
-            // Compare with VCF pipelines
-            let mut pipeline_comparison: HashMap<String, PipelineVsGroundTruth> = HashMap::new();
-
-            for pipeline_id in &pipeline_ids {
-                if pipeline_id == &gt_pipeline {
-                    continue;
-                }
-                if let Some(pipeline_info) = pipelines.get(pipeline_id) {
-                    if !pipeline_info.has_vcf {
-                        continue;
-                    }
-                }
-
-                // Count total SNPs for this pipeline across all samples
-                let mut pipeline_snps = 0usize;
-                for sample_id in &sample_ids {
-                    if let Some(sample_data) = data.get(sample_id) {
-                        if let Some(pipeline_data) = sample_data.get(pipeline_id) {
-                            pipeline_snps += pipeline_data.snps.len();
-                        }
-                    }
-                }
-
-                let difference = pipeline_snps as i64 - total_snps as i64;
-                let percentage_diff = if total_snps > 0 {
-                    (difference as f64 / total_snps as f64) * 100.0
-                } else {
-                    0.0
-                };
-
-                pipeline_comparison.insert(pipeline_id.clone(), PipelineVsGroundTruth {
-                    pipeline_snps,
-                    ground_truth_snps: total_snps,
-                    difference,
-                    percentage_diff,
-                });
-
-                log::info!("  {} vs GT: {} vs {} SNPs (diff: {:+}, {:+.2}%)",
-                    pipeline_id, pipeline_snps, total_snps, difference, percentage_diff);
-            }
-
-            if !per_sample.is_empty() {
-                Some(GroundTruthPileupStats {
-                    total_snps,
-                    per_sample,
-                    covered_positions: total_covered,
-                    pipeline_comparison,
-                })
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        // Build summary
-        // Only include MNP stats if any MNPs were found
-        let mnp_stats = if pipeline_mnp_stats.values().any(|s| s.mnps_found > 0) {
-            Some(pipeline_mnp_stats)
-        } else {
-            None
-        };
-
         let summary = Summary {
             total_samples: sample_ids.len(),
             total_pipelines: pipeline_ids.len(),
             generated_at: chrono::Utc::now().to_rfc3339(),
             coreguard_version: env!("CARGO_PKG_VERSION").to_string(),
             warnings,
-            snps_in_gt_gaps,
-            snps_in_gaps,
-            ground_truth_pileup,
-            mnp_stats,
         };
 
         // Get description content (from file or inline)
@@ -1026,8 +807,8 @@ impl CompareReport {
                     match parse_core_snps(core_snps_path) {
                         Ok(core_data) => {
                             log::info!(
-                                "Loaded core SNPs for pipeline '{}': {} positions (has_alleles: {})",
-                                pipeline_id, core_data.positions.len(), core_data.has_alleles
+                                "Loaded core SNPs for pipeline '{}': {} positions ({} discriminating, has_alleles: {})",
+                                pipeline_id, core_data.positions.len(), core_data.discriminating_count, core_data.has_alleles
                             );
                             core_snp_data.insert(pipeline_id.clone(), core_data);
                         }
@@ -1070,7 +851,6 @@ impl CompareReport {
             samples,
             pipelines,
             data,
-            polymorphic_sites,
             summary,
             description,
             pipeline_distance_matrices,
@@ -1406,248 +1186,3 @@ fn extract_depth(info: &str, format: Option<&str>, sample: Option<&str>) -> usiz
     0
 }
 
-/// Build polymorphic sites map for distance matrix calculation
-///
-/// Build polymorphic sites for each pipeline separately.
-/// VCF SNP info for distance matrix calculation
-#[derive(Debug, Clone)]
-struct VcfSnpInfo {
-    base: char,
-    depth: Option<u32>,
-    qual: Option<f64>,
-}
-
-/// Only includes "core" polymorphic positions where:
-/// 1. All samples have coverage (no gaps)
-/// 2. At least one sample differs from another (truly polymorphic)
-/// Returns: pipeline_id -> position -> PolymorphicSite
-fn build_polymorphic_sites(
-    data: &HashMap<String, HashMap<String, PipelineData>>,
-    sample_ids: &[String],
-    pipeline_ids: &[String],
-    config: &Config,
-    ref_name: &str,
-    ref_seq: &str,
-) -> Result<HashMap<String, HashMap<String, PolymorphicSite>>> {
-    use std::collections::HashSet;
-
-    // Step 1: Collect SNP positions PER PIPELINE (not across all pipelines)
-    // pipeline -> position -> (sample -> VcfSnpInfo)
-    let mut pipeline_snp_map: HashMap<String, HashMap<u32, HashMap<String, VcfSnpInfo>>> = HashMap::new();
-
-    for (sample_id, pipelines_data) in data {
-        for (pipeline_id, pipeline_data) in pipelines_data {
-            let pipeline_positions = pipeline_snp_map
-                .entry(pipeline_id.clone())
-                .or_insert_with(HashMap::new);
-
-            for snp in &pipeline_data.snps {
-                let pos = (snp.pos - 1) as u32;  // Convert to 0-based
-                let alt_char = snp.alt.chars().next().unwrap_or('N');
-
-                pipeline_positions
-                    .entry(pos)
-                    .or_insert_with(HashMap::new)
-                    .insert(sample_id.clone(), VcfSnpInfo {
-                        base: alt_char,
-                        depth: if snp.dp > 0 { Some(snp.dp as u32) } else { None },
-                        qual: if snp.qual > 0.0 { Some(snp.qual) } else { None },
-                    });
-            }
-        }
-    }
-
-    // Step 2: Build polymorphic sites for EACH pipeline using only THAT pipeline's positions
-    let mut result: HashMap<String, HashMap<String, PolymorphicSite>> = HashMap::new();
-
-    for pipeline_id in pipeline_ids {
-        // Get positions for THIS pipeline only
-        let pipeline_snps = match pipeline_snp_map.get(pipeline_id) {
-            Some(snps) => snps,
-            None => {
-                result.insert(pipeline_id.clone(), HashMap::new());
-                continue;
-            }
-        };
-
-        let mut positions: Vec<u32> = pipeline_snps.keys().copied().collect();
-        positions.sort();
-
-        log::info!("Building polymorphic sites for pipeline {}: {} candidate positions", pipeline_id, positions.len());
-
-        // Collect gap positions for each sample (for faster lookup)
-        let mut sample_gap_positions: HashMap<String, HashSet<u32>> = HashMap::new();
-        for sample_id in sample_ids {
-            let gap_regions: Vec<[usize; 2]> = data.get(sample_id)
-                .and_then(|p| p.get(pipeline_id))
-                .map(|d| d.gaps.clone())
-                .unwrap_or_default();
-
-            let mut gap_set = HashSet::new();
-            for [start, end] in gap_regions {
-                for p in start..end {
-                    gap_set.insert(p as u32);
-                }
-            }
-            sample_gap_positions.insert(sample_id.clone(), gap_set);
-        }
-
-        // Pre-read BAM bases with stats for all samples
-        let mut sample_bam_bases: HashMap<String, HashMap<u32, BaseCallWithStats>> = HashMap::new();
-        for sample_id in sample_ids {
-            let bam_path: Option<String> = config.pipelines.get(pipeline_id)
-                .and_then(|p| p.samples.get(sample_id))
-                .and_then(|f| f.bam.clone());
-
-            let bam_bases: HashMap<u32, BaseCallWithStats> = if let Some(ref path) = bam_path {
-                match pileup::get_bases_with_stats(
-                    Path::new(path),
-                    ref_name,
-                    &positions,
-                    config.options.min_depth as u32,
-                    config.options.min_consensus,
-                ) {
-                    Ok(bases) => bases,
-                    Err(e) => {
-                        log::warn!("Failed to read BAM {}: {}", path, e);
-                        HashMap::new()
-                    }
-                }
-            } else {
-                HashMap::new()
-            };
-            sample_bam_bases.insert(sample_id.clone(), bam_bases);
-        }
-
-        // Build sites and filter to core polymorphic positions
-        let mut pipeline_sites: HashMap<String, PolymorphicSite> = HashMap::new();
-        let mut core_count = 0u32;
-
-        for &pos in &positions {
-            let ref_char = ref_seq.chars().nth(pos as usize).unwrap_or('N');
-            let mut alleles: HashMap<String, SampleAllele> = HashMap::new();
-            let mut all_have_coverage = true;
-
-            // Collect alleles for all samples
-            for sample_id in sample_ids {
-                // Check if position is in a gap
-                let in_gap = sample_gap_positions
-                    .get(sample_id)
-                    .map(|s| s.contains(&pos))
-                    .unwrap_or(false);
-
-                if in_gap {
-                    all_have_coverage = false;
-                    alleles.insert(sample_id.clone(), SampleAllele {
-                        base: '-',
-                        source: "gap".to_string(),
-                        depth: Some(0),
-                        qual: None,
-                        consensus: None,
-                    });
-                    continue;
-                }
-
-                // Check if we have a SNP from this pipeline's VCF for this sample
-                let snp_info: Option<&VcfSnpInfo> = pipeline_snps
-                    .get(&pos)
-                    .and_then(|sample_alts| sample_alts.get(sample_id));
-
-                if let Some(info) = snp_info {
-                    // Have SNP from VCF
-                    alleles.insert(sample_id.clone(), SampleAllele {
-                        base: info.base,
-                        source: "vcf".to_string(),
-                        depth: info.depth,
-                        qual: info.qual,
-                        consensus: None,  // VCF doesn't provide consensus
-                    });
-                } else if let Some(bam_stats) = sample_bam_bases.get(sample_id).and_then(|m| m.get(&pos)) {
-                    // No SNP - get from BAM with stats
-                    match &bam_stats.call {
-                        BaseCall::Base(b) => {
-                            alleles.insert(sample_id.clone(), SampleAllele {
-                                base: *b,
-                                source: "bam".to_string(),
-                                depth: Some(bam_stats.depth),
-                                qual: None,
-                                consensus: Some(bam_stats.consensus),
-                            });
-                        }
-                        BaseCall::Gap => {
-                            all_have_coverage = false;
-                            alleles.insert(sample_id.clone(), SampleAllele {
-                                base: '-',
-                                source: "gap".to_string(),
-                                depth: Some(bam_stats.depth),
-                                qual: None,
-                                consensus: Some(0.0),
-                            });
-                        }
-                        BaseCall::Ambiguous => {
-                            alleles.insert(sample_id.clone(), SampleAllele {
-                                base: 'N',
-                                source: "ambiguous".to_string(),
-                                depth: Some(bam_stats.depth),
-                                qual: None,
-                                consensus: Some(bam_stats.consensus),
-                            });
-                        }
-                    }
-                } else {
-                    // No BAM data - assume reference (for vcf_ref mode this is what we need)
-                    alleles.insert(sample_id.clone(), SampleAllele {
-                        base: ref_char,
-                        source: "inferred".to_string(),
-                        depth: None,
-                        qual: None,
-                        consensus: None,
-                    });
-                }
-            }
-
-            // Check if this is a "core" position (all samples have coverage)
-            if !all_have_coverage {
-                continue;
-            }
-            core_count += 1;
-
-            // Check if truly polymorphic using ACTUAL bases (BAM-validated)
-            // This is pipeline-agnostic: uses real sequenced bases, not VCF+Ref assumptions
-            let sample_bases: Vec<char> = sample_ids.iter()
-                .filter_map(|sid| {
-                    let allele = alleles.get(sid)?;
-                    if allele.base == '-' || allele.base == 'N' {
-                        return None;
-                    }
-                    // Use actual base (from VCF or BAM) - NOT reference assumption
-                    Some(allele.base)
-                })
-                .collect();
-
-            // Only include if all samples have valid bases AND at least one differs
-            if sample_bases.len() != sample_ids.len() {
-                continue;
-            }
-
-            let is_polymorphic = {
-                let first = sample_bases[0];
-                sample_bases.iter().any(|&b| b != first)
-            };
-
-            if is_polymorphic {
-                pipeline_sites.insert(pos.to_string(), PolymorphicSite {
-                    ref_allele: ref_char,
-                    alleles,
-                });
-            }
-        }
-
-        log::info!("Pipeline {}: {} core positions, {} polymorphic",
-            pipeline_id, core_count, pipeline_sites.len());
-
-        result.insert(pipeline_id.clone(), pipeline_sites);
-    }
-
-    Ok(result)
-}

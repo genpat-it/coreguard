@@ -118,14 +118,6 @@ self.onmessage = async function(e) {
                 result = { label: genomeData.get_pipeline_label(payload.pipelineId) };
                 break;
 
-            case 'getPerSampleStats':
-                result = { stats: JSON.parse(genomeData.get_per_sample_stats()) };
-                break;
-
-            case 'getCoverageStats':
-                result = { stats: JSON.parse(genomeData.get_coverage_stats()) };
-                break;
-
             case 'getFilteredPositions':
                 const positionsJson = genomeData.get_filtered_positions_v2(
                     JSON.stringify(payload.samples),
@@ -146,53 +138,8 @@ self.onmessage = async function(e) {
                 result = { html };
                 break;
 
-            case 'calculateDistanceMatrix':
-                const matrixJson = genomeData.calculate_distance_matrix_filtered(
-                    payload.pipeline,
-                    payload.mode,
-                    payload.minDepth,
-                    payload.minConsensus,
-                    payload.minQual
-                );
-                result = { matrix: JSON.parse(matrixJson) };
-                break;
-
-            case 'getReproducibilityCommands':
-                result = {
-                    commands: payload.pipelineIds.map(p => ({
-                        id: p,
-                        label: genomeData.get_pipeline_label(p),
-                        command: genomeData.get_pipeline_command(p)
-                    }))
-                };
-                break;
-
-            case 'getConsensusStats':
-                result = { stats: JSON.parse(genomeData.get_consensus_stats()) };
-                break;
-
-            case 'getPerSampleIntersectionWithGt':
-                result = { intersection: JSON.parse(genomeData.get_per_sample_intersection_with_gt()) };
-                break;
-
-            case 'getFilePaths':
-                result = { paths: JSON.parse(genomeData.get_file_paths()) };
-                break;
-
             case 'getKpis':
                 result = { kpis: JSON.parse(genomeData.get_kpis()) };
-                break;
-
-            case 'getMnpStats':
-                result = { stats: JSON.parse(genomeData.get_mnp_stats()) };
-                break;
-
-            case 'getPipelineConcordance':
-                result = { concordance: JSON.parse(genomeData.get_pipeline_concordance()) };
-                break;
-
-            case 'getSnpsInGaps':
-                result = { snpsInGaps: JSON.parse(genomeData.get_snps_in_gaps()) };
                 break;
 
             case 'getSnp':
@@ -205,10 +152,6 @@ self.onmessage = async function(e) {
 
             case 'getPairwiseUsableStats':
                 result = { stats: JSON.parse(genomeData.get_pairwise_usable_stats()) };
-                break;
-
-            case 'getReviewerPairwiseStats':
-                result = { stats: JSON.parse(genomeData.get_reviewer_pairwise_stats()) };
                 break;
 
             case 'getGlobalStatsForPipeline':

@@ -2225,7 +2225,7 @@ pipelines:
             if (gtPipelineId && kpis.samples >= 2) {
                 const gtDiscVsPl = await workerApi.getGtDiscVsPipelines();
                 if (gtDiscVsPl && Object.keys(gtDiscVsPl).length > 0) {
-                    html += sectionStart(`GT Discriminating SNPs vs Pipelines ${infoIcon('gt_disc_vs_pl')}`);
+                    html += sectionStart(`GT Discriminating SNPs vs Pipelines ${infoIcon('gt_disc_vs_pl')}`, true);
                     html += `<table class="kpi-table"><thead><tr>
                         <th rowspan="2">Pipeline</th>
                         <th rowspan="2">Core SNPs</th>

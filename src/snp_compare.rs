@@ -1067,9 +1067,20 @@ mod tests {
         let positions: HashSet<usize> = [1, 2, 3, 10, 11, 12, 20].into_iter().collect();
         let regions = positions_to_regions(&positions, 5);
 
+        // Gap between end of [1,2,3] (exclusive end=4) and 10 is 6, exceeds max_gap=5
+        assert_eq!(regions.len(), 3);
+        assert_eq!(regions[0].start, 1);
+        assert_eq!(regions[0].end, 4);
+        assert_eq!(regions[1].start, 10);
+        assert_eq!(regions[1].end, 13);
+        assert_eq!(regions[2].start, 20);
+        assert_eq!(regions[2].end, 21);
+
+        // With max_gap=6, [1-3] and [10-12] merge (10 <= 4+6) but not [20] (20 > 13+6)
+        let regions = positions_to_regions(&positions, 6);
         assert_eq!(regions.len(), 2);
         assert_eq!(regions[0].start, 1);
-        assert_eq!(regions[0].end, 13); // 3 and 10 are within gap of 5
+        assert_eq!(regions[0].end, 13);
         assert_eq!(regions[1].start, 20);
         assert_eq!(regions[1].end, 21);
     }

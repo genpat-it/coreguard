@@ -33,6 +33,7 @@ mod vcf;
 mod vcf_compare;
 mod config;
 mod compare;
+mod parsers;
 mod pileup;
 #[cfg(feature = "serve")]
 mod serve;

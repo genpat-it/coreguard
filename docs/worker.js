@@ -118,32 +118,8 @@ self.onmessage = async function(e) {
                 result = { label: genomeData.get_pipeline_label(payload.pipelineId) };
                 break;
 
-            case 'getFilteredPositions':
-                const positionsJson = genomeData.get_filtered_positions_v2(
-                    JSON.stringify(payload.samples),
-                    payload.filterStr,
-                    payload.filterMode,
-                    payload.sampleMode
-                );
-                result = { positions: JSON.parse(positionsJson) };
-                break;
-
-            case 'renderFiltered':
-                const html = genomeData.render_filtered(
-                    JSON.stringify(payload.samples),
-                    JSON.stringify(payload.positions),
-                    payload.offset,
-                    payload.limit
-                );
-                result = { html };
-                break;
-
             case 'getKpis':
                 result = { kpis: JSON.parse(genomeData.get_kpis()) };
-                break;
-
-            case 'getSnp':
-                result = { snp: genomeData.get_snp(payload.sample, payload.pipeline, payload.pos) };
                 break;
 
             case 'getGlobalStats':

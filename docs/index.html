@@ -586,195 +586,6 @@
         .stats-table .info-icon:hover {
             opacity: 1;
         }
-        .filters {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        .filter-btn {
-            background: var(--btn-bg);
-            color: var(--text-primary);
-            border: 1px solid var(--btn-border);
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.2s;
-        }
-        .filter-btn:hover {
-            background: var(--bg-tertiary);
-            transform: scale(1.02);
-            border-color: var(--accent);
-        }
-        .filter-btn:active {
-            transform: scale(0.98);
-        }
-        .filter-btn.active {
-            background: var(--accent);
-            border-color: var(--accent-hover);
-            color: white;
-            box-shadow: 0 0 8px var(--accent), inset 0 0 4px rgba(255,255,255,0.3);
-            font-weight: bold;
-            transform: scale(1.05);
-        }
-        .filter-btn.active::before {
-            content: "✓ ";
-        }
-        .filter-btn.gap-filter {
-            color: var(--gap-color);
-        }
-        .filter-btn.gap-filter.active {
-            background: #8b0000;
-            border-color: var(--gap-color);
-            color: white;
-            box-shadow: 0 0 8px var(--gap-color);
-            font-weight: bold;
-            transform: scale(1.05);
-        }
-        .nav-controls {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-        .nav-controls input {
-            background: var(--btn-bg);
-            color: var(--text-primary);
-            border: 1px solid var(--btn-border);
-            padding: 6px 10px;
-            border-radius: 4px;
-            width: 100px;
-            font-family: inherit;
-        }
-        .nav-controls button {
-            background: var(--btn-bg);
-            color: var(--text-primary);
-            border: 1px solid var(--btn-border);
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .nav-controls button:hover {
-            background: var(--bg-tertiary);
-        }
-        .alignment-view {
-            font-size: 11px;
-            line-height: 1.1;
-            overflow-x: auto;
-            white-space: pre;
-            width: 100%;
-        }
-        .alignment-view .row {
-            display: flex;
-            width: 100%;
-        }
-        .alignment-view .row.hidden-row {
-            display: none;
-        }
-        .alignment-view .hide-letters {
-            color: transparent !important;
-            font-size: 0 !important;
-        }
-        .alignment-view .lbl {
-            display: inline-block;
-            width: 70px;
-            min-width: 70px;
-            color: var(--label-color);
-            flex-shrink: 0;
-            text-align: right;
-            padding-right: 3px;
-            font-size: 9px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .alignment-view .ref,
-        .alignment-view .sample {
-            flex-grow: 1;
-            letter-spacing: 0px;
-        }
-        .alignment-view .lbl.sub {
-            color: var(--text-secondary);
-            font-style: italic;
-        }
-        .alignment-view .ref {
-            color: var(--ref-color);
-        }
-        .alignment-view .sample {
-            color: var(--text-primary);
-        }
-        .alignment-view .gap {
-            color: var(--gap-color);
-            background: var(--gap-bg);
-        }
-        .alignment-view .dim {
-            color: var(--text-muted);
-        }
-        .alignment-view .snp-consensus {
-            color: var(--snp-consensus);
-            background: var(--snp-consensus-bg);
-            font-weight: bold;
-        }
-        .alignment-view .snp-uncertain {
-            color: var(--snp-uncertain);
-            background: var(--snp-uncertain-bg);
-        }
-        .alignment-view .snp-discord {
-            color: var(--snp-discord);
-            background: var(--snp-discord-bg);
-            font-weight: bold;
-        }
-        .alignment-view .snp-pipeline {
-            color: var(--snp-pipeline);
-            background: var(--snp-pipeline-bg);
-        }
-        .alignment-view .snp-vcf {
-            color: var(--snp-vcf);
-            background: var(--snp-vcf-bg);
-        }
-        .alignment-view .snp-bam {
-            color: var(--snp-bam);
-            background: var(--snp-bam-bg);
-        }
-        .alignment-view .nuc {
-            color: var(--text-primary);
-        }
-        .alignment-view .pos-num,
-        .alignment-view .nuc,
-        .alignment-view .gap,
-        .alignment-view .dim,
-        .alignment-view .snp-consensus,
-        .alignment-view .snp-uncertain,
-        .alignment-view .snp-discord,
-        .alignment-view .snp-pipeline,
-        .alignment-view .snp-vcf,
-        .alignment-view .snp-bam {
-            display: inline-block;
-            width: 7px;
-            text-align: center;
-            font-size: 10px;
-            position: relative;
-        }
-        .alignment-view [data-pos]:hover::after {
-            content: attr(data-pos);
-            position: absolute;
-            bottom: 100%;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--bg-tertiary);
-            color: var(--text-primary);
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 11px;
-            white-space: nowrap;
-            z-index: 100;
-            pointer-events: none;
-            border: 1px solid var(--border-color);
-        }
-        .alignment-view .pos-num {
-            color: var(--text-secondary);
-        }
-        .block.compact .row {
-            margin: 2px 0;
-        }
         .collapsible-panel {
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
@@ -805,79 +616,6 @@
             font-size: 12px;
             color: var(--label-color);
         }
-        #visibility-controls {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 8px;
-        }
-        .vis-group {
-            background: var(--bg-primary);
-            padding: 6px 10px;
-            border-radius: 4px;
-            border: 1px solid var(--border-color);
-        }
-        .vis-group-title {
-            color: var(--label-color);
-            font-weight: bold;
-            margin-bottom: 4px;
-            font-size: 10px;
-        }
-        .vis-item {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            margin: 2px 0;
-        }
-        .vis-item input {
-            cursor: pointer;
-        }
-        .vis-item label {
-            cursor: pointer;
-            color: var(--text-primary);
-            font-size: 10px;
-        }
-        .filter-options {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-        .filter-options select {
-            background: var(--btn-bg);
-            color: var(--text-primary);
-            border: 1px solid var(--btn-border);
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            cursor: pointer;
-        }
-        .genome-overview-content {
-            margin-top: 8px;
-        }
-        .genome-legend-bar {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 8px;
-            justify-content: flex-end;
-        }
-        .genome-legend-item {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            color: var(--text-primary);
-            font-size: 10px;
-        }
-        .genome-legend-item span {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border-radius: 2px;
-        }
-        #genome-canvas {
-            width: 100%;
-            display: block;
-            cursor: crosshair;
-        }
         .footer {
             display: flex;
             justify-content: space-between;
@@ -886,65 +624,6 @@
             border-top: 1px solid var(--border-color);
             font-size: 10px;
             color: var(--text-secondary);
-        }
-        .legend-content {
-            display: flex;
-            gap: 20px;
-            padding: 8px 0;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 11px;
-        }
-        .legend-item span.swatch {
-            display: inline-block;
-            width: 14px;
-            height: 14px;
-            border-radius: 2px;
-        }
-        .legend-item .swatch.consensus { background: var(--snp-consensus-bg); border: 1px solid var(--snp-consensus); }
-        .legend-item .swatch.uncertain { background: var(--snp-uncertain-bg); border: 1px solid var(--snp-uncertain); }
-        .legend-item .swatch.discord { background: var(--snp-discord-bg); border: 1px solid var(--snp-discord); }
-        .legend-item .swatch.vcf { background: var(--snp-vcf-bg); border: 1px solid var(--snp-vcf); }
-        .legend-item .swatch.bam { background: var(--snp-bam-bg); border: 1px solid var(--snp-bam); }
-        .legend-item .swatch.gap { background: var(--gap-bg); border: 1px solid var(--gap-color); }
-        .quality-filters {
-            display: flex;
-            gap: 15px;
-            align-items: center;
-            margin-top: 10px;
-            flex-wrap: wrap;
-        }
-        .quality-filter-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .quality-filter-item label {
-            color: var(--text-secondary);
-            font-size: 11px;
-        }
-        .quality-filter-item input[type="range"] {
-            width: 100px;
-            cursor: pointer;
-        }
-        .quality-filter-item input[type="number"] {
-            width: 60px;
-            background: var(--btn-bg);
-            color: var(--text-primary);
-            border: 1px solid var(--btn-border);
-            padding: 4px 6px;
-            border-radius: 4px;
-            font-size: 11px;
-        }
-        .quality-filter-item .value-display {
-            min-width: 35px;
-            color: var(--accent);
-            font-size: 11px;
         }
         .warnings-container {
             margin-top: 10px;
@@ -1061,34 +740,6 @@
             color: var(--text-secondary);
             margin-top: 4px;
             font-style: italic;
-        }
-        .pagination {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            justify-content: center;
-            margin-top: 15px;
-            color: var(--text-secondary);
-        }
-        .pagination button {
-            background: var(--btn-bg);
-            color: var(--text-primary);
-            border: 1px solid var(--btn-border);
-            padding: 6px 14px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .pagination button:hover {
-            background: var(--bg-tertiary);
-        }
-        .pagination button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        .status {
-            font-size: 12px;
-            color: var(--text-secondary);
-            padding: 10px 0;
         }
         #file-input {
             display: none;
@@ -1284,139 +935,6 @@ pipelines:
             </div>
         </details>
 
-        <details class="collapsible-panel" open>
-            <summary>Genome Overview <span id="genome-info"></span></summary>
-            <div class="genome-overview-content">
-                <div class="genome-legend-bar">
-                    <span class="genome-legend-item"><span style="background:#4ec9b0;"></span> SNPs (top)</span>
-                    <span class="genome-legend-item"><span style="background:rgba(244, 71, 71, 0.7);"></span> Gaps (bottom)</span>
-                </div>
-                <canvas id="genome-canvas" height="100"></canvas>
-            </div>
-        </details>
-
-        <details class="collapsible-panel" open>
-            <summary>View Settings</summary>
-
-            <details class="collapsible-panel nested" open>
-                <summary>Row Visibility</summary>
-                <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;margin-top:8px;">
-                    <input type="text" id="visibility-filter" placeholder="Filter rows..." style="padding:4px 8px;background:var(--btn-bg);color:var(--text-primary);border:1px solid var(--btn-border);border-radius:4px;font-size:11px;width:150px;" oninput="filterVisibilityCheckboxes(this.value)">
-                    <button onclick="setAllRowVisibility(true)" style="padding:4px 8px;background:var(--btn-bg);color:var(--text-primary);border:1px solid var(--btn-border);border-radius:4px;font-size:11px;cursor:pointer;">Select All</button>
-                    <button onclick="setAllRowVisibility(false)" style="padding:4px 8px;background:var(--btn-bg);color:var(--text-primary);border:1px solid var(--btn-border);border-radius:4px;font-size:11px;cursor:pointer;">Deselect All</button>
-                </div>
-                <div id="visibility-controls"></div>
-            </details>
-
-            <div style="border-top:1px solid var(--border-color);padding-top:10px;margin-bottom:15px;">
-                <strong style="color:var(--label-color);font-size:12px;display:block;margin-bottom:8px;">Nucleotide Display</strong>
-                <div style="display:flex;gap:15px;flex-wrap:wrap;">
-                    <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);cursor:pointer;">
-                        <input type="checkbox" id="show-nucleotide-letters" checked onchange="toggleNucleotideLetters(this.checked)">
-                        Show base letters (A, C, G, T)
-                    </label>
-                    <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);cursor:pointer;">
-                        <input type="checkbox" id="show-ref-row" checked onchange="toggleRowVisibility('REF', this.checked)">
-                        Show reference row
-                    </label>
-                    <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);cursor:pointer;">
-                        <input type="checkbox" id="show-pos-row" checked onchange="toggleRowVisibility('Pos', this.checked)">
-                        Show position row
-                    </label>
-                </div>
-            </div>
-
-            <div style="border-top:1px solid var(--border-color);padding-top:10px;">
-                <strong style="color:var(--label-color);font-size:12px;display:block;margin-bottom:8px;">Legend</strong>
-                <div class="legend-content">
-                    <div class="legend-item"><span class="swatch consensus"></span> Consensus (all pipelines agree)</div>
-                    <div class="legend-item"><span class="swatch uncertain"></span> Uncertain (only one pipeline)</div>
-                    <div class="legend-item"><span class="swatch discord"></span> Discordant (pipelines disagree)</div>
-                    <div class="legend-item"><span class="swatch vcf"></span> VCF call (from variant caller)</div>
-                    <div class="legend-item"><span class="swatch bam"></span> BAM pileup (from reads)</div>
-                    <div class="legend-item"><span class="swatch gap"></span> Gap (no coverage)</div>
-                </div>
-            </div>
-        </details>
-
-        <details class="collapsible-panel" open>
-            <summary>Filters & Navigation</summary>
-            <div class="controls">
-                <div class="filters" id="filters">
-                    <span style="color:#808080;margin-right:5px;">Filters:</span>
-                </div>
-                <div class="filter-options">
-                    <label title="How to combine multiple filters">
-                        <select id="filter-mode" onchange="onFilterConfigChange()">
-                            <option value="and">AND (all filters)</option>
-                            <option value="or">OR (any filter)</option>
-                        </select>
-                    </label>
-                    <label title="How to match across samples">
-                        <select id="sample-mode" onchange="onFilterConfigChange()">
-                            <option value="any">Any sample</option>
-                            <option value="all">All samples</option>
-                        </select>
-                    </label>
-                </div>
-                <div class="nav-controls">
-                    <span style="color:#808080;">Go to:</span>
-                    <input type="number" id="goto-pos" placeholder="Position" min="1" />
-                    <button onclick="gotoPosition()">Go</button>
-                </div>
-            </div>
-            <details class="collapsible-panel nested" style="margin-top:10px;">
-                <summary>Filter Legend</summary>
-                <div class="filter-legend" style="font-size:11px;color:var(--text-secondary);line-height:1.6;">
-                    <div style="margin-bottom:8px;"><strong style="color:var(--label-color);">SNP Filters (per pipeline)</strong></div>
-                    <div style="margin-left:10px;margin-bottom:6px;">
-                        <strong>[Pipeline Name]</strong>: Show positions where this pipeline called a SNP (variant different from reference)
-                    </div>
-                    <div style="margin-left:10px;margin-bottom:6px;">
-                        <strong>Consensus</strong>: Show positions where <em>all selected VCF pipelines called a SNP</em> and they all agree<br>
-                        <span style="color:var(--text-muted);font-size:10px;margin-left:10px;">Tip: Select pipeline buttons first to compare only those (e.g., Snippy + CFSAN)</span>
-                    </div>
-                    <div style="margin-left:10px;margin-bottom:10px;">
-                        <strong>Discordant</strong>: Show positions where <em>selected pipelines called different SNPs</em> (they disagree)<br>
-                        <span style="color:var(--text-muted);font-size:10px;margin-left:10px;">Tip: If no pipelines selected, uses all VCF pipelines</span>
-                    </div>
-                    <div style="margin-bottom:8px;"><strong style="color:var(--label-color);">Gap Filters (per pipeline)</strong></div>
-                    <div style="margin-left:10px;margin-bottom:6px;">
-                        <strong>[Pipeline] Gaps</strong>: Show positions where this pipeline has no read coverage (gap)
-                    </div>
-                    <div style="margin-left:10px;margin-bottom:10px;">
-                        <span style="color:var(--text-muted);font-size:10px;">If a pipeline is marked as "ground truth", its gaps indicate positions where the baseline has no data</span>
-                    </div>
-                    <div style="margin-bottom:8px;"><strong style="color:var(--label-color);">Combination Logic</strong></div>
-                    <div style="margin-left:10px;margin-bottom:6px;">
-                        <strong>AND</strong>: Position must match <em>all</em> selected filters
-                    </div>
-                    <div style="margin-left:10px;margin-bottom:6px;">
-                        <strong>OR</strong>: Position must match <em>any</em> selected filter
-                    </div>
-                    <div style="margin-left:10px;margin-bottom:6px;">
-                        <strong>Any sample</strong>: Filter matches if at least one sample meets the condition
-                    </div>
-                    <div style="margin-left:10px;">
-                        <strong>All samples</strong>: Filter matches only if all samples meet the condition
-                    </div>
-                </div>
-            </details>
-        </details>
-
-        <div class="status" id="status"></div>
-        <div id="load-positions-prompt" style="display:none;text-align:center;padding:30px 20px;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;margin:10px 0;">
-            <p style="color:var(--text-secondary);font-size:13px;margin-bottom:12px;">Positions are not loaded yet. Click the button below to load and display the alignment view.</p>
-            <button onclick="loadAllPositions()" style="padding:10px 24px;font-size:14px;background:var(--accent-color,#4ec9b0);color:#1e1e1e;border:none;border-radius:6px;cursor:pointer;font-weight:bold;">Load Positions</button>
-        </div>
-        <div class="alignment-view" id="alignment"></div>
-
-        <div class="pagination" id="pagination">
-            <button id="prev-btn" onclick="prevPage()" disabled>&larr; Previous</button>
-            <span id="page-info">Page 1</span>
-            <button id="next-btn" onclick="nextPage()">Next &rarr;</button>
-        </div>
-
         <div class="footer" id="footer">
             <span onclick="goToLanding()" style="cursor: pointer;" title="Back to home">CoreGuard SNP Comparison Viewer</span>
             <span id="report-timestamp"></span>
@@ -1446,10 +964,6 @@ pipelines:
             localStorage.setItem('coreguard-theme', newTheme);
             document.documentElement.setAttribute('data-theme', newTheme === 'light' ? 'light' : '');
             updateThemeIcon(newTheme);
-            // Redraw canvas with new theme colors
-            if (typeof redrawGenomeOverview === 'function') {
-                redrawGenomeOverview();
-            }
         }
 
         function updateThemeIcon(theme) {
@@ -2033,24 +1547,8 @@ pipelines:
                 return (await this.send('getPipelineLabel', { pipelineId })).label;
             }
 
-            async getFilteredPositions(samples, filterStr, filterMode, sampleMode) {
-                return (await this.send('getFilteredPositions', {
-                    samples, filterStr, filterMode, sampleMode
-                })).positions;
-            }
-
-            async renderFiltered(samples, positions, offset, limit) {
-                return (await this.send('renderFiltered', {
-                    samples, positions, offset, limit
-                })).html;
-            }
-
             async getKpis() {
                 return (await this.send('getKpis')).kpis;
-            }
-
-            async getSnp(sample, pipeline, pos) {
-                return (await this.send('getSnp', { sample, pipeline, pos })).snp;
             }
 
             async getGlobalStats() {
@@ -2107,34 +1605,8 @@ pipelines:
 
         let workerApi = null;
         let samples = [];
-        let positions = [];
-        let currentPage = 0;
-        let activeFilters = [];
-        const CHAR_WIDTH = 7;
-        const LABEL_WIDTH = 70;
-
-        function getPageSize() {
-            // Calculate how many nucleotides fit in the available width
-            const availableWidth = window.innerWidth - LABEL_WIDTH - 20; // 20px padding
-            return Math.max(50, Math.floor(availableWidth / CHAR_WIDTH));
-        }
-
-        window.gotoPosition = gotoPosition;
-        window.nextPage = nextPage;
-        window.prevPage = prevPage;
-        window.toggleFilter = toggleFilter;
-        window.onFilterConfigChange = onFilterConfigChange;
-        window.setAllRowVisibility = setAllRowVisibility;
-        window.filterVisibilityCheckboxes = filterVisibilityCheckboxes;
-        window.toggleRowVisibility = toggleRowVisibility;
-        window.redrawGenomeOverview = async () => {
-            if (workerApi && workerApi.ready && samples.length > 0) {
-                await drawGenomeOverview();
-            }
-        };
 
         let pipelines = [];
-        let qualityFilters = { minQual: 0, minDepth: 0, minConsensus: 50 };
 
         function showLoader(text, progress = '') {
             document.getElementById('loader').classList.add('active');
@@ -2180,7 +1652,6 @@ pipelines:
             setSectionLoading('pipelines-info', true, 'Loading pipelines...');
             setSectionLoading('kpis', true, 'Calculating statistics...');
             setSectionLoading('matrix-result', true, 'Ready to display');
-            setSectionLoading('alignment', true, 'Positions will load after statistics...');
 
             // Phase 2: Quick stuff first (instant)
             await nextFrame();
@@ -2197,21 +1668,10 @@ pipelines:
             // Phase 4: KPIs (medium)
             await nextFrame();
             await updateKPIs();
-            createFilterButtons(pipelines);
-            createVisibilityControls(pipelines);
             console.log(`Phase 4 (KPIs): ${(performance.now() - t0).toFixed(0)}ms`);
 
             // Hide loader - core UI is now visible
             hideLoader();
-
-            // Phase 5: Genome overview (heavy, but visible)
-            await nextFrame();
-            await drawGenomeOverview();
-            console.log(`Phase 7 (genome): ${(performance.now() - t0).toFixed(0)}ms`);
-
-            // Phase 8: Show load positions button (user-triggered)
-            document.getElementById('load-positions-prompt').style.display = 'block';
-            console.log(`Phase 8 (positions button shown): ${(performance.now() - t0).toFixed(0)}ms`);
 
             // Clear matrix placeholder
             document.getElementById('matrix-result').innerHTML =
@@ -2406,17 +1866,6 @@ pipelines:
                 console.error(error);
             }
         }
-        // Load all positions on demand
-        async function loadAllPositions() {
-            const prompt = document.getElementById('load-positions-prompt');
-            if (prompt) prompt.style.display = 'none';
-            showLoader('Loading positions...', 'This may take a moment');
-            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-            await loadPositions();
-            hideLoader();
-        }
-        window.loadAllPositions = loadAllPositions;
-
         // Expose to global scope for onclick
         window.loadDemo = loadDemo;
 
@@ -2670,7 +2119,7 @@ pipelines:
             });
         }
 
-        async function updateKPIs(filteredCount = null) {
+        async function updateKPIs() {
             const kpis = await workerApi.getKpis();
             const refLength = workerApi.refLength;
             const gtPipelineId = workerApi.groundTruthPipeline;
@@ -2700,9 +2149,6 @@ pipelines:
                 <div class="kpi"><div class="label">Samples ${infoIcon('samples')}</div><div class="value">${kpis.samples}</div></div>
                 <div class="kpi"><div class="label">Pipelines ${infoIcon('pipelines')}</div><div class="value">${kpis.pipelines}</div></div>
             `;
-            if (filteredCount !== null) {
-                html += `<div class="kpi"><div class="label">Filtered Positions ${infoIcon('filtered')}</div><div class="value">${filteredCount.toLocaleString()}</div></div>`;
-            }
             html += sectionEnd();
 
             // === GT Pipeline KPIs (Gap-Intersect, Gap-Union, Pairwise) ===
@@ -2825,332 +2271,6 @@ pipelines:
             document.getElementById('kpis').innerHTML = html;
         }
 
-        function createFilterButtons(pipelines) {
-            const container = document.getElementById('filters');
-            const infoIcon = (type) => `<span class="info-icon" onclick="event.stopPropagation();showKpiInfo('${type}')" style="margin-left:3px;">ⓘ</span>`;
-
-            container.innerHTML = '<span style="color:#808080;margin-right:5px;">SNP Filters:</span>';
-
-            // Get pipelines with VCF data (only these can have SNP filters)
-            const vcfPipelines = workerApi.vcfPipelines;
-
-            // Pipeline SNP filters - only for pipelines with VCF (with info icon inside)
-            for (const p of pipelines) {
-                if (!vcfPipelines.includes(p)) continue;
-                const label = workerApi.getPipelineLabel(p);
-                container.innerHTML += `<button class="filter-btn" data-filter="${p}" onclick="toggleFilter('${p}')">${label} ${infoIcon('filter_pipeline')}</button>`;
-            }
-
-            // Special SNP filters with info icons inside
-            container.innerHTML += `
-                <button class="filter-btn" data-filter="consensus" onclick="toggleFilter('consensus')">Consensus ${infoIcon('filter_consensus')}</button>
-                <button class="filter-btn" data-filter="discordant" onclick="toggleFilter('discordant')">Discordant ${infoIcon('filter_discordant')}</button>
-            `;
-
-            // Gap filters - show all pipelines (with info icon inside)
-            container.innerHTML += '<span style="color:#808080;margin-left:15px;margin-right:5px;">Gap Filters:</span>';
-            for (const p of pipelines) {
-                const label = workerApi.getPipelineLabel(p);
-                container.innerHTML += `<button class="filter-btn gap-filter" data-filter="gaps:${p}" onclick="toggleFilter('gaps:${p}')">${label} Gaps ${infoIcon('filter_gaps')}</button>`;
-            }
-        }
-
-        // Track hidden rows
-        let hiddenRows = new Set();
-
-        function createVisibilityControls(pipelines) {
-            const container = document.getElementById('visibility-controls');
-            let html = '';
-
-            // Get ground truth pipeline (if any) - it's hidden from individual rows
-            const groundTruthPipeline = workerApi.groundTruthPipeline;
-
-            // Per-sample controls
-            for (const sample of samples) {
-                const sampleLabel = workerApi.getSampleLabel(sample);
-                html += `<div class="vis-group">
-                    <div class="vis-group-title">${sampleLabel}</div>
-                    <div class="vis-item">
-                        <input type="checkbox" id="vis-${sample}-main" checked onchange="toggleRowVisibility('${sampleLabel}', this.checked)">
-                        <label for="vis-${sample}-main">Sample</label>
-                    </div>`;
-
-                for (const p of pipelines) {
-                    // Skip ground truth pipeline - it's not shown as a separate row
-                    if (groundTruthPipeline && p === groundTruthPipeline) {
-                        continue;
-                    }
-                    const pipelineLabel = workerApi.getPipelineLabel(p);
-                    const rowId = `${sampleLabel}|${pipelineLabel}`;
-                    html += `<div class="vis-item">
-                        <input type="checkbox" id="vis-${sample}-${p}" checked onchange="toggleRowVisibility('${rowId}', this.checked)">
-                        <label for="vis-${sample}-${p}">${pipelineLabel}</label>
-                    </div>`;
-                }
-                html += `</div>`;
-            }
-
-            container.innerHTML = html;
-        }
-
-        function toggleRowVisibility(rowLabel, visible) {
-            if (visible) {
-                hiddenRows.delete(rowLabel);
-            } else {
-                hiddenRows.add(rowLabel);
-            }
-            applyRowVisibility();
-        }
-
-        function setAllRowVisibility(visible) {
-            // Get all visibility checkboxes
-            const checkboxes = document.querySelectorAll('#visibility-controls input[type="checkbox"]');
-            checkboxes.forEach(cb => {
-                const isVisible = document.getElementById('visibility-filter').value.toLowerCase();
-                const label = cb.nextElementSibling?.textContent?.toLowerCase() || '';
-                // Only affect visible (not filtered out) checkboxes
-                if (!isVisible || label.includes(isVisible)) {
-                    cb.checked = visible;
-                    cb.dispatchEvent(new Event('change'));
-                }
-            });
-        }
-
-        function filterVisibilityCheckboxes(filter) {
-            const lowerFilter = filter.toLowerCase();
-            document.querySelectorAll('#visibility-controls .vis-item').forEach(item => {
-                const label = item.querySelector('label')?.textContent?.toLowerCase() || '';
-                item.style.display = !filter || label.includes(lowerFilter) ? '' : 'none';
-            });
-            // Also filter group titles visibility (hide group if all items hidden)
-            document.querySelectorAll('#visibility-controls .vis-group').forEach(group => {
-                const visibleItems = group.querySelectorAll('.vis-item:not([style*="display: none"])');
-                group.style.display = visibleItems.length > 0 ? '' : 'none';
-            });
-        }
-
-        function applyRowVisibility() {
-            document.querySelectorAll('.alignment-view .row').forEach(row => {
-                const lbl = row.querySelector('.lbl');
-                if (lbl) {
-                    const labelText = lbl.textContent.trim();
-                    // Check if this row should be hidden
-                    let shouldHide = hiddenRows.has(labelText);
-
-                    // Also check for pipeline rows (sub labels)
-                    if (lbl.classList.contains('sub')) {
-                        // Find parent sample by looking at previous non-sub row
-                        let prevRow = row.previousElementSibling;
-                        while (prevRow && prevRow.querySelector('.lbl.sub')) {
-                            prevRow = prevRow.previousElementSibling;
-                        }
-                        if (prevRow) {
-                            const parentLabel = prevRow.querySelector('.lbl')?.textContent.trim();
-                            const combinedLabel = `${parentLabel}|${labelText}`;
-                            shouldHide = hiddenRows.has(combinedLabel) || hiddenRows.has(labelText);
-                        }
-                    }
-
-                    row.classList.toggle('hidden-row', shouldHide);
-                }
-            });
-        }
-
-        window.toggleRowVisibility = toggleRowVisibility;
-
-        let showNucleotideLetters = true;
-
-        function toggleNucleotideLetters(show) {
-            showNucleotideLetters = show;
-            document.querySelectorAll('.alignment-view .row .cell').forEach(cell => {
-                if (show) {
-                    cell.classList.remove('hide-letters');
-                } else {
-                    cell.classList.add('hide-letters');
-                }
-            });
-        }
-        window.toggleNucleotideLetters = toggleNucleotideLetters;
-
-        function filterByQuality(allPositions) {
-            // If no quality filters, return all positions
-            if (qualityFilters.minQual === 0 && qualityFilters.minDepth === 0) {
-                return allPositions;
-            }
-
-            // Quality filtering is disabled with worker architecture
-            // Would require O(positions * samples * pipelines) worker calls
-            console.warn('Quality filtering temporarily disabled with worker architecture');
-            const statsEl = document.getElementById('quality-stats');
-            if (statsEl) {
-                statsEl.textContent = 'Quality filtering not available (worker mode)';
-            }
-            return allPositions;
-        }
-
-        async function toggleFilter(filter) {
-            console.log('toggleFilter called with:', filter);
-            const idx = activeFilters.indexOf(filter);
-            if (idx >= 0) {
-                activeFilters.splice(idx, 1);
-                console.log('Filter removed:', filter);
-            } else {
-                activeFilters.push(filter);
-                console.log('Filter added:', filter);
-            }
-            console.log('Active filters:', activeFilters);
-
-            // Update button states with INLINE styles (no cache issues)
-            document.querySelectorAll('.filter-btn').forEach(btn => {
-                const f = btn.dataset.filter;
-                const isActive = activeFilters.includes(f);
-                btn.classList.toggle('active', isActive);
-
-                // Force inline styles
-                if (isActive) {
-                    btn.style.background = '#0066ff';
-                    btn.style.color = 'white';
-                    btn.style.fontWeight = 'bold';
-                    btn.style.boxShadow = '0 0 10px #0066ff';
-                    if (!btn.textContent.startsWith('✓')) {
-                        btn.textContent = '✓ ' + btn.textContent;
-                    }
-                    console.log('Button activated:', f);
-                } else {
-                    btn.style.background = '';
-                    btn.style.color = '';
-                    btn.style.fontWeight = '';
-                    btn.style.boxShadow = '';
-                    btn.textContent = btn.textContent.replace(/^✓ /, '');
-                }
-            });
-
-            currentPage = 0;
-            showLoader('Applying filters...', '');
-            // Allow UI to update before heavy computation
-            await new Promise(r => setTimeout(r, 10));
-            await loadPositions();
-            hideLoader();
-        }
-
-        async function loadPositions() {
-            const filterStr = activeFilters.join(',');
-            const filterMode = document.getElementById('filter-mode').value;
-            const sampleMode = document.getElementById('sample-mode').value;
-
-            // Log filter info
-            const pipelineFilters = activeFilters.filter(f =>
-                !f.startsWith('gaps:') && f !== 'consensus' && f !== 'discordant'
-            );
-            const vcfPipelines = workerApi.vcfPipelines;
-            const hasConsensus = activeFilters.includes('consensus');
-            const hasDiscordant = activeFilters.includes('discordant');
-
-            if (hasConsensus || hasDiscordant) {
-                const scopeInfo = pipelineFilters.length > 0
-                    ? `Selected: [${pipelineFilters.join(', ')}]`
-                    : `All VCF pipelines: [${vcfPipelines.join(', ')}]`;
-                console.log(`🔍 ${hasConsensus ? 'Consensus' : 'Discordant'} scope: ${scopeInfo}`);
-            }
-
-            let allPositions = await workerApi.getFilteredPositions(
-                samples,
-                filterStr,
-                filterMode,
-                sampleMode
-            );
-            console.log(`📊 Filters: [${filterStr}] → ${allPositions.length} positions`);
-
-            // Apply quality filters
-            const beforeQualityFilter = allPositions.length;
-            positions = filterByQuality(allPositions);
-
-            const modeInfo = activeFilters.length > 1 ? ` [${filterMode.toUpperCase()}, ${sampleMode}]` : '';
-            let qualInfo = '';
-            if (qualityFilters.minQual > 0 || qualityFilters.minDepth > 0) {
-                qualInfo = ` (${beforeQualityFilter - positions.length} filtered by quality)`;
-            }
-            document.getElementById('status').textContent = `${positions.length.toLocaleString()} positions match filters${modeInfo}${qualInfo}`;
-
-            // Update KPIs with filtered count when filters are active
-            const hasFilters = activeFilters.length > 0 || qualityFilters.minQual > 0 || qualityFilters.minDepth > 0;
-            await updateKPIs(hasFilters ? positions.length : null);
-
-            await renderPage();
-        }
-
-        async function onFilterConfigChange() {
-            if (activeFilters.length > 0) {
-                showLoader('Applying filters...', '');
-                await new Promise(r => setTimeout(r, 10));
-                currentPage = 0;
-                await loadPositions();
-                hideLoader();
-            }
-        }
-
-        async function renderPage() {
-            const offset = currentPage * getPageSize();
-            const html = await workerApi.renderFiltered(
-                samples,
-                positions,
-                offset,
-                getPageSize()
-            );
-
-            document.getElementById('alignment').innerHTML = html;
-
-            // Apply row visibility settings
-            applyRowVisibility();
-
-            // Update pagination
-            const totalPages = Math.ceil(positions.length / getPageSize());
-            document.getElementById('page-info').textContent =
-                `Page ${currentPage + 1} of ${totalPages} (${positions.length.toLocaleString()} positions)`;
-
-            document.getElementById('prev-btn').disabled = currentPage === 0;
-            document.getElementById('next-btn').disabled = currentPage >= totalPages - 1;
-        }
-
-        async function nextPage() {
-            const totalPages = Math.ceil(positions.length / getPageSize());
-            if (currentPage < totalPages - 1) {
-                showLoader('Loading page...', '');
-                await new Promise(r => setTimeout(r, 10));
-                currentPage++;
-                await renderPage();
-                hideLoader();
-            }
-        }
-
-        async function prevPage() {
-            if (currentPage > 0) {
-                showLoader('Loading page...', '');
-                await new Promise(r => setTimeout(r, 10));
-                currentPage--;
-                await renderPage();
-                hideLoader();
-            }
-        }
-
-        async function gotoPosition() {
-            const pos = parseInt(document.getElementById('goto-pos').value);
-            if (!pos || pos < 1) return;
-
-            showLoader('Finding position...', `Position ${pos}`);
-            await new Promise(r => setTimeout(r, 10));
-
-            // Find the page containing this position
-            const idx = positions.findIndex(p => p >= pos);
-            if (idx >= 0) {
-                currentPage = Math.floor(idx / getPageSize());
-                await renderPage();
-                hideLoader();
-            } else {
-                hideLoader();
-                alert('Position not found in current filter');
-            }
-        }
 
         // Store pipeline distance matrices
         let pipelineDistanceMatrices = {};
@@ -3227,148 +2347,6 @@ pipelines:
             html += '</tbody></table></div>';
 
             matrixResult.innerHTML = html;
-        }
-
-        async function drawGenomeOverview() {
-            const canvas = document.getElementById('genome-canvas');
-            const ctx = canvas.getContext('2d');
-            const refLen = workerApi.refLength;
-
-            // Get theme colors from CSS variables
-            const styles = getComputedStyle(document.documentElement);
-            const bgPrimary = styles.getPropertyValue('--bg-primary').trim() || '#1e1e1e';
-            const bgSecondary = styles.getPropertyValue('--bg-secondary').trim() || '#252526';
-            const bgTertiary = styles.getPropertyValue('--bg-tertiary').trim() || '#3c3c3c';
-            const textSecondary = styles.getPropertyValue('--text-secondary').trim() || '#808080';
-
-            // Calculate dimensions
-            const trackHeight = 28;
-            const trackSpacing = 10;
-            const height = (pipelines.length + 1) * (trackHeight + trackSpacing);
-            const width = canvas.parentElement.clientWidth - 8; // Full container width minus padding
-
-            // Set canvas size properly (set dimensions before scaling)
-            canvas.style.width = width + 'px';
-            canvas.style.height = height + 'px';
-            canvas.width = width * window.devicePixelRatio;
-            canvas.height = height * window.devicePixelRatio;
-            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-
-            // Clear canvas
-            ctx.fillStyle = bgPrimary;
-            ctx.fillRect(0, 0, width, height);
-
-            // Draw reference bar
-            ctx.fillStyle = bgTertiary;
-            ctx.fillRect(0, 0, width, trackHeight);
-
-            // Draw pipeline tracks
-            const kpis = await workerApi.getKpis();
-
-            // SNP and Gap colors matching legend
-            const snpColor = '#4ec9b0';  // Teal for SNPs
-            const gapColor = 'rgba(244, 71, 71, 0.7)';  // Red for gaps
-
-            for (let idx = 0; idx < pipelines.length; idx++) {
-                const pipeline = pipelines[idx];
-                const y = (idx + 1) * (trackHeight + trackSpacing);
-
-                // Draw track background
-                ctx.fillStyle = bgSecondary;
-                ctx.fillRect(0, y, width, trackHeight);
-
-                // Draw pipeline label
-                ctx.fillStyle = textSecondary;
-                ctx.font = '9px monospace';
-                const label = workerApi.getPipelineLabel(pipeline);
-                ctx.fillText(label.substring(0, 15), 5, y + trackHeight / 2 + 3);
-
-                // Draw SNP density (simplified - using bins)
-                const binCount = Math.min(width, 500);
-                const binSize = refLen / binCount;
-                const snpBins = new Uint32Array(binCount);
-                const gapBins = new Uint32Array(binCount);
-
-                // Collect data from all samples for this pipeline
-                for (const sample of samples) {
-                    // Get SNP positions for this sample/pipeline
-                    const allPositions = await workerApi.getFilteredPositions(
-                        [sample],
-                        pipeline,
-                        'and',
-                        'any'
-                    );
-                    for (const pos of allPositions) {
-                        const bin = Math.floor((pos - 1) / binSize);
-                        if (bin >= 0 && bin < binCount) {
-                            snpBins[bin]++;
-                        }
-                    }
-
-                    // Get gap positions
-                    const gapPositions = await workerApi.getFilteredPositions(
-                        [sample],
-                        `gaps:${pipeline}`,
-                        'and',
-                        'any'
-                    );
-                    for (const pos of gapPositions) {
-                        const bin = Math.floor((pos - 1) / binSize);
-                        if (bin >= 0 && bin < binCount) {
-                            gapBins[bin]++;
-                        }
-                    }
-                }
-
-                // Find max for normalization
-                const maxSnp = Math.max(...snpBins, 1);
-                const maxGap = Math.max(...gapBins, 1);
-
-                // Draw gaps (red, bottom half)
-                ctx.fillStyle = gapColor;
-                for (let i = 0; i < binCount; i++) {
-                    if (gapBins[i] > 0) {
-                        const x = (i / binCount) * width;
-                        const h = (gapBins[i] / maxGap) * (trackHeight / 2 - 1);
-                        ctx.fillRect(x, y + trackHeight - h, width / binCount + 1, h);
-                    }
-                }
-
-                // Draw SNPs (teal, top half)
-                ctx.fillStyle = snpColor;
-                for (let i = 0; i < binCount; i++) {
-                    if (snpBins[i] > 0) {
-                        const x = (i / binCount) * width;
-                        const h = (snpBins[i] / maxSnp) * (trackHeight / 2 - 1);
-                        ctx.fillRect(x, y + 1, width / binCount + 1, h);
-                    }
-                }
-            }
-
-            // Draw genome ruler
-            ctx.fillStyle = textSecondary;
-            ctx.font = '9px monospace';
-            const tickInterval = Math.pow(10, Math.floor(Math.log10(refLen)) - 1) * 5;
-            for (let pos = 0; pos <= refLen; pos += tickInterval) {
-                const x = (pos / refLen) * width;
-                ctx.fillRect(x, 0, 1, 5);
-                if (pos > 0 && pos < refLen) {
-                    const label = (pos / 1000000).toFixed(1) + 'M';
-                    ctx.fillText(label, x - 10, 12);
-                }
-            }
-
-            // Update genome info
-            document.getElementById('genome-info').textContent = `(${(refLen / 1000000).toFixed(2)} Mbp)`;
-
-            // Click handler to navigate
-            canvas.onclick = (e) => {
-                const rect = canvas.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const pos = Math.floor((x / rect.width) * refLen) + 1;
-                document.getElementById('goto-pos').value = pos;
-                gotoPosition();
-            };
         }
 
         main();

@@ -10,6 +10,7 @@ use std::path::Path;
 use std::process::Command;
 
 use crate::config::Config;
+use crate::parsers::{self, CoreSnpData, CoreSnpPosition};
 use crate::pileup;
 
 /// Compact report structure for WASM visualization
@@ -29,7 +30,18 @@ pub struct CompareReport {
     pub pipelines: HashMap<String, PipelineInfo>,
 
     /// Data: sample -> pipeline -> gaps/snps
+    /// Skipped during serialization - KPIs are now pre-computed
+    #[serde(skip_serializing)]
+    #[serde(default)]
     pub data: HashMap<String, HashMap<String, PipelineData>>,
+
+    /// Pre-computed per-pipeline KPIs (replaces WASM get_kpis)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kpis: Option<PreComputedKpis>,
+
+    /// Pre-computed per-pipeline statistics (replaces WASM get_global_stats_for_pipeline / get_pairwise_usable_stats_for_pipeline)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pipeline_stats: Option<HashMap<String, PipelineStats>>,
 
     /// Summary statistics
     pub summary: Summary,
@@ -118,6 +130,95 @@ pub struct Summary {
     pub warnings: Vec<String>,
 }
 
+/// Pre-computed KPIs for all pipelines (replaces WASM get_kpis)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PreComputedKpis {
+    /// Per-pipeline basic KPIs
+    pub pipelines: HashMap<String, PipelineKpi>,
+}
+
+/// Basic KPIs for a single pipeline
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PipelineKpi {
+    /// Number of SNP positions (any sample has SNP)
+    pub total_snps: u32,
+    /// Number of gap regions across all samples
+    pub total_gap_positions: u32,
+    /// Core SNPs: positions where at least 2 samples differ
+    pub core_snps: u32,
+}
+
+/// Pre-computed per-pipeline statistics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PipelineStats {
+    /// Global stats (gap-intersect and gap-union strategies)
+    pub global: GlobalPipelineStats,
+    /// Pairwise stats
+    pub pairwise: PairwisePipelineStats,
+}
+
+/// Global statistics for a pipeline
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlobalPipelineStats {
+    pub ref_length: u32,
+    /// Gap-intersect: positions where ALL samples have gap
+    pub gap_intersect_count: u32,
+    /// Gap-union: positions where ANY sample has gap
+    pub gap_union_count: u32,
+    /// Usable space (ref_length - gap_union)
+    pub usable_intersect: u32,
+    pub usable_union: u32,
+    /// Total SNPs in usable space
+    pub total_snps_intersect: u32,
+    pub total_snps_union: u32,
+    /// Consensus SNPs (all samples same alt)
+    pub consensus_snps_intersect: u32,
+    pub consensus_snps_union: u32,
+    /// Discriminating SNPs (samples differ)
+    pub disc_snps_intersect: u32,
+    pub disc_snps_union: u32,
+    /// Missing VCF calls (some samples have call, others don't) in usable space
+    pub missing_vcf_intersect: u32,
+    pub missing_vcf_union: u32,
+    /// Discriminating SNP breakdown (VCF pipelines only)
+    pub disc_breakdown: Option<DiscBreakdown>,
+}
+
+/// Discriminating SNP breakdown for VCF pipelines
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscBreakdown {
+    /// Gap-affected: at least one sample skipped due to gap
+    pub gap_affected: u32,
+    /// GT-consensus: GT pileup shows all samples agree
+    pub gt_consensus: u32,
+    /// Majority-rule: all but one sample agree
+    pub majority_rule: u32,
+    /// Confirmed: genuine disagreement
+    pub confirmed: u32,
+}
+
+/// Pairwise statistics for a pipeline
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PairwisePipelineStats {
+    pub num_pairs: u32,
+    /// Min/median/max/avg discriminating SNPs across pairs (gap-union)
+    pub disc_snps_min: u32,
+    pub disc_snps_median: f64,
+    pub disc_snps_max: u32,
+    pub disc_snps_avg: f64,
+    /// Average usable space across pairs
+    pub usable_space_avg: f64,
+    /// Per-sample averages: sample_id -> (avg_usable_space, avg_disc_snps)
+    pub per_sample: HashMap<String, SamplePairwiseStats>,
+}
+
+/// Per-sample pairwise averages
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SamplePairwiseStats {
+    pub avg_usable_space: f64,
+    pub avg_disc_snps: f64,
+}
+
 /// Pre-computed distance matrix from a pipeline
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelineDistanceMatrix {
@@ -130,227 +231,6 @@ pub struct PipelineDistanceMatrix {
 // ============================================================================
 // GT Disc vs Pipelines (pre-computed from core SNP files)
 // ============================================================================
-
-/// Core SNP data from a pipeline's native output file (snippycore.tab or snplist.txt)
-#[derive(Debug, Clone)]
-pub struct CoreSnpData {
-    /// Pipeline positions with per-sample alleles
-    pub positions: Vec<CoreSnpPosition>,
-    /// True for snippycore.tab (has alleles), false for snplist.txt (positions only)
-    pub has_alleles: bool,
-    /// Number of positions where at least 2 samples have different alleles (contribute to Hamming distance).
-    /// Exact for Snippy (allele comparison), conservative underestimate for CFSAN (subset check).
-    pub discriminating_count: usize,
-}
-
-/// A single position from a core SNP file
-#[derive(Debug, Clone)]
-pub struct CoreSnpPosition {
-    /// 0-based position
-    pub pos: usize,
-    /// Reference allele (if available)
-    pub ref_allele: Option<String>,
-    /// Sample → allele (empty if !has_alleles)
-    pub alleles: HashMap<String, String>,
-    /// Samples that have a SNP at this position
-    pub samples_with_snp: Vec<String>,
-}
-
-/// Trait for parsing pipeline-specific core SNP output files.
-/// Implement this for each pipeline format (Snippy, CFSAN, etc.)
-pub trait CoreSnpParser {
-    /// Human-readable name of the format (e.g., "snippycore.tab")
-    fn format_name(&self) -> &str;
-
-    /// Check if this parser can handle the given file (peek at header/content)
-    fn can_parse(&self, path: &Path) -> bool;
-
-    /// Parse the file and return core SNP data
-    fn parse(&self, path: &Path) -> anyhow::Result<CoreSnpData>;
-}
-
-/// Parser for Snippy core.tab format: CHR\tPOS\tREF\tsample1\tsample2\t...
-pub struct SnippyCoreTabParser;
-
-impl CoreSnpParser for SnippyCoreTabParser {
-    fn format_name(&self) -> &str {
-        "snippycore.tab"
-    }
-
-    fn can_parse(&self, path: &Path) -> bool {
-        let Ok(content) = std::fs::read_to_string(path) else { return false };
-        let first_line = content.lines().next().unwrap_or("");
-        first_line.starts_with("CHR\t") || first_line.starts_with("CHR ")
-    }
-
-    fn parse(&self, path: &Path) -> anyhow::Result<CoreSnpData> {
-        use std::io::{BufRead, BufReader};
-
-        let file = std::fs::File::open(path)
-            .with_context(|| format!("Failed to open core SNPs file: {}", path.display()))?;
-        let reader = BufReader::new(file);
-
-        let mut positions = Vec::new();
-        let mut sample_names: Vec<String> = Vec::new();
-
-        for line in reader.lines() {
-            let line = line?;
-            let parts: Vec<&str> = line.split('\t').collect();
-
-            if line.starts_with("CHR\t") {
-                // Header line — extract sample names
-                sample_names = parts.iter()
-                    .skip(3) // Skip CHR, POS, REF
-                    .map(|s| s.trim_end_matches("_snippy").to_string())
-                    .collect();
-                continue;
-            }
-
-            if parts.len() < 4 || sample_names.is_empty() {
-                continue;
-            }
-
-            let pos: usize = parts[1].parse().unwrap_or(0);
-            if pos == 0 { continue; }
-            let pos = pos - 1; // Convert to 0-based
-
-            let ref_allele = parts[2].to_string();
-
-            let mut alleles = HashMap::new();
-            let mut samples_with_snp = Vec::new();
-
-            for (i, sample) in sample_names.iter().enumerate() {
-                if let Some(allele) = parts.get(3 + i) {
-                    let allele = allele.to_string();
-                    // A sample has a SNP if its allele differs from ref and isn't N or -
-                    if allele != ref_allele && allele != "N" && allele != "-" {
-                        samples_with_snp.push(sample.clone());
-                    }
-                    alleles.insert(sample.clone(), allele);
-                }
-            }
-
-            positions.push(CoreSnpPosition {
-                pos,
-                ref_allele: Some(ref_allele),
-                alleles,
-                samples_with_snp,
-            });
-        }
-
-        // Count discriminating positions: at least 2 samples with different valid alleles
-        let discriminating_count = positions.iter().filter(|p| {
-            let valid: Vec<&str> = p.alleles.values()
-                .map(|a| a.as_str())
-                .filter(|a| *a != "N" && *a != "-")
-                .collect();
-            if valid.len() < 2 { return false; }
-            let first = valid[0];
-            valid.iter().any(|a| *a != first)
-        }).count();
-
-        log::info!(
-            "Parsed {} core SNP positions from snippycore.tab (with alleles, {} discriminating)",
-            positions.len(), discriminating_count
-        );
-
-        Ok(CoreSnpData {
-            positions,
-            has_alleles: true,
-            discriminating_count,
-        })
-    }
-}
-
-/// Parser for CFSAN snplist.txt format: CHROM\tPOS\tCOUNT\tsample1\tsample2\t...
-pub struct CfsanSnplistParser;
-
-impl CoreSnpParser for CfsanSnplistParser {
-    fn format_name(&self) -> &str {
-        "snplist.txt"
-    }
-
-    fn can_parse(&self, path: &Path) -> bool {
-        // Fallback parser — accepts any readable file
-        path.exists()
-    }
-
-    fn parse(&self, path: &Path) -> anyhow::Result<CoreSnpData> {
-        use std::io::{BufRead, BufReader};
-
-        let file = std::fs::File::open(path)
-            .with_context(|| format!("Failed to open core SNPs file: {}", path.display()))?;
-        let reader = BufReader::new(file);
-
-        let mut positions = Vec::new();
-
-        for line in reader.lines() {
-            let line = line?;
-            let parts: Vec<&str> = line.split('\t').collect();
-            if parts.len() < 4 {
-                continue;
-            }
-
-            let pos: usize = parts[1].parse().unwrap_or(0);
-            if pos == 0 { continue; }
-            let pos = pos - 1; // Convert to 0-based
-
-            let samples_with_snp: Vec<String> = parts.iter()
-                .skip(3)
-                .map(|s| s.to_string())
-                .collect();
-
-            positions.push(CoreSnpPosition {
-                pos,
-                ref_allele: None,
-                alleles: HashMap::new(),
-                samples_with_snp,
-            });
-        }
-
-        // Collect all unique sample names to determine total sample count
-        let all_samples: std::collections::HashSet<&str> = positions.iter()
-            .flat_map(|p| p.samples_with_snp.iter().map(|s| s.as_str()))
-            .collect();
-        let total_samples = all_samples.len();
-
-        // Discriminating: positions where only a subset of samples has the SNP.
-        // If all samples appear → all mutated the same way vs ref → not discriminating.
-        // Conservative underestimate: two samples could have different ALT alleles
-        // but we count them as non-discriminating since we lack allele info.
-        let discriminating_count = positions.iter().filter(|p| {
-            let n = p.samples_with_snp.len();
-            n > 0 && n < total_samples
-        }).count();
-
-        log::info!(
-            "Parsed {} core SNP positions from snplist.txt (no alleles, {} discriminating, {} total samples)",
-            positions.len(), discriminating_count, total_samples
-        );
-
-        Ok(CoreSnpData {
-            positions,
-            has_alleles: false,
-            discriminating_count,
-        })
-    }
-}
-
-/// Try all registered parsers, return the first that can handle the file
-pub fn parse_core_snps(path: &str) -> anyhow::Result<CoreSnpData> {
-    let path = Path::new(path);
-    let parsers: Vec<Box<dyn CoreSnpParser>> = vec![
-        Box::new(SnippyCoreTabParser),
-        Box::new(CfsanSnplistParser),
-    ];
-    for parser in &parsers {
-        if parser.can_parse(path) {
-            log::info!("Detected core SNP format: {}", parser.format_name());
-            return parser.parse(path);
-        }
-    }
-    anyhow::bail!("No parser found for core SNP file: {}", path.display())
-}
 
 /// Result of GT disc vs pipeline comparison
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -626,6 +506,325 @@ pub fn compute_gt_disc_vs_pipelines(
     results
 }
 
+/// Compute pre-computed KPIs and per-pipeline statistics from the data
+fn compute_all_stats(
+    data: &HashMap<String, HashMap<String, PipelineData>>,
+    sample_ids: &[String],
+    pipeline_ids: &[String],
+    pipelines: &HashMap<String, PipelineInfo>,
+    ref_length: usize,
+    ref_seq: &str,
+) -> (PreComputedKpis, HashMap<String, PipelineStats>) {
+    use std::collections::HashSet;
+
+    let ref_bytes = ref_seq.as_bytes();
+    let n = sample_ids.len();
+    let mut kpi_map = HashMap::new();
+    let mut stats_map = HashMap::new();
+
+    // Find GT pipeline
+    let gt_pipeline_id: Option<&str> = pipelines.iter()
+        .find(|(_, info)| info.ground_truth)
+        .map(|(id, _)| id.as_str());
+
+    for pipeline_id in pipeline_ids {
+        // Build per-sample gap sets and SNP maps for this pipeline
+        let mut gap_sets: Vec<HashSet<usize>> = Vec::with_capacity(n);
+        let mut snp_maps: Vec<HashMap<usize, u8>> = Vec::with_capacity(n);
+
+        for sample_id in sample_ids {
+            let mut gaps = HashSet::new();
+            let mut snps = HashMap::new();
+
+            if let Some(sample_data) = data.get(sample_id) {
+                if let Some(pd) = sample_data.get(pipeline_id) {
+                    for gap in &pd.gaps {
+                        for pos in gap[0]..gap[1] {
+                            gaps.insert(pos);
+                        }
+                    }
+                    for snp in &pd.snps {
+                        let pos = snp.pos - 1; // 1-based to 0-based
+                        let alt = snp.alt.as_bytes().first().copied().unwrap_or(b'N');
+                        if pos < ref_bytes.len() && alt != ref_bytes[pos] {
+                            snps.insert(pos, alt);
+                        }
+                    }
+                }
+            }
+
+            gap_sets.push(gaps);
+            snp_maps.push(snps);
+        }
+
+        // Gap-intersect: ALL samples have gap
+        let gap_intersect: HashSet<usize> = if n > 0 {
+            let mut isect = gap_sets[0].clone();
+            for gs in &gap_sets[1..] {
+                isect = isect.intersection(gs).cloned().collect();
+            }
+            isect
+        } else {
+            HashSet::new()
+        };
+
+        // Gap-union: ANY sample has gap
+        let mut gap_union: HashSet<usize> = HashSet::new();
+        for gs in &gap_sets {
+            gap_union.extend(gs);
+        }
+
+        // All SNP positions
+        let mut all_snp_positions: HashSet<usize> = HashSet::new();
+        for sm in &snp_maps {
+            all_snp_positions.extend(sm.keys());
+        }
+
+        // Count gap positions
+        let total_gap_positions = gap_union.len() as u32;
+
+        // Classify SNPs for each gap strategy
+        let classify = |excluded_gaps: &HashSet<usize>| -> (u32, u32, u32, u32) {
+            let mut total = 0u32;
+            let mut consensus = 0u32;
+            let mut disc = 0u32;
+            let mut missing_vcf = 0u32;
+
+            for &pos in &all_snp_positions {
+                if excluded_gaps.contains(&pos) { continue; }
+                total += 1;
+
+                let alleles: Vec<Option<u8>> = (0..n).map(|idx| {
+                    if gap_sets[idx].contains(&pos) {
+                        None // gapped
+                    } else {
+                        Some(snp_maps[idx].get(&pos).copied()
+                            .unwrap_or_else(|| ref_bytes.get(pos).copied().unwrap_or(b'N')))
+                    }
+                }).collect();
+
+                let present: Vec<u8> = alleles.iter().filter_map(|a| *a).collect();
+                if present.is_empty() { continue; }
+
+                // Check if any sample is missing (gapped)
+                let has_missing = alleles.iter().any(|a| a.is_none());
+                if has_missing {
+                    missing_vcf += 1;
+                }
+
+                if present.len() < 2 { continue; }
+                let first = present[0];
+                if present.iter().all(|&a| a == first) {
+                    // Check if all are ref or all are same alt
+                    if first != ref_bytes.get(pos).copied().unwrap_or(b'N') {
+                        consensus += 1;
+                    }
+                    // If all are ref, it shouldn't be in all_snp_positions, but could happen with gap filtering
+                } else {
+                    disc += 1;
+                }
+            }
+
+            (total, consensus, disc, missing_vcf)
+        };
+
+        let (total_i, consensus_i, disc_i, missing_i) = classify(&gap_intersect);
+        let (total_u, consensus_u, disc_u, missing_u) = classify(&gap_union);
+
+        // Discriminating SNP breakdown (for VCF pipelines with GT available)
+        let disc_breakdown = if let Some(gt_id) = gt_pipeline_id {
+            if pipeline_id != gt_id && pipelines.get(pipeline_id).map(|p| p.has_vcf).unwrap_or(false) {
+                // Build GT SNP maps for breakdown analysis
+                let mut gt_snp_maps_for_breakdown: Vec<HashMap<usize, u8>> = Vec::with_capacity(n);
+                for sample_id in sample_ids {
+                    let mut snps = HashMap::new();
+                    if let Some(sample_data) = data.get(sample_id) {
+                        if let Some(gt_data) = sample_data.get(gt_id) {
+                            for snp in &gt_data.snps {
+                                let pos = snp.pos - 1;
+                                let alt = snp.alt.as_bytes().first().copied().unwrap_or(b'N');
+                                if pos < ref_bytes.len() && alt != ref_bytes[pos] {
+                                    snps.insert(pos, alt);
+                                }
+                            }
+                        }
+                    }
+                    gt_snp_maps_for_breakdown.push(snps);
+                }
+
+                let mut gap_affected = 0u32;
+                let mut gt_consensus_count = 0u32;
+                let mut majority_rule = 0u32;
+                let mut confirmed = 0u32;
+
+                for &pos in &all_snp_positions {
+                    if gap_union.contains(&pos) { continue; }
+
+                    // Check if this is a discriminating position
+                    let alleles: Vec<Option<u8>> = (0..n).map(|idx| {
+                        if gap_sets[idx].contains(&pos) {
+                            None
+                        } else {
+                            Some(snp_maps[idx].get(&pos).copied()
+                                .unwrap_or_else(|| ref_bytes.get(pos).copied().unwrap_or(b'N')))
+                        }
+                    }).collect();
+                    let present: Vec<u8> = alleles.iter().filter_map(|a| *a).collect();
+                    if present.len() < 2 { continue; }
+                    let first = present[0];
+                    if present.iter().all(|&a| a == first) { continue; }
+
+                    // It's discriminating - classify
+                    let has_gap = alleles.iter().any(|a| a.is_none());
+                    if has_gap {
+                        gap_affected += 1;
+                        continue;
+                    }
+
+                    // Check GT consensus at this position
+                    let gt_alleles: Vec<u8> = (0..n).map(|idx| {
+                        gt_snp_maps_for_breakdown[idx].get(&pos).copied()
+                            .unwrap_or_else(|| ref_bytes.get(pos).copied().unwrap_or(b'N'))
+                    }).collect();
+                    let gt_first = gt_alleles[0];
+                    if gt_alleles.iter().all(|&a| a == gt_first) {
+                        gt_consensus_count += 1;
+                        continue;
+                    }
+
+                    // Check majority rule: all but one agree
+                    let mut counts: HashMap<u8, usize> = HashMap::new();
+                    for &a in &present {
+                        *counts.entry(a).or_default() += 1;
+                    }
+                    let max_count = counts.values().max().copied().unwrap_or(0);
+                    if max_count == present.len() - 1 {
+                        majority_rule += 1;
+                    } else {
+                        confirmed += 1;
+                    }
+                }
+
+                Some(DiscBreakdown {
+                    gap_affected,
+                    gt_consensus: gt_consensus_count,
+                    majority_rule,
+                    confirmed,
+                })
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let global = GlobalPipelineStats {
+            ref_length: ref_length as u32,
+            gap_intersect_count: gap_intersect.len() as u32,
+            gap_union_count: gap_union.len() as u32,
+            usable_intersect: (ref_length - gap_intersect.len()) as u32,
+            usable_union: (ref_length - gap_union.len()) as u32,
+            total_snps_intersect: total_i,
+            total_snps_union: total_u,
+            consensus_snps_intersect: consensus_i,
+            consensus_snps_union: consensus_u,
+            disc_snps_intersect: disc_i,
+            disc_snps_union: disc_u,
+            missing_vcf_intersect: missing_i,
+            missing_vcf_union: missing_u,
+            disc_breakdown,
+        };
+
+        // Pairwise stats (gap-union per pair)
+        let mut pair_disc_snps: Vec<u32> = Vec::new();
+        let mut pair_usable: Vec<u32> = Vec::new();
+        let mut sample_disc_totals: HashMap<String, (f64, f64, u32)> = HashMap::new(); // (usable_sum, disc_sum, count)
+
+        for i in 0..n {
+            for j in (i+1)..n {
+                let pair_gap_union: HashSet<usize> = gap_sets[i].union(&gap_sets[j]).cloned().collect();
+                let usable = (ref_length - pair_gap_union.len()) as u32;
+
+                let mut disc = 0u32;
+                for &pos in &all_snp_positions {
+                    if pair_gap_union.contains(&pos) { continue; }
+                    let a_i = snp_maps[i].get(&pos).copied()
+                        .unwrap_or_else(|| ref_bytes.get(pos).copied().unwrap_or(b'N'));
+                    let a_j = snp_maps[j].get(&pos).copied()
+                        .unwrap_or_else(|| ref_bytes.get(pos).copied().unwrap_or(b'N'));
+                    if a_i != a_j {
+                        disc += 1;
+                    }
+                }
+
+                pair_disc_snps.push(disc);
+                pair_usable.push(usable);
+
+                // Accumulate per-sample stats
+                for &idx in &[i, j] {
+                    let entry = sample_disc_totals.entry(sample_ids[idx].clone()).or_default();
+                    entry.0 += usable as f64;
+                    entry.1 += disc as f64;
+                    entry.2 += 1;
+                }
+            }
+        }
+
+        let num_pairs = pair_disc_snps.len() as u32;
+        let (disc_min, disc_max, disc_avg, disc_median, usable_avg) = if num_pairs > 0 {
+            let mut sorted = pair_disc_snps.clone();
+            sorted.sort();
+            let min = sorted[0];
+            let max = *sorted.last().unwrap();
+            let avg = sorted.iter().map(|&x| x as f64).sum::<f64>() / num_pairs as f64;
+            let median = if sorted.len() % 2 == 0 {
+                (sorted[sorted.len()/2 - 1] as f64 + sorted[sorted.len()/2] as f64) / 2.0
+            } else {
+                sorted[sorted.len()/2] as f64
+            };
+            let usable_avg = pair_usable.iter().map(|&x| x as f64).sum::<f64>() / num_pairs as f64;
+            (min, max, avg, median, usable_avg)
+        } else {
+            (0, 0, 0.0, 0.0, 0.0)
+        };
+
+        let per_sample: HashMap<String, SamplePairwiseStats> = sample_disc_totals.into_iter()
+            .map(|(sample, (us, ds, cnt))| {
+                let cnt = cnt as f64;
+                (sample, SamplePairwiseStats {
+                    avg_usable_space: if cnt > 0.0 { us / cnt } else { 0.0 },
+                    avg_disc_snps: if cnt > 0.0 { ds / cnt } else { 0.0 },
+                })
+            })
+            .collect();
+
+        let pairwise = PairwisePipelineStats {
+            num_pairs,
+            disc_snps_min: disc_min,
+            disc_snps_median: disc_median,
+            disc_snps_max: disc_max,
+            disc_snps_avg: disc_avg,
+            usable_space_avg: usable_avg,
+            per_sample,
+        };
+
+        // Basic KPIs
+        let core_snps = disc_u; // disc_snps using gap-union is the core SNPs count
+        kpi_map.insert(pipeline_id.clone(), PipelineKpi {
+            total_snps: all_snp_positions.len() as u32,
+            total_gap_positions,
+            core_snps,
+        });
+
+        stats_map.insert(pipeline_id.clone(), PipelineStats {
+            global,
+            pairwise,
+        });
+    }
+
+    (PreComputedKpis { pipelines: kpi_map }, stats_map)
+}
+
 impl CompareReport {
     /// Generate report from configuration
     pub fn from_config(config: &Config) -> Result<Self> {
@@ -804,7 +1003,7 @@ impl CompareReport {
             let mut core_snp_data: HashMap<String, CoreSnpData> = HashMap::new();
             for (pipeline_id, pipeline_config) in &config.pipelines {
                 if let Some(core_snps_path) = &pipeline_config.core_snps {
-                    match parse_core_snps(core_snps_path) {
+                    match parsers::parse_core_snps(core_snps_path) {
                         Ok(core_data) => {
                             log::info!(
                                 "Loaded core SNPs for pipeline '{}': {} positions ({} discriminating, has_alleles: {})",
@@ -840,8 +1039,20 @@ impl CompareReport {
             None
         };
 
+        // Pre-compute KPIs and pipeline stats
+        log::info!("Pre-computing pipeline statistics...");
+        let (kpis, pipeline_stats) = compute_all_stats(
+            &data,
+            &sample_ids,
+            &pipeline_ids,
+            &pipelines,
+            ref_length,
+            &ref_seq,
+        );
+        log::info!("Pre-computed stats for {} pipeline(s)", pipeline_stats.len());
+
         Ok(CompareReport {
-            version: "1.0".to_string(),
+            version: "2.0".to_string(),
             reference: ReferenceInfo {
                 name: ref_name.clone(),
                 label: config.reference.label.clone(),
@@ -851,6 +1062,8 @@ impl CompareReport {
             samples,
             pipelines,
             data,
+            kpis: Some(kpis),
+            pipeline_stats: Some(pipeline_stats),
             summary,
             description,
             pipeline_distance_matrices,

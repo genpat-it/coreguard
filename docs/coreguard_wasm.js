@@ -1,3 +1,5 @@
+/* @ts-self-types="./coreguard_wasm.d.ts" */
+
 /**
  * Main data store - holds all samples and pipeline data
  */
@@ -112,6 +114,30 @@ export class GenomeData {
             wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
         }
         return v1;
+    }
+    /**
+     * Return per-position detail for GT discriminating SNPs vs a specific pipeline.
+     * Used by the UI to show what's behind each aggregated count.
+     * `strategy` must be "gap_union" or "gap_intersect".
+     * @param {string} pipeline_id
+     * @param {string} strategy
+     * @returns {string}
+     */
+    get_gt_disc_position_details(pipeline_id, strategy) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(pipeline_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ptr1 = passStringToWasm0(strategy, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len1 = WASM_VECTOR_LEN;
+            const ret = wasm.genomedata_get_gt_disc_position_details(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+            deferred3_0 = ret[0];
+            deferred3_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
     }
     /**
      * For each VCF pipeline, return GT discriminating SNPs vs pipeline core SNP data.

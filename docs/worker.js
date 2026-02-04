@@ -146,6 +146,11 @@ self.onmessage = async function(e) {
                 result = { stats: JSON.parse(genomeData.get_gt_disc_vs_pipelines()) };
                 break;
 
+            case 'getGtDiscPositionDetails':
+                result = { details: JSON.parse(genomeData.get_gt_disc_position_details(
+                    payload.pipelineId, payload.strategy)) };
+                break;
+
             default:
                 throw new Error(`Unknown action: ${action}`);
         }

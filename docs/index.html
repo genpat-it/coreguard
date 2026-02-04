@@ -434,6 +434,36 @@
         .kpi-table .info-icon:hover {
             opacity: 1;
         }
+        .kpi-table .bg-gi { background: rgba(59,130,246,0.06); }
+        .kpi-table .bg-gu { background: rgba(16,185,129,0.06); }
+        .kpi-table .bg-pw { background: rgba(245,158,11,0.06); }
+        .kpi-table .gt-toggle-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            font-size: 11px;
+            cursor: pointer;
+            color: var(--text-muted);
+            padding: 1px 5px;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+        .kpi-table .gt-toggle-btn:hover {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+        .kpi-table .gt-detail-row td {
+            padding: 0;
+        }
+        .kpi-table .gt-detail-inner {
+            padding: 8px 10px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            margin: 4px;
+        }
+        [data-theme="dark"] .kpi-table .bg-gi { background: rgba(59,130,246,0.08); }
+        [data-theme="dark"] .kpi-table .bg-gu { background: rgba(16,185,129,0.08); }
+        [data-theme="dark"] .kpi-table .bg-pw { background: rgba(245,158,11,0.08); }
         .kpi.kpi-gt {
             border-color: #7cb342;
         }
@@ -2178,12 +2208,19 @@ pipelines:
             `;
             html += sectionEnd();
 
-            // === GT Pipeline KPIs (Gap-Intersect, Gap-Union, Pairwise) ===
+            // === Pipeline Statistics (unified table) ===
             const pipelineInfo = workerApi.cachedData.pipelineInfo || {};
-            if (gtPipelineId) {
-                const gtLabel = (pipelineInfo[gtPipelineId] && pipelineInfo[gtPipelineId].label) || gtPipelineId;
-                html += sectionStart(`${gtLabel} <span style="color:#e6862a;font-weight:bold;">(GT)</span>`, true);
-                if (workerApi.isFromBamPileup(gtPipelineId)) {
+            const allPipelineIds = workerApi.pipelineIds || [];
+            // Sort: GT first, then alphabetically
+            const sortedPipelineIds = [...allPipelineIds].sort((a, b) => {
+                if (a === gtPipelineId) return -1;
+                if (b === gtPipelineId) return 1;
+                return a.localeCompare(b);
+            });
+
+            if (sortedPipelineIds.length > 0) {
+                // BAM pileup warning for GT
+                if (gtPipelineId && workerApi.isFromBamPileup(gtPipelineId)) {
                     const opts = workerApi.pileupOptions;
                     let optsStr = '';
                     if (opts) {
@@ -2193,61 +2230,101 @@ pipelines:
                         ⚠ Ground truth SNPs derived from <strong>BAM pileup</strong> (no variant calling performed). Positions with depth &lt; min_depth are gaps; bases are called by majority consensus.${optsStr}
                     </div>`;
                 }
-                html += `<div class="kpi-row">`;
 
-                // Global stats
-                const gs = await workerApi.getGlobalStatsForPipeline(gtPipelineId);
-                if (gs) {
-                    html += sectionStart('Gap-Intersect', true);
-                    html += `<div class="kpi"><div class="label">Usable Space ${infoIcon('pp_gi_usable')}</div><div class="value">${gs.relaxed.usable_space.toLocaleString()} bp <span class="pct">(${gs.relaxed.usable_space_pct.toFixed(2)}%)</span></div></div>`;
-                    html += `<button class="kpi-expand-btn" onclick="this.nextElementSibling.classList.toggle('expanded');this.textContent=this.textContent==='+'?'−':'+'">+</button>`;
-                    html += `<div class="kpi-collapsible">`;
-                    html += `<div class="kpi"><div class="label">Total SNPs ${infoIcon('pp_gi_total')}</div><div class="value">${gs.relaxed.total_snps.toLocaleString()}</div></div>`;
-                    html += `<div class="kpi"><div class="label">Consensus SNPs ${infoIcon('pp_gi_consensus')}</div><div class="value">${gs.relaxed.consensus_snps.toLocaleString()}</div></div>`;
-                    html += `</div>`;
-                    html += `<div class="kpi"><div class="label">Discriminating SNPs ${infoIcon('pp_gi_disc')}</div><div class="value">${gs.relaxed.discriminating_snps.toLocaleString()}</div></div>`;
-                    html += sectionEnd();
+                // Fetch stats for all pipelines in parallel
+                const allStats = {};
+                const hasPairwise = kpis.samples >= 2;
+                await Promise.all(sortedPipelineIds.map(async (pid) => {
+                    const gs = await workerApi.getGlobalStatsForPipeline(pid);
+                    const pw = hasPairwise ? await workerApi.getPairwiseUsableStatsForPipeline(pid) : null;
+                    allStats[pid] = { gs, pw };
+                }));
 
-                    html += sectionStart('Gap-Union', true);
-                    html += `<div class="kpi"><div class="label">Usable Space ${infoIcon('pp_gu_usable')}</div><div class="value">${gs.strict.usable_space.toLocaleString()} bp <span class="pct">(${gs.strict.usable_space_pct.toFixed(2)}%)</span></div></div>`;
-                    html += `<button class="kpi-expand-btn" onclick="this.nextElementSibling.classList.toggle('expanded');this.textContent=this.textContent==='+'?'−':'+'">+</button>`;
-                    html += `<div class="kpi-collapsible">`;
-                    html += `<div class="kpi"><div class="label">Total SNPs ${infoIcon('pp_gu_total')}</div><div class="value">${gs.strict.total_snps.toLocaleString()}</div></div>`;
-                    html += `<div class="kpi"><div class="label">Consensus SNPs ${infoIcon('pp_gu_consensus')}</div><div class="value">${gs.strict.consensus_snps.toLocaleString()}</div></div>`;
-                    html += `</div>`;
-                    html += `<div class="kpi"><div class="label">Discriminating SNPs ${infoIcon('pp_gu_disc')}</div><div class="value">${gs.strict.discriminating_snps.toLocaleString()}</div></div>`;
-                    html += sectionEnd();
+                const refLen = workerApi.refLength;
+                const sep = 'border-left:2px solid var(--text-muted);';
+                const totalCols = hasPairwise ? 7 : 5;
+
+                html += sectionStart('Pipeline Statistics', true);
+                html += `<table class="kpi-table"><thead>`;
+                // Header row 1: group headers
+                html += `<tr>
+                    <th rowspan="2">Pipeline</th>
+                    <th colspan="2" class="bg-gi" style="text-align:center;${sep}">Gap-Intersect ${infoIcon('pp_gi_usable')}</th>
+                    <th colspan="2" class="bg-gu" style="text-align:center;${sep}">Gap-Union ${infoIcon('pp_gu_usable')}</th>`;
+                if (hasPairwise) {
+                    html += `<th colspan="2" class="bg-pw" style="text-align:center;${sep}">Pairwise ${infoIcon('pp_pw_usable')}</th>`;
                 }
+                html += `</tr>`;
+                // Header row 2: sub-columns
+                html += `<tr>
+                    <th class="bg-gi" style="${sep}">Usable Space</th>
+                    <th class="bg-gi">Disc. SNPs</th>
+                    <th class="bg-gu" style="${sep}">Usable Space</th>
+                    <th class="bg-gu">Disc. SNPs</th>`;
+                if (hasPairwise) {
+                    html += `<th class="bg-pw" style="${sep}">Avg Usable Space</th>
+                    <th class="bg-pw">Disc. SNPs</th>`;
+                }
+                html += `</tr></thead><tbody>`;
 
-                // Pairwise stats
-                if (kpis.samples >= 2) {
-                    const pw = await workerApi.getPairwiseUsableStatsForPipeline(gtPipelineId);
-                    if (pw && pw.num_pairs > 0) {
-                        html += sectionStart(`Pairwise (Gap-Union) <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${pw.num_pairs} pairs)</span>`, true);
-                        html += `<div class="kpi"><div class="label">Avg Usable Space ${infoIcon('pp_pw_usable')}</div><div class="value">${Math.round(pw.avg_usable_space).toLocaleString()} bp <span class="pct">(${pw.avg_usable_space_pct.toFixed(2)}%)</span></div></div>`;
-                        html += `<div class="kpi"><div class="label">Discriminating SNPs ${infoIcon('pp_pw_disc')}</div><div class="value">avg ${pw.avg_usable_snps.toFixed(1)} &nbsp;|&nbsp; min ${pw.min_usable_snps.toLocaleString()} &nbsp;|&nbsp; med ${pw.median_usable_snps.toFixed(1)} &nbsp;|&nbsp; max ${pw.max_usable_snps.toLocaleString()}</div></div>`;
-                        html += sectionEnd();
+                // Data rows
+                for (const pid of sortedPipelineIds) {
+                    const isGt = pid === gtPipelineId;
+                    const plLabel = (pipelineInfo[pid] && pipelineInfo[pid].label) || pid;
+                    const { gs, pw } = allStats[pid];
+
+                    html += `<tr${isGt ? ' style="font-weight:600;"' : ''}>`;
+                    // Pipeline name cell
+                    html += `<td>${plLabel}`;
+                    if (isGt) html += ` <span style="color:#e6862a;font-weight:bold;">(GT)</span>`;
+                    if (isGt && hasPairwise && pw && pw.per_sample && pw.per_sample.length > 0) {
+                        html += `<button class="gt-toggle-btn" onclick="var r=document.getElementById('gt-pairwise-detail');if(r.style.display==='none'){r.style.display='';this.textContent='−'}else{r.style.display='none';this.textContent='+'}">+</button>`;
                     }
-                }
+                    html += `</td>`;
 
-                // Per-sample pairwise table
-                if (kpis.samples >= 2) {
-                    const pw2 = await workerApi.getPairwiseUsableStatsForPipeline(gtPipelineId);
-                    if (pw2 && pw2.per_sample && pw2.per_sample.length > 0) {
-                        // Collect all sample labels for column headers
-                        const allSamples = pw2.per_sample.map(s => ({ id: s.sample_id, label: s.sample_label }));
-                        html += sectionStart(`Per-Sample Pairwise ${infoIcon('pp_ps_table')}`, true);
-                        const refLen = workerApi.refLength;
+                    // Gap-Intersect columns
+                    if (gs) {
+                        html += `<td class="bg-gi" style="${sep}">${gs.relaxed.usable_space.toLocaleString()} <span class="pct">(${gs.relaxed.usable_space_pct.toFixed(2)}%)</span></td>`;
+                        html += `<td class="bg-gi">${gs.relaxed.discriminating_snps.toLocaleString()}</td>`;
+                    } else {
+                        html += `<td class="bg-gi" style="${sep}">N/A</td><td class="bg-gi">N/A</td>`;
+                    }
+
+                    // Gap-Union columns
+                    if (gs) {
+                        html += `<td class="bg-gu" style="${sep}">${gs.strict.usable_space.toLocaleString()} <span class="pct">(${gs.strict.usable_space_pct.toFixed(2)}%)</span></td>`;
+                        html += `<td class="bg-gu">${gs.strict.discriminating_snps.toLocaleString()}</td>`;
+                    } else {
+                        html += `<td class="bg-gu" style="${sep}">N/A</td><td class="bg-gu">N/A</td>`;
+                    }
+
+                    // Pairwise columns
+                    if (hasPairwise) {
+                        if (pw && pw.num_pairs > 0) {
+                            html += `<td class="bg-pw" style="${sep}">${Math.round(pw.avg_usable_space).toLocaleString()} <span class="pct">(${pw.avg_usable_space_pct.toFixed(2)}%)</span></td>`;
+                            html += `<td class="bg-pw">min ${pw.min_usable_snps.toLocaleString()} / med ${pw.median_usable_snps.toFixed(1)} / max ${pw.max_usable_snps.toLocaleString()} / avg ${pw.avg_usable_snps.toFixed(1)}</td>`;
+                        } else {
+                            html += `<td class="bg-pw" style="${sep}">N/A</td><td class="bg-pw">N/A</td>`;
+                        }
+                    }
+                    html += `</tr>`;
+
+                    // GT per-sample pairwise collapsible sub-row
+                    if (isGt && hasPairwise && pw && pw.per_sample && pw.per_sample.length > 0) {
+                        html += `<tr class="gt-detail-row" id="gt-pairwise-detail" style="display:none;">`;
+                        html += `<td colspan="${totalCols}"><div class="gt-detail-inner">`;
+                        // Build the NxN matrix
+                        const allSamples = pw.per_sample.map(s => ({ id: s.sample_id, label: s.sample_label }));
                         const sepPs = 'border-left:2px solid var(--text-muted);';
-                        html += `<table class="kpi-table"><thead><tr>
-                            <th>Sample</th>`;
+                        html += `<div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;margin-bottom:6px;">Per-Sample Pairwise ${infoIcon('pp_ps_table')}</div>`;
+                        html += `<div class="table-wrapper"><table class="kpi-table"><thead><tr><th>Sample</th>`;
                         for (const s of allSamples) {
                             html += `<th>${s.label}</th>`;
                         }
                         html += `<th style="${sepPs}">Avg Usable Space</th>`;
                         html += `<th>Avg Disc. SNPs</th>`;
                         html += `</tr></thead><tbody>`;
-                        for (const s of pw2.per_sample) {
+                        for (const s of pw.per_sample) {
                             html += `<tr><td>${s.sample_label}</td>`;
                             const pairMap = {};
                             if (s.pairs) s.pairs.forEach(p => { pairMap[p.other_sample] = p; });
@@ -2276,13 +2353,13 @@ pipelines:
                             html += `<td>${s.avg_disc_snps.toFixed(1)}</td>`;
                             html += `</tr>`;
                         }
-                        html += `</tbody></table>`;
-                        html += sectionEnd();
+                        html += `</tbody></table></div>`;
+                        html += `</div></td></tr>`;
                     }
                 }
 
-                html += `</div>`; // close kpi-row
-                html += sectionEnd(); // close GT pipeline section
+                html += `</tbody></table>`;
+                html += sectionEnd();
             }
 
             // === GT Discriminating SNPs Lost by VCF Pipelines ===

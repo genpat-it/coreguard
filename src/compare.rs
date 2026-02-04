@@ -57,6 +57,10 @@ pub struct CompareReport {
     /// Pre-computed GT discriminating SNPs vs pipeline core SNP results
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gt_disc_vs_pipelines: Option<Vec<GtDiscVsPipelineResult>>,
+
+    /// Raw YAML configuration used to generate this report
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config_yaml: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1115,7 +1119,7 @@ fn compute_all_stats(
 
 impl CompareReport {
     /// Generate report from configuration
-    pub fn from_config(config: &Config) -> Result<Self> {
+    pub fn from_config_with_yaml(config: &Config, config_yaml: Option<String>) -> Result<Self> {
         let sample_ids = config.all_sample_ids();
         let pipeline_ids = config.all_pipeline_ids();
 
@@ -1370,6 +1374,7 @@ impl CompareReport {
             description,
             pipeline_distance_matrices,
             gt_disc_vs_pipelines,
+            config_yaml,
         })
     }
 

@@ -909,6 +909,11 @@ pipelines:
             <div id="description-view" class="description-content"></div>
         </details>
 
+        <details class="collapsible-panel" id="config-panel" style="display:none;">
+            <summary>Configuration</summary>
+            <div id="config-view" style="padding:10px;"><pre id="config-yaml" style="background:var(--bg-secondary);color:var(--text-primary);padding:12px;border-radius:6px;font-size:11px;line-height:1.5;overflow-x:auto;white-space:pre-wrap;margin:0;"></pre></div>
+        </details>
+
         <details class="collapsible-panel" id="pipelines-panel">
             <summary>Pipelines</summary>
             <div id="pipelines-info">
@@ -1578,6 +1583,7 @@ pipelines:
             get pipelineIds() { return this.cachedData.pipelineIds; }
             get generatedAt() { return this.cachedData.generatedAt; }
             get description() { return this.cachedData.description; }
+            get configYaml() { return this.cachedData.configYaml; }
             get warnings() { return this.cachedData.warnings; }
             get vcfPipelines() { return this.cachedData.vcfPipelines; }
             get groundTruthPipeline() { return this.cachedData.groundTruthPipeline; }
@@ -1656,6 +1662,7 @@ pipelines:
             // Phase 2: Quick stuff first (instant)
             await nextFrame();
             populateDescription();
+            populateConfig();
             displayWarnings();
             console.log(`Phase 2 (description): ${(performance.now() - t0).toFixed(0)}ms`);
 
@@ -2071,6 +2078,18 @@ pipelines:
                 view.innerHTML = renderMarkdown(description);
             } else {
                 // Hide panel if no description
+                panel.style.display = 'none';
+            }
+        }
+
+        function populateConfig() {
+            const panel = document.getElementById('config-panel');
+            const pre = document.getElementById('config-yaml');
+            const yaml = workerApi.configYaml;
+            if (yaml && yaml.trim()) {
+                panel.style.display = 'block';
+                pre.textContent = yaml;
+            } else {
                 panel.style.display = 'none';
             }
         }

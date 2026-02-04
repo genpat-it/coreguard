@@ -554,6 +554,10 @@ pub fn compute_gt_disc_vs_pipelines(
         for &pos in disc_positions.iter().filter(|p| gt_gap_union.contains(p)) {
             gu_details.push(build_detail(pos, "in_gt_gap", &all_indices));
         }
+        // Add pl_only positions (pipeline disc, not in GT disc, not in GT gap = table "Lost")
+        for &pos in disc_positions.iter().filter(|p| !gt_disc_union.contains(p) && !gt_gap_union.contains(p)) {
+            gu_details.push(build_detail(pos, "pl_only", &all_indices));
+        }
         gu_details.sort_by_key(|d| d.pos);
 
         // --- Gap-Intersect: same_pos, concordant, position details ---
@@ -590,6 +594,10 @@ pub fn compute_gt_disc_vs_pipelines(
         // Add in_gt_gap positions for gap-intersect
         for &pos in disc_positions.iter().filter(|p| gt_gap_intersection.contains(p)) {
             gi_details.push(build_detail(pos, "in_gt_gap", &all_indices));
+        }
+        // Add pl_only positions for gap-intersect (pipeline disc, not in GT disc, not in GT gap = table "Lost")
+        for &pos in disc_positions.iter().filter(|p| !gt_disc_intersect.contains(p) && !gt_gap_intersection.contains(p)) {
+            gi_details.push(build_detail(pos, "pl_only", &all_indices));
         }
         gi_details.sort_by_key(|d| d.pos);
 

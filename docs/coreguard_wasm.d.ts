@@ -65,8 +65,10 @@ export class GenomeData {
      */
     get_ground_truth_pipeline(): string | undefined;
     /**
-     * For each VCF pipeline, check what happens to GT discriminating SNPs.
-     * Returns per-pipeline breakdown: confirmed, lost_gap, lost_missing_call, lost_pipeline_consensus
+     * For each VCF pipeline, return GT discriminating SNPs vs pipeline core SNP data.
+     * Returns pre-computed results from the CLI compare command, or falls back to
+     * VCF-based computation if no pre-computed data is available.
+     * Output format: { pipeline_id: { gap_intersect_gt_disc, ..., concordant (nullable) } }
      */
     get_gt_disc_vs_pipelines(): string;
     /**

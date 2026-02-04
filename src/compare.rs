@@ -46,6 +46,10 @@ pub struct CompareReport {
     /// Pre-computed distance matrices from pipelines (pipeline_id -> matrix data)
     #[serde(default)]
     pub pipeline_distance_matrices: HashMap<String, PipelineDistanceMatrix>,
+
+    /// Pre-computed GT discriminating SNPs vs pipeline core SNP results
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gt_disc_vs_pipelines: Option<Vec<GtDiscVsPipelineResult>>,
 }
 
 /// Allele information at a polymorphic site
@@ -208,6 +212,421 @@ pub struct PipelineDistanceMatrix {
     pub samples: Vec<String>,
     /// Distance matrix (row-major, samples[i] vs samples[j])
     pub matrix: Vec<Vec<i64>>,
+}
+
+// ============================================================================
+// GT Disc vs Pipelines (pre-computed from core SNP files)
+// ============================================================================
+
+/// Core SNP data from a pipeline's native output file (snippycore.tab or snplist.txt)
+#[derive(Debug, Clone)]
+pub struct CoreSnpData {
+    /// Pipeline positions with per-sample alleles
+    pub positions: Vec<CoreSnpPosition>,
+    /// True for snippycore.tab (has alleles), false for snplist.txt (positions only)
+    pub has_alleles: bool,
+}
+
+/// A single position from a core SNP file
+#[derive(Debug, Clone)]
+pub struct CoreSnpPosition {
+    /// 0-based position
+    pub pos: usize,
+    /// Reference allele (if available)
+    pub ref_allele: Option<String>,
+    /// Sample → allele (empty if !has_alleles)
+    pub alleles: HashMap<String, String>,
+    /// Samples that have a SNP at this position
+    pub samples_with_snp: Vec<String>,
+}
+
+/// Parse a core SNP file, auto-detecting format (snippycore.tab vs snplist.txt)
+pub fn parse_core_snps(path: &str) -> anyhow::Result<CoreSnpData> {
+    let content = std::fs::read_to_string(path)
+        .with_context(|| format!("Failed to read core SNPs file: {}", path))?;
+
+    let first_line = content.lines().next().unwrap_or("");
+
+    if first_line.starts_with("CHR\t") || first_line.starts_with("CHR ") {
+        // snippycore.tab format
+        parse_snippycore_tab_for_core(path)
+    } else {
+        // snplist.txt format (CFSAN)
+        parse_cfsan_snplist_for_core(path)
+    }
+}
+
+/// Parse snippycore.tab format: CHR\tPOS\tREF\tsample1\tsample2\t...
+fn parse_snippycore_tab_for_core(path: &str) -> anyhow::Result<CoreSnpData> {
+    use std::io::{BufRead, BufReader};
+
+    let file = std::fs::File::open(path)
+        .with_context(|| format!("Failed to open core SNPs file: {}", path))?;
+    let reader = BufReader::new(file);
+
+    let mut positions = Vec::new();
+    let mut sample_names: Vec<String> = Vec::new();
+
+    for line in reader.lines() {
+        let line = line?;
+        let parts: Vec<&str> = line.split('\t').collect();
+
+        if line.starts_with("CHR\t") {
+            // Header line — extract sample names
+            sample_names = parts.iter()
+                .skip(3) // Skip CHR, POS, REF
+                .map(|s| s.trim_end_matches("_snippy").to_string())
+                .collect();
+            continue;
+        }
+
+        if parts.len() < 4 || sample_names.is_empty() {
+            continue;
+        }
+
+        let pos: usize = parts[1].parse().unwrap_or(0);
+        if pos == 0 { continue; }
+        let pos = pos - 1; // Convert to 0-based
+
+        let ref_allele = parts[2].to_string();
+
+        let mut alleles = HashMap::new();
+        let mut samples_with_snp = Vec::new();
+
+        for (i, sample) in sample_names.iter().enumerate() {
+            if let Some(allele) = parts.get(3 + i) {
+                let allele = allele.to_string();
+                // A sample has a SNP if its allele differs from ref and isn't N or -
+                if allele != ref_allele && allele != "N" && allele != "-" {
+                    samples_with_snp.push(sample.clone());
+                }
+                alleles.insert(sample.clone(), allele);
+            }
+        }
+
+        positions.push(CoreSnpPosition {
+            pos,
+            ref_allele: Some(ref_allele),
+            alleles,
+            samples_with_snp,
+        });
+    }
+
+    log::info!("Parsed {} core SNP positions from snippycore.tab (with alleles)", positions.len());
+
+    Ok(CoreSnpData {
+        positions,
+        has_alleles: true,
+    })
+}
+
+/// Parse CFSAN snplist.txt format: CHROM\tPOS\tCOUNT\tsample1\tsample2\t...
+fn parse_cfsan_snplist_for_core(path: &str) -> anyhow::Result<CoreSnpData> {
+    use std::io::{BufRead, BufReader};
+
+    let file = std::fs::File::open(path)
+        .with_context(|| format!("Failed to open core SNPs file: {}", path))?;
+    let reader = BufReader::new(file);
+
+    let mut positions = Vec::new();
+
+    for line in reader.lines() {
+        let line = line?;
+        let parts: Vec<&str> = line.split('\t').collect();
+        if parts.len() < 4 {
+            continue;
+        }
+
+        let pos: usize = parts[1].parse().unwrap_or(0);
+        if pos == 0 { continue; }
+        let pos = pos - 1; // Convert to 0-based
+
+        let samples_with_snp: Vec<String> = parts.iter()
+            .skip(3)
+            .map(|s| s.to_string())
+            .collect();
+
+        positions.push(CoreSnpPosition {
+            pos,
+            ref_allele: None,
+            alleles: HashMap::new(),
+            samples_with_snp,
+        });
+    }
+
+    log::info!("Parsed {} core SNP positions from snplist.txt (no alleles)", positions.len());
+
+    Ok(CoreSnpData {
+        positions,
+        has_alleles: false,
+    })
+}
+
+/// Result of GT disc vs pipeline comparison
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GtDiscVsPipelineResult {
+    pub pipeline_id: String,
+    pub gap_intersect: GapStrategyResult,
+    pub gap_union: GapStrategyResult,
+    pub pairwise: PairwiseGtDiscResult,
+}
+
+/// Results for a single gap strategy (intersect or union)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GapStrategyResult {
+    pub gt_disc: u32,
+    pub same_pos: u32,
+    /// None if pipeline has no allele data (CFSAN snplist.txt)
+    pub concordant: Option<u32>,
+    pub pl_snps_in_gt_gaps: u32,
+}
+
+/// Pairwise results (averages across all sample pairs)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PairwiseGtDiscResult {
+    pub gt_disc_avg: f64,
+    pub same_pos_avg: f64,
+    pub concordant_avg: Option<f64>,
+    pub num_pairs: u32,
+}
+
+/// Compute GT disc vs pipeline metrics using core SNP data.
+///
+/// For each non-GT pipeline with `core_snps`, computes:
+/// - Gap-Intersect and Gap-Union strategies for GT discriminating positions
+/// - same_pos: GT disc positions present in pipeline's core SNP file
+/// - concordant: among same_pos, alleles match GT (only if has_alleles)
+/// - pl_snps_in_gt_gaps: pipeline core SNP positions falling in GT gaps
+pub fn compute_gt_disc_vs_pipelines(
+    data: &HashMap<String, HashMap<String, PipelineData>>,
+    sample_ids: &[String],
+    gt_pipeline_id: &str,
+    core_snp_data: &HashMap<String, CoreSnpData>,
+    ref_seq: &str,
+) -> Vec<GtDiscVsPipelineResult> {
+    use std::collections::HashSet;
+
+    let n = sample_ids.len();
+    if n < 2 {
+        return Vec::new();
+    }
+
+    let ref_bytes = ref_seq.as_bytes();
+
+    // Build per-sample GT gap sets
+    let mut gt_gap_sets: Vec<HashSet<usize>> = Vec::new();
+    for sample_id in sample_ids {
+        let mut gaps = HashSet::new();
+        if let Some(sample_data) = data.get(sample_id) {
+            if let Some(gt_data) = sample_data.get(gt_pipeline_id) {
+                for gap in &gt_data.gaps {
+                    for pos in gap[0]..gap[1] {
+                        gaps.insert(pos);
+                    }
+                }
+            }
+        }
+        gt_gap_sets.push(gaps);
+    }
+
+    // GT gap union (any sample has GT gap)
+    let mut gt_gap_union: HashSet<usize> = HashSet::new();
+    for gs in &gt_gap_sets {
+        gt_gap_union.extend(gs);
+    }
+
+    // GT gap intersection (all samples have GT gap)
+    let gt_gap_intersection = if gt_gap_sets.len() > 1 {
+        let mut isect = gt_gap_sets[0].clone();
+        for gs in &gt_gap_sets[1..] {
+            isect = isect.intersection(gs).cloned().collect();
+        }
+        isect
+    } else if gt_gap_sets.len() == 1 {
+        gt_gap_sets[0].clone()
+    } else {
+        HashSet::new()
+    };
+
+    // Build per-sample GT SNP maps: pos -> alt allele
+    let mut gt_snp_maps: Vec<HashMap<usize, u8>> = Vec::new();
+    for sample_id in sample_ids {
+        let mut snp_map = HashMap::new();
+        if let Some(sample_data) = data.get(sample_id) {
+            if let Some(gt_data) = sample_data.get(gt_pipeline_id) {
+                for snp in &gt_data.snps {
+                    let pos = snp.pos - 1; // VCF is 1-based, convert to 0-based
+                    let alt = snp.alt.as_bytes().first().copied().unwrap_or(b'N');
+                    // Filter out bogus SNPs where alt == reference
+                    if pos < ref_bytes.len() && alt != ref_bytes[pos] {
+                        snp_map.insert(pos, alt);
+                    }
+                }
+            }
+        }
+        gt_snp_maps.push(snp_map);
+    }
+
+    // All GT SNP positions
+    let mut all_gt_snp_positions: HashSet<usize> = HashSet::new();
+    for snp_map in &gt_snp_maps {
+        all_gt_snp_positions.extend(snp_map.keys());
+    }
+
+    // --- Gap-Union GT discriminating positions ---
+    let mut gt_disc_union: Vec<usize> = Vec::new();
+    for &pos in &all_gt_snp_positions {
+        if gt_gap_union.contains(&pos) { continue; }
+        let alleles: Vec<Option<u8>> = (0..n).map(|idx| gt_snp_maps[idx].get(&pos).copied()).collect();
+        let first = alleles[0];
+        if alleles.iter().any(|a| *a != first) {
+            gt_disc_union.push(pos);
+        }
+    }
+
+    // --- Gap-Intersect GT discriminating positions ---
+    let mut gt_disc_intersect: Vec<usize> = Vec::new();
+    for &pos in &all_gt_snp_positions {
+        if gt_gap_intersection.contains(&pos) { continue; }
+        let alleles: Vec<Option<u8>> = (0..n)
+            .filter(|&idx| !gt_gap_sets[idx].contains(&pos))
+            .map(|idx| gt_snp_maps[idx].get(&pos).copied())
+            .collect();
+        if alleles.len() < 2 { continue; }
+        let first = alleles[0];
+        if alleles.iter().any(|a| *a != first) {
+            gt_disc_intersect.push(pos);
+        }
+    }
+
+    // For quick lookup: convert core SNP positions to HashSet per pipeline
+    let mut results = Vec::new();
+
+    for (pipeline_id, core_data) in core_snp_data {
+        if pipeline_id == gt_pipeline_id { continue; }
+
+        let core_positions: HashSet<usize> = core_data.positions.iter().map(|p| p.pos).collect();
+
+        // Build lookup: pos -> CoreSnpPosition
+        let core_pos_map: HashMap<usize, &CoreSnpPosition> = core_data.positions.iter()
+            .map(|p| (p.pos, p))
+            .collect();
+
+        // --- Helper: check allele concordance at a position ---
+        let check_concordance = |pos: usize, active_indices: &[usize]| -> bool {
+            if !core_data.has_alleles { return false; }
+            let core_pos = match core_pos_map.get(&pos) {
+                Some(p) => p,
+                None => return false,
+            };
+            active_indices.iter().all(|&idx| {
+                let sample_id = &sample_ids[idx];
+                let gt_allele = gt_snp_maps[idx].get(&pos).copied()
+                    .unwrap_or_else(|| if pos < ref_bytes.len() { ref_bytes[pos] } else { b'N' });
+                let pl_allele = core_pos.alleles.get(sample_id)
+                    .and_then(|a| a.as_bytes().first().copied())
+                    .unwrap_or_else(|| if pos < ref_bytes.len() { ref_bytes[pos] } else { b'N' });
+                gt_allele == pl_allele
+            })
+        };
+
+        // --- Gap-Union: same_pos, concordant ---
+        let mut gu_same_pos: u32 = 0;
+        let mut gu_concordant: u32 = 0;
+        for &pos in &gt_disc_union {
+            if !core_positions.contains(&pos) { continue; }
+            gu_same_pos += 1;
+            if core_data.has_alleles {
+                let all_indices: Vec<usize> = (0..n).collect();
+                if check_concordance(pos, &all_indices) {
+                    gu_concordant += 1;
+                }
+            }
+        }
+        let gu_pl_in_gaps: u32 = core_positions.iter()
+            .filter(|p| gt_gap_union.contains(p))
+            .count() as u32;
+
+        // --- Gap-Intersect: same_pos, concordant ---
+        let mut gi_same_pos: u32 = 0;
+        let mut gi_concordant: u32 = 0;
+        for &pos in &gt_disc_intersect {
+            if !core_positions.contains(&pos) { continue; }
+            let active: Vec<usize> = (0..n).filter(|&idx| !gt_gap_sets[idx].contains(&pos)).collect();
+            if active.len() < 2 { continue; }
+            gi_same_pos += 1;
+            if core_data.has_alleles && check_concordance(pos, &active) {
+                gi_concordant += 1;
+            }
+        }
+        let gi_pl_in_gaps: u32 = core_positions.iter()
+            .filter(|p| gt_gap_intersection.contains(p))
+            .count() as u32;
+
+        // --- Pairwise ---
+        let mut pw_total_disc: f64 = 0.0;
+        let mut pw_total_same_pos: f64 = 0.0;
+        let mut pw_total_concordant: f64 = 0.0;
+        let mut num_pairs: u32 = 0;
+
+        for i in 0..n {
+            for j in (i + 1)..n {
+                let pair_gap_union: HashSet<usize> = gt_gap_sets[i].union(&gt_gap_sets[j]).cloned().collect();
+
+                let mut pair_disc: Vec<usize> = Vec::new();
+                for &pos in &all_gt_snp_positions {
+                    if pair_gap_union.contains(&pos) { continue; }
+                    let a_i = gt_snp_maps[i].get(&pos).copied();
+                    let a_j = gt_snp_maps[j].get(&pos).copied();
+                    if a_i != a_j {
+                        pair_disc.push(pos);
+                    }
+                }
+
+                let mut p_same: u32 = 0;
+                let mut p_conc: u32 = 0;
+                let pair_indices = vec![i, j];
+                for &pos in &pair_disc {
+                    if !core_positions.contains(&pos) { continue; }
+                    p_same += 1;
+                    if core_data.has_alleles && check_concordance(pos, &pair_indices) {
+                        p_conc += 1;
+                    }
+                }
+
+                pw_total_disc += pair_disc.len() as f64;
+                pw_total_same_pos += p_same as f64;
+                pw_total_concordant += p_conc as f64;
+                num_pairs += 1;
+            }
+        }
+
+        let np = if num_pairs > 0 { num_pairs as f64 } else { 1.0 };
+
+        results.push(GtDiscVsPipelineResult {
+            pipeline_id: pipeline_id.clone(),
+            gap_intersect: GapStrategyResult {
+                gt_disc: gt_disc_intersect.len() as u32,
+                same_pos: gi_same_pos,
+                concordant: if core_data.has_alleles { Some(gi_concordant) } else { None },
+                pl_snps_in_gt_gaps: gi_pl_in_gaps,
+            },
+            gap_union: GapStrategyResult {
+                gt_disc: gt_disc_union.len() as u32,
+                same_pos: gu_same_pos,
+                concordant: if core_data.has_alleles { Some(gu_concordant) } else { None },
+                pl_snps_in_gt_gaps: gu_pl_in_gaps,
+            },
+            pairwise: PairwiseGtDiscResult {
+                gt_disc_avg: pw_total_disc / np,
+                same_pos_avg: pw_total_same_pos / np,
+                concordant_avg: if core_data.has_alleles { Some(pw_total_concordant / np) } else { None },
+                num_pairs,
+            },
+        });
+    }
+
+    results
 }
 
 impl CompareReport {
@@ -596,6 +1015,47 @@ impl CompareReport {
             }
         }
 
+        // Compute GT disc vs pipelines using core SNP files
+        let gt_disc_vs_pipelines = if let Some(gt_pipeline_id) = config.ground_truth_pipeline() {
+            let mut core_snp_data: HashMap<String, CoreSnpData> = HashMap::new();
+            for (pipeline_id, pipeline_config) in &config.pipelines {
+                if let Some(core_snps_path) = &pipeline_config.core_snps {
+                    match parse_core_snps(core_snps_path) {
+                        Ok(core_data) => {
+                            log::info!(
+                                "Loaded core SNPs for pipeline '{}': {} positions (has_alleles: {})",
+                                pipeline_id, core_data.positions.len(), core_data.has_alleles
+                            );
+                            core_snp_data.insert(pipeline_id.clone(), core_data);
+                        }
+                        Err(e) => {
+                            log::warn!("Failed to load core SNPs for pipeline '{}': {}", pipeline_id, e);
+                        }
+                    }
+                }
+            }
+
+            if !core_snp_data.is_empty() {
+                let results = compute_gt_disc_vs_pipelines(
+                    &data,
+                    &sample_ids,
+                    &gt_pipeline_id,
+                    &core_snp_data,
+                    &ref_seq,
+                );
+                if !results.is_empty() {
+                    log::info!("Computed GT disc vs pipelines for {} pipeline(s)", results.len());
+                    Some(results)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         Ok(CompareReport {
             version: "1.0".to_string(),
             reference: ReferenceInfo {
@@ -611,6 +1071,7 @@ impl CompareReport {
             summary,
             description,
             pipeline_distance_matrices,
+            gt_disc_vs_pipelines,
         })
     }
 

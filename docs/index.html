@@ -1221,6 +1221,7 @@ pipelines:
     label: "Snippy"
     command: "snippy --ref ref.fa --R1 r1.fq.gz --R2 r2.fq.gz"
     distance_matrix: snippy_distance_matrix.tsv
+    core_snps: snippycore/snippycore.tab
     samples:
       TE15676: { vcf: TE15676_snippy.vcf, bam: TE15676_snippy.bam }
       TE15677: { vcf: TE15677_snippy.vcf, bam: TE15677_snippy.bam }
@@ -1231,6 +1232,7 @@ pipelines:
     label: "CFSAN"
     command: "cfsan_snp_pipeline run -s samples/ -o out/ ref.fa"
     distance_matrix: cfsan_distance_matrix.tsv
+    core_snps: cfsan/snplist.txt
     samples:
       TE15676: { vcf: cfsan/TE15676/var.flt.vcf, bam: cfsan/TE15676/reads.sorted.bam }
       TE15677: { vcf: cfsan/TE15677/var.flt.vcf, bam: cfsan/TE15677/reads.sorted.bam }
@@ -1973,24 +1975,31 @@ pipelines:
                        <p>A sample with high avg discriminating SNPs is more distant from the others.</p>`
             },
             'gt_disc_vs_pl': {
-                title: 'GT Discriminating SNPs — Lost by Pipelines',
-                body: `<p>For each gap strategy, shows how many <strong>GT discriminating SNPs</strong> are <strong>lost</strong> by each VCF pipeline.</p>
-                       <p>A position is "lost" if the pipeline cannot confirm the GT discrimination: due to a gap, missing VCF call, or pipeline consensus (all samples agree where GT disagrees).</p>`
+                title: 'GT Discriminating SNPs vs Pipelines',
+                body: `<p>For each gap strategy, compares <strong>GT discriminating SNPs</strong> against each VCF pipeline:</p>
+                       <ul>
+                           <li><strong>GT Disc:</strong> number of GT discriminating positions in the usable space</li>
+                           <li><strong>Same Pos:</strong> how many GT disc positions the pipeline also calls as a SNP (% of GT Disc)</li>
+                           <li><strong>Concordant:</strong> among same-position SNPs, how many have matching alleles across all samples (% of Same Pos)</li>
+                           <li><strong>In GT Gaps:</strong> pipeline SNP positions that fall within GT gap regions</li>
+                       </ul>`
             },
             'gt_disc_gi': {
                 title: 'Gap-Intersect Strategy',
                 body: `<p>GT discriminating positions computed using <strong>Gap-Intersect</strong>: only positions where ALL samples have a GT gap are excluded.</p>
-                       <p>More permissive — positions where some (but not all) samples have gaps are still evaluated among the non-gap samples.</p>`
+                       <p>More permissive — positions where some (but not all) samples have gaps are still evaluated among the non-gap samples.</p>
+                       <p><strong>In GT Gaps</strong> counts pipeline SNPs falling in the GT gap-intersection set.</p>`
             },
             'gt_disc_gu': {
                 title: 'Gap-Union Strategy',
                 body: `<p>GT discriminating positions computed using <strong>Gap-Union</strong>: positions where ANY sample has a GT gap are excluded.</p>
-                       <p>More strict — all samples must have data at a position for it to be considered.</p>`
+                       <p>More strict — all samples must have data at a position for it to be considered.</p>
+                       <p><strong>In GT Gaps</strong> counts pipeline SNPs falling in the GT gap-union set.</p>`
             },
             'gt_disc_pw': {
                 title: 'Pairwise Strategy',
                 body: `<p>For each pair of samples, GT discriminating positions are computed using <strong>pairwise Gap-Union</strong> (excluding positions where either sample has a gap).</p>
-                       <p>Values shown are <strong>averages</strong> across all sample pairs.</p>`
+                       <p>Values shown are <strong>averages</strong> across all sample pairs. No "In GT Gaps" column — it would be the same per pipeline regardless of pair.</p>`
             }
         };
 
@@ -3153,30 +3162,42 @@ pipelines:
             if (gtPipelineId && kpis.samples >= 2) {
                 const gtDiscVsPl = await workerApi.getGtDiscVsPipelines();
                 if (gtDiscVsPl && Object.keys(gtDiscVsPl).length > 0) {
-                    html += sectionStart(`GT Discriminating SNPs — Lost by Pipelines ${infoIcon('gt_disc_vs_pl')}`);
+                    html += sectionStart(`GT Discriminating SNPs vs Pipelines ${infoIcon('gt_disc_vs_pl')}`);
                     html += `<table class="kpi-table"><thead><tr>
                         <th rowspan="2">Pipeline</th>
-                        <th colspan="2" style="text-align:center;">Gap-Intersect ${infoIcon('gt_disc_gi')}</th>
-                        <th colspan="2" style="text-align:center;">Gap-Union ${infoIcon('gt_disc_gu')}</th>
-                        <th colspan="2" style="text-align:center;">Pairwise ${infoIcon('gt_disc_pw')}</th>
+                        <th colspan="4" style="text-align:center;">Gap-Intersect ${infoIcon('gt_disc_gi')}</th>
+                        <th colspan="4" style="text-align:center;">Gap-Union ${infoIcon('gt_disc_gu')}</th>
+                        <th colspan="3" style="text-align:center;">Pairwise ${infoIcon('gt_disc_pw')}</th>
                     </tr><tr>
-                        <th>GT Disc.</th><th>Lost</th>
-                        <th>GT Disc.</th><th>Lost</th>
-                        <th>GT Disc. (avg)</th><th>Lost (avg)</th>
+                        <th>GT Disc.</th><th>Same Pos</th><th>Concordant</th><th>In GT Gaps</th>
+                        <th>GT Disc.</th><th>Same Pos</th><th>Concordant</th><th>In GT Gaps</th>
+                        <th>GT Disc. (avg)</th><th>Same Pos (avg)</th><th>Concordant (avg)</th>
                     </tr></thead><tbody>`;
                     for (const [plId, stats] of Object.entries(gtDiscVsPl)) {
                         const plLabel = (pipelineInfo[plId] && pipelineInfo[plId].label) || plId;
-                        const giLostPct = stats.gap_intersect_gt_disc > 0 ? ((stats.gap_intersect_lost / stats.gap_intersect_gt_disc) * 100).toFixed(1) : '0.0';
-                        const guLostPct = stats.gap_union_gt_disc > 0 ? ((stats.gap_union_lost / stats.gap_union_gt_disc) * 100).toFixed(1) : '0.0';
-                        const pwLostPct = stats.pairwise_gt_disc_avg > 0 ? ((stats.pairwise_lost_avg / stats.pairwise_gt_disc_avg) * 100).toFixed(1) : '0.0';
+                        const giSamePct = stats.gap_intersect_gt_disc > 0 ? ((stats.gap_intersect_same_pos / stats.gap_intersect_gt_disc) * 100).toFixed(1) : '0.0';
+                        const giHasConc = stats.gap_intersect_concordant != null;
+                        const giConcPct = giHasConc && stats.gap_intersect_same_pos > 0 ? ((stats.gap_intersect_concordant / stats.gap_intersect_same_pos) * 100).toFixed(1) : '0.0';
+                        const guSamePct = stats.gap_union_gt_disc > 0 ? ((stats.gap_union_same_pos / stats.gap_union_gt_disc) * 100).toFixed(1) : '0.0';
+                        const guHasConc = stats.gap_union_concordant != null;
+                        const guConcPct = guHasConc && stats.gap_union_same_pos > 0 ? ((stats.gap_union_concordant / stats.gap_union_same_pos) * 100).toFixed(1) : '0.0';
+                        const pwSamePct = stats.pairwise_gt_disc_avg > 0 ? ((stats.pairwise_same_pos_avg / stats.pairwise_gt_disc_avg) * 100).toFixed(1) : '0.0';
+                        const pwHasConc = stats.pairwise_concordant_avg != null;
+                        const pwConcPct = pwHasConc && stats.pairwise_same_pos_avg > 0 ? ((stats.pairwise_concordant_avg / stats.pairwise_same_pos_avg) * 100).toFixed(1) : '0.0';
+                        const fmtConc = (val, pct, hasConc) => hasConc ? `${val.toLocaleString()} <span class="pct">(${pct}%)</span>` : 'N/A';
                         html += `<tr>
                             <td>${plLabel}</td>
                             <td>${stats.gap_intersect_gt_disc.toLocaleString()}</td>
-                            <td>${stats.gap_intersect_lost.toLocaleString()} <span class="pct">(${giLostPct}%)</span></td>
+                            <td>${stats.gap_intersect_same_pos.toLocaleString()} <span class="pct">(${giSamePct}%)</span></td>
+                            <td>${fmtConc(stats.gap_intersect_concordant, giConcPct, giHasConc)}</td>
+                            <td>${stats.gap_intersect_pl_snps_in_gt_gaps.toLocaleString()}</td>
                             <td>${stats.gap_union_gt_disc.toLocaleString()}</td>
-                            <td>${stats.gap_union_lost.toLocaleString()} <span class="pct">(${guLostPct}%)</span></td>
+                            <td>${stats.gap_union_same_pos.toLocaleString()} <span class="pct">(${guSamePct}%)</span></td>
+                            <td>${fmtConc(stats.gap_union_concordant, guConcPct, guHasConc)}</td>
+                            <td>${stats.gap_union_pl_snps_in_gt_gaps.toLocaleString()}</td>
                             <td>${stats.pairwise_gt_disc_avg.toFixed(1)}</td>
-                            <td>${stats.pairwise_lost_avg.toFixed(1)} <span class="pct">(${pwLostPct}%)</span></td>
+                            <td>${stats.pairwise_same_pos_avg.toFixed(1)} <span class="pct">(${pwSamePct}%)</span></td>
+                            <td>${pwHasConc ? `${stats.pairwise_concordant_avg.toFixed(1)} <span class="pct">(${pwConcPct}%)</span>` : 'N/A'}</td>
                         </tr>`;
                     }
                     html += `</tbody></table>`;

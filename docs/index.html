@@ -579,8 +579,17 @@
         .detail-modal-content .status-in_pl_gap { color: #ff9800; }
         .detail-modal-content .allele-mismatch { color: #f44336; font-weight: bold; }
         .detail-modal-content .allele-gap { color: #9e9e9e; }
-        .gt-disc-link { cursor: pointer; text-decoration: underline; color: var(--accent); }
-        .gt-disc-link:hover { color: var(--text-primary); }
+        .drill-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            padding: 1px 5px;
+            line-height: 1;
+            color: var(--text-secondary);
+        }
+        .drill-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
         .detail-modal-content .filter-bar {
             margin-bottom: 10px;
             display: flex;
@@ -1625,6 +1634,10 @@ pipelines:
                     if (!counts[st]) continue;
                     filterHtml += `<button class="filter-btn${statusFilter === st ? ' active' : ''}" onclick="filterGtDiscPositions('${st}')">${label} (${counts[st]})</button>`;
                 }
+                filterHtml += '<span style="margin-left:auto;display:flex;gap:4px;">';
+                filterHtml += '<button class="filter-btn" onclick="exportGtDiscPositions(\'tsv\')" title="Export as TSV">Export TSV</button>';
+                filterHtml += '<button class="filter-btn" onclick="exportGtDiscPositions(\'csv\')" title="Export as CSV">Export CSV</button>';
+                filterHtml += '</span>';
                 filterHtml += '</div>';
 
                 // Filter positions
@@ -1659,10 +1672,11 @@ pipelines:
                 tbl += '</tbody></table>';
                 body.innerHTML = filterHtml + tbl;
 
-                // Store data for filter switching
+                // Store data for filter switching and export
                 window._gtDiscDetailData = data;
                 window._gtDiscDetailPlId = plId;
                 window._gtDiscDetailStrategy = strategy;
+                window._gtDiscDetailStatusFilter = statusFilter;
 
             } catch (err) {
                 body.innerHTML = `<p style="color:#f44336">Error: ${err.message}</p>`;
@@ -1676,6 +1690,50 @@ pipelines:
                 window._gtDiscDetailStrategy,
                 status
             );
+        }
+
+        function exportGtDiscPositions(format) {
+            const data = window._gtDiscDetailData;
+            if (!data || !data.positions) return;
+            const samples = data.samples || [];
+            const sampleLabels = workerApi.cachedData.sampleLabels || {};
+            const statusFilter = window._gtDiscDetailStatusFilter || 'all';
+            const filtered = statusFilter === 'all'
+                ? data.positions
+                : data.positions.filter(p => p.status === statusFilter);
+
+            const sep = format === 'csv' ? ',' : '\t';
+            const ext = format === 'csv' ? 'csv' : 'tsv';
+
+            // Header
+            const headers = ['pos', 'ref'];
+            for (const s of samples) {
+                const lbl = sampleLabels[s] || s;
+                headers.push(`${lbl}_GT`, `${lbl}_PL`);
+            }
+            headers.push('status');
+
+            const rows = [headers.join(sep)];
+            for (const p of filtered) {
+                const row = [p.pos, p.ref];
+                for (const s of samples) {
+                    row.push((p.gt && p.gt[s]) || '?');
+                    row.push((p.pl && p.pl[s]) || '?');
+                }
+                row.push(p.status);
+                rows.push(row.join(sep));
+            }
+
+            const blob = new Blob([rows.join('\n')], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const plLabel = (workerApi.cachedData.pipelineInfo &&
+                workerApi.cachedData.pipelineInfo[window._gtDiscDetailPlId] &&
+                workerApi.cachedData.pipelineInfo[window._gtDiscDetailPlId].label) || window._gtDiscDetailPlId;
+            a.href = url;
+            a.download = `gt_disc_${plLabel}_${window._gtDiscDetailStrategy}_${statusFilter}.${ext}`;
+            a.click();
+            URL.revokeObjectURL(url);
         }
 
         // Close modal on Escape key
@@ -2496,16 +2554,16 @@ pipelines:
                     html += sectionStart(`GT Discriminating SNPs vs Pipelines ${infoIcon('gt_disc_vs_pl')}`, true);
                     const sep = 'border-left:2px solid var(--text-muted);';
                     html += `<table class="kpi-table fixed-cols">`;
-                    html += `<colgroup><col style="width:8%"><col style="width:6%"><col span="4" style="width:7.17%"><col span="4" style="width:7.17%"><col span="2" style="width:14.33%"></colgroup>`;
+                    html += `<colgroup><col style="width:7%"><col style="width:5%"><col span="4" style="width:6.5%"><col style="width:3%"><col span="4" style="width:6.5%"><col style="width:3%"><col span="2" style="width:10%"></colgroup>`;
                     html += `<thead><tr>
                         <th rowspan="2">Pipeline</th>
                         <th rowspan="2">Disc. SNPs ${infoIcon('pl_disc_snps')}</th>
-                        <th colspan="4" class="bg-gi" style="text-align:center;${sep}">Gap-Intersect ${infoIcon('gt_disc_gi')}</th>
-                        <th colspan="4" class="bg-gu" style="text-align:center;${sep}">Gap-Union ${infoIcon('gt_disc_gu')}</th>
+                        <th colspan="5" class="bg-gi" style="text-align:center;${sep}">Gap-Intersect ${infoIcon('gt_disc_gi')}</th>
+                        <th colspan="5" class="bg-gu" style="text-align:center;${sep}">Gap-Union ${infoIcon('gt_disc_gu')}</th>
                         <th colspan="2" class="bg-pw" style="text-align:center;${sep}">Pairwise ${infoIcon('gt_disc_pw')}</th>
                     </tr><tr>
-                        <th class="bg-gi" style="${sep}">Same Pos</th><th class="bg-gi">Concordant</th><th class="bg-gi">In GT Gaps</th><th class="bg-gi">Lost ${infoIcon('pl_lost_snps')}</th>
-                        <th class="bg-gu" style="${sep}">Same Pos</th><th class="bg-gu">Concordant</th><th class="bg-gu">In GT Gaps</th><th class="bg-gu">Lost ${infoIcon('pl_lost_snps')}</th>
+                        <th class="bg-gi" style="${sep}">Same Pos</th><th class="bg-gi">Concordant</th><th class="bg-gi">In GT Gaps</th><th class="bg-gi">Lost ${infoIcon('pl_lost_snps')}</th><th class="bg-gi"></th>
+                        <th class="bg-gu" style="${sep}">Same Pos</th><th class="bg-gu">Concordant</th><th class="bg-gu">In GT Gaps</th><th class="bg-gu">Lost ${infoIcon('pl_lost_snps')}</th><th class="bg-gu"></th>
                         <th class="bg-pw" style="${sep}">Same Pos (avg)</th><th class="bg-pw">Concordant (avg)</th>
                     </tr></thead><tbody>`;
                     for (const [plId, stats] of Object.entries(gtDiscVsPl)) {
@@ -2522,19 +2580,20 @@ pipelines:
                         const guLost = Math.max(0, plDiscSnps - stats.gap_union_same_pos - stats.gap_union_pl_snps_in_gt_gaps);
                         const giLostPct = plDiscSnps > 0 ? ((giLost / plDiscSnps) * 100).toFixed(1) : '0.0';
                         const guLostPct = plDiscSnps > 0 ? ((guLost / plDiscSnps) * 100).toFixed(1) : '0.0';
-                        const dLink = (plId, strat, status, text) => `<a class="gt-disc-link" onclick="event.stopPropagation();showGtDiscDetail('${plId}','${strat}','${status}')">${text}</a>`;
-                        const fmtConcLink = (plId, strat, val, pct, hasConc) => hasConc ? dLink(plId, strat, 'concordant', `${val.toLocaleString()} <span class="pct">(${pct}%)</span>`) : 'N/A';
+                        const drillBtn = (plId, strat) => `<button class="drill-btn" onclick="event.stopPropagation();showGtDiscDetail('${plId}','${strat}','all')" title="View positions">&#x1F50D;</button>`;
                         html += `<tr>
                             <td>${plLabel}</td>
                             <td>${stats.pl_discriminating_core_snps != null ? plDiscSnps.toLocaleString() : 'N/A'}</td>
-                            <td class="bg-gi" style="${sep}">${dLink(plId, 'gap_intersect', 'all', stats.gap_intersect_same_pos.toLocaleString())}</td>
-                            <td class="bg-gi">${fmtConcLink(plId, 'gap_intersect', stats.gap_intersect_concordant, giConcPct, giHasConc)}</td>
-                            <td class="bg-gi">${dLink(plId, 'gap_intersect', 'in_gt_gap', stats.gap_intersect_pl_snps_in_gt_gaps.toLocaleString())}</td>
+                            <td class="bg-gi" style="${sep}">${stats.gap_intersect_same_pos.toLocaleString()}</td>
+                            <td class="bg-gi">${fmtConc(stats.gap_intersect_concordant, giConcPct, giHasConc)}</td>
+                            <td class="bg-gi">${stats.gap_intersect_pl_snps_in_gt_gaps.toLocaleString()}</td>
                             <td class="bg-gi">${giLost.toLocaleString()} <span class="pct">(${giLostPct}%)</span></td>
-                            <td class="bg-gu" style="${sep}">${dLink(plId, 'gap_union', 'all', stats.gap_union_same_pos.toLocaleString())}</td>
-                            <td class="bg-gu">${fmtConcLink(plId, 'gap_union', stats.gap_union_concordant, guConcPct, guHasConc)}</td>
-                            <td class="bg-gu">${dLink(plId, 'gap_union', 'in_gt_gap', stats.gap_union_pl_snps_in_gt_gaps.toLocaleString())}</td>
+                            <td class="bg-gi">${drillBtn(plId, 'gap_intersect')}</td>
+                            <td class="bg-gu" style="${sep}">${stats.gap_union_same_pos.toLocaleString()}</td>
+                            <td class="bg-gu">${fmtConc(stats.gap_union_concordant, guConcPct, guHasConc)}</td>
+                            <td class="bg-gu">${stats.gap_union_pl_snps_in_gt_gaps.toLocaleString()}</td>
                             <td class="bg-gu">${guLost.toLocaleString()} <span class="pct">(${guLostPct}%)</span></td>
+                            <td class="bg-gu">${drillBtn(plId, 'gap_union')}</td>
                             <td class="bg-pw" style="${sep}">${stats.pairwise_same_pos_avg.toFixed(1)}</td>
                             <td class="bg-pw">${pwHasConc ? `${stats.pairwise_concordant_avg.toFixed(1)} <span class="pct">(${pwConcPct}%)</span>` : 'N/A'}</td>
                         </tr>`;

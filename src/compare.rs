@@ -86,7 +86,7 @@ pub struct PipelineInfo {
     pub has_bam: bool,
     /// Mark this pipeline as ground truth (baseline for comparison)
     #[serde(default)]
-    pub ground_truth: bool,
+    pub reference: bool,
     /// True if SNPs were derived from BAM pileup (no variant calling filters)
     #[serde(default)]
     pub from_bam_pileup: bool,
@@ -940,7 +940,7 @@ fn compute_all_stats(
 
     // Find GT pipeline
     let gt_pipeline_id: Option<&str> = pipelines.iter()
-        .find(|(_, info)| info.ground_truth)
+        .find(|(_, info)| info.reference)
         .map(|(id, _)| id.as_str());
 
     for pipeline_id in pipeline_ids {
@@ -1314,9 +1314,9 @@ impl CompareReport {
                 let has_vcf_files = pipeline.samples.values().any(|f| f.vcf.is_some());
                 let has_bam = pipeline.samples.values().any(|f| f.bam.is_some());
                 // Ground truth with BAM will have SNPs from pileup, so treat as having VCF for comparisons
-                let has_vcf = has_vcf_files || (pipeline.ground_truth && has_bam);
+                let has_vcf = has_vcf_files || (pipeline.reference && has_bam);
                 // Track if SNPs come from BAM pileup (no variant calling)
-                let from_bam_pileup = pipeline.ground_truth && !has_vcf_files && has_bam;
+                let from_bam_pileup = pipeline.reference && !has_vcf_files && has_bam;
                 pipelines.insert(
                     pipeline_id.clone(),
                     PipelineInfo {
@@ -1324,7 +1324,7 @@ impl CompareReport {
                         command: pipeline.command.clone(),
                         has_vcf,
                         has_bam,
-                        ground_truth: pipeline.ground_truth,
+                        reference: pipeline.reference,
                         from_bam_pileup,
                     },
                 );
@@ -1379,7 +1379,7 @@ impl CompareReport {
                             total_mnps_found += result.mnps_found;
                             total_snps_from_mnps += result.snps_from_mnps;
                             log::info!("  Found {} SNPs", pipeline_data.snps.len());
-                        } else if pipeline.ground_truth && files.bam.is_some() {
+                        } else if pipeline.reference && files.bam.is_some() {
                             // For ground truth without VCF, load SNPs from BAM pileup
                             let bam_path = files.bam.as_ref().unwrap();
                             log::info!(
@@ -1475,7 +1475,7 @@ impl CompareReport {
         }
 
         // Compute GT disc vs pipelines using core SNP files
-        let gt_disc_vs_pipelines = if let Some(gt_pipeline_id) = config.ground_truth_pipeline() {
+        let gt_disc_vs_pipelines = if let Some(gt_pipeline_id) = config.reference_pipeline() {
             if !core_snp_data.is_empty() {
                 let results = compute_gt_disc_vs_pipelines(
                     &data,

@@ -970,7 +970,7 @@ samples:
 pipelines:
   mm2:
     label: "Reference"
-    ground_truth: true
+    reference: true
     samples:
       TE15676: { bam: mm2_bams/TE15676.bam }
       TE15677: { bam: mm2_bams/TE15677.bam }
@@ -981,12 +981,12 @@ pipelines:
     label: "Snippy"
     command: "snippy --ref ref.fa --R1 r1.fq.gz --R2 r2.fq.gz"
     distance_matrix: snippy_distance_matrix.tsv
-    core_snps: snippycore/snippycore.tab
+    core_snps: snippycore/core.tab
     samples:
-      TE15676: { vcf: TE15676_snippy.vcf, bam: TE15676_snippy.bam }
-      TE15677: { vcf: TE15677_snippy.vcf, bam: TE15677_snippy.bam }
-      TE15678: { vcf: TE15678_snippy.vcf, bam: TE15678_snippy.bam }
-      TE8064:  { vcf: TE8064_snippy.vcf,  bam: TE8064_snippy.bam }
+      TE15676: { bam: TE15676_snippy/snps.bam }
+      TE15677: { bam: TE15677_snippy/snps.bam }
+      TE15678: { bam: TE15678_snippy/snps.bam }
+      TE8064:  { bam: TE8064_snippy/snps.bam }
 
   cfsan:
     label: "CFSAN"
@@ -994,10 +994,10 @@ pipelines:
     distance_matrix: cfsan_distance_matrix.tsv
     core_snps: cfsan/snplist.txt
     samples:
-      TE15676: { vcf: cfsan/TE15676/var.flt.vcf, bam: cfsan/TE15676/reads.sorted.bam }
-      TE15677: { vcf: cfsan/TE15677/var.flt.vcf, bam: cfsan/TE15677/reads.sorted.bam }
-      TE15678: { vcf: cfsan/TE15678/var.flt.vcf, bam: cfsan/TE15678/reads.sorted.bam }
-      TE8064:  { vcf: cfsan/TE8064/var.flt.vcf,  bam: cfsan/TE8064/reads.sorted.bam }</pre>
+      TE15676: { bam: cfsan/TE15676/reads.sorted.bam }
+      TE15677: { bam: cfsan/TE15677/reads.sorted.bam }
+      TE15678: { bam: cfsan/TE15678/reads.sorted.bam }
+      TE8064:  { bam: cfsan/TE8064/reads.sorted.bam }</pre>
                 </div>
             </div>
         </div>
@@ -1899,7 +1899,7 @@ pipelines:
             get pileupOptions() { return this.cachedData.pileupOptions; }
             get warnings() { return this.cachedData.warnings; }
             get vcfPipelines() { return this.cachedData.vcfPipelines; }
-            get groundTruthPipeline() { return this.cachedData.groundTruthPipeline; }
+            get referencePipeline() { return this.cachedData.referencePipeline; }
             get pipelineDistanceMatrices() { return this.cachedData.pipelineDistanceMatrices; }
             get pipelineInfo() { return this.cachedData.pipelineInfo; }
             get sampleLabels() { return this.cachedData.sampleLabels; }
@@ -1911,8 +1911,8 @@ pipelines:
             getPipelineCommand(pipelineId) {
                 return this.cachedData.pipelineInfo?.[pipelineId]?.command || '';
             }
-            isGroundTruth(pipelineId) {
-                return this.cachedData.pipelineInfo?.[pipelineId]?.isGroundTruth || false;
+            isReference(pipelineId) {
+                return this.cachedData.pipelineInfo?.[pipelineId]?.isReference || false;
             }
             isFromBamPileup(pipelineId) {
                 return this.cachedData.pipelineInfo?.[pipelineId]?.isFromBamPileup || false;
@@ -2411,12 +2411,12 @@ pipelines:
             for (const pipelineId of pipelineIds) {
                 const label = workerApi.getPipelineLabel(pipelineId);
                 const command = workerApi.getPipelineCommand(pipelineId);
-                const isGroundTruth = workerApi.isGroundTruth(pipelineId);
+                const isReference = workerApi.isReference(pipelineId);
                 const isFromBamPileup = workerApi.isFromBamPileup(pipelineId);
 
                 html += `<div class="pipeline-info-item">`;
                 html += `<div class="pipeline-name">${label}`;
-                if (isGroundTruth) {
+                if (isReference) {
                     html += `<span class="pipeline-badge">Reference</span>`;
                     if (isFromBamPileup) {
                         html += `<span class="pipeline-badge" style="background:#ff9800;" title="SNPs derived from BAM pileup, no variant calling filters applied">BAM pileup</span>`;
@@ -2426,7 +2426,7 @@ pipelines:
                 if (command) {
                     html += `<div class="pipeline-command">${command}</div>`;
                 }
-                if (isGroundTruth && isFromBamPileup) {
+                if (isReference && isFromBamPileup) {
                     html += `<div style="color:#ff9800;font-size:10px;margin-top:4px;">⚠️ SNPs from BAM pileup - no variant calling performed</div>`;
                 }
                 html += `</div>`;
@@ -2450,7 +2450,7 @@ pipelines:
         async function updateKPIs() {
             const kpis = await workerApi.getKpis();
             const refLength = workerApi.refLength;
-            const gtPipelineId = workerApi.groundTruthPipeline;
+            const gtPipelineId = workerApi.referencePipeline;
 
             // Helper to sort pipeline entries with GT always first, then alphabetically
             const sortedPipelineEntries = (obj) => {
@@ -2483,7 +2483,7 @@ pipelines:
             const pipelineInfo = workerApi.cachedData.pipelineInfo || {};
             if (gtPipelineId) {
                 const gtLabel = (pipelineInfo[gtPipelineId] && pipelineInfo[gtPipelineId].label) || gtPipelineId;
-                html += sectionStart(`${gtLabel} <span style="color:#e6862a;font-weight:bold;">(Ref)</span>`, true);
+                html += sectionStart(`${gtLabel} <span style="color:#e6862a;font-weight:bold;">(Reference)</span>`, true);
                 if (workerApi.isFromBamPileup(gtPipelineId)) {
                     const opts = workerApi.pileupOptions;
                     let optsStr = '';

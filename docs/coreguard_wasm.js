@@ -13,6 +13,22 @@ export class GenomeData {
         wasm.__wbg_genomedata_free(ptr, 0);
     }
     /**
+     * Get raw YAML configuration
+     * @returns {string}
+     */
+    get_config_yaml() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.genomedata_get_config_yaml(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get report description (markdown content)
      * Returns: description string or null if not available
      * @returns {string}

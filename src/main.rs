@@ -265,7 +265,8 @@ fn run_compare(args: CompareArgs) -> Result<()> {
 
     // Generate report
     info!("Generating comparison report...");
-    let report = compare::CompareReport::from_config(&config)?;
+    let config_yaml = std::fs::read_to_string(&args.config).ok();
+    let report = compare::CompareReport::from_config_with_yaml(&config, config_yaml)?;
 
     // Save report
     if args.binary {

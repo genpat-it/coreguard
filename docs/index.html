@@ -1636,16 +1636,21 @@ pipelines:
                     if (!counts[st]) continue;
                     filterHtml += `<button class="filter-btn${statusFilter === st ? ' active' : ''}" onclick="filterGtDiscPositions('${st}')">${label} (${counts[st]})</button>`;
                 }
-                filterHtml += '<span style="margin-left:auto;display:flex;gap:4px;">';
-                filterHtml += '<button class="filter-btn" onclick="exportGtDiscPositions(\'tsv\')" title="Export as TSV">Export TSV</button>';
-                filterHtml += '<button class="filter-btn" onclick="exportGtDiscPositions(\'csv\')" title="Export as CSV">Export CSV</button>';
+                filterHtml += '<span style="margin-left:auto;display:flex;gap:4px;align-items:center;">';
+                filterHtml += '<input type="text" id="pos-search" placeholder="Search position..." style="width:130px;padding:3px 8px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-tertiary);color:var(--text-primary);font-size:12px;" oninput="applyPosSearch()">';
+                filterHtml += '<button class="filter-btn" onclick="exportGtDiscPositions(\'tsv\')" title="Export as TSV">TSV</button>';
+                filterHtml += '<button class="filter-btn" onclick="exportGtDiscPositions(\'csv\')" title="Export as CSV">CSV</button>';
                 filterHtml += '</span>';
                 filterHtml += '</div>';
 
-                // Filter positions
-                const filtered = statusFilter === 'all'
+                // Filter positions by status and position search
+                const posSearch = (window._gtDiscPosSearch || '').replace(/,/g, '').trim();
+                let filtered = statusFilter === 'all'
                     ? data.positions
                     : data.positions.filter(p => p.status === statusFilter);
+                if (posSearch) {
+                    filtered = filtered.filter(p => String(p.pos).includes(posSearch));
+                }
 
                 // Update title with count
                 title.textContent = `${plLabel} — ${strategyLabel} — ${filtered.length} ${statusFilter === 'all' ? 'total' : statusFilter} positions`;
@@ -1680,6 +1685,12 @@ pipelines:
                 window._gtDiscDetailStrategy = strategy;
                 window._gtDiscDetailStatusFilter = statusFilter;
 
+                // Restore search text
+                const posInput = document.getElementById('pos-search');
+                if (posInput && window._gtDiscPosSearch) {
+                    posInput.value = window._gtDiscPosSearch;
+                }
+
             } catch (err) {
                 body.innerHTML = `<p style="color:#f44336">Error: ${err.message}</p>`;
             }
@@ -1694,15 +1705,30 @@ pipelines:
             );
         }
 
+        function applyPosSearch() {
+            const input = document.getElementById('pos-search');
+            window._gtDiscPosSearch = input ? input.value : '';
+            if (!window._gtDiscDetailData) return;
+            showGtDiscDetail(
+                window._gtDiscDetailPlId,
+                window._gtDiscDetailStrategy,
+                window._gtDiscDetailStatusFilter || 'all'
+            );
+        }
+
         function exportGtDiscPositions(format) {
             const data = window._gtDiscDetailData;
             if (!data || !data.positions) return;
             const samples = data.samples || [];
             const sampleLabels = workerApi.cachedData.sampleLabels || {};
             const statusFilter = window._gtDiscDetailStatusFilter || 'all';
-            const filtered = statusFilter === 'all'
+            const posSearch = (window._gtDiscPosSearch || '').replace(/,/g, '').trim();
+            let filtered = statusFilter === 'all'
                 ? data.positions
                 : data.positions.filter(p => p.status === statusFilter);
+            if (posSearch) {
+                filtered = filtered.filter(p => String(p.pos).includes(posSearch));
+            }
 
             const sep = format === 'csv' ? ',' : '\t';
             const ext = format === 'csv' ? 'csv' : 'tsv';

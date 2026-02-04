@@ -53,6 +53,9 @@ struct JsonReport {
     /// Description (markdown content)
     #[serde(default)]
     description: Option<String>,
+    /// Raw YAML configuration
+    #[serde(default)]
+    config_yaml: Option<String>,
     /// Pre-computed distance matrices from pipelines
     #[serde(default)]
     pipeline_distance_matrices: HashMap<String, JsonPipelineDistanceMatrix>,
@@ -245,6 +248,8 @@ pub struct GenomeData {
     warnings: Vec<String>,
     /// Description (markdown content)
     description: Option<String>,
+    /// Raw YAML configuration
+    config_yaml: Option<String>,
     /// Pre-computed distance matrices from pipelines
     pipeline_distance_matrices: HashMap<String, JsonPipelineDistanceMatrix>,
     /// Pre-computed GT disc vs pipeline results
@@ -276,6 +281,7 @@ impl GenomeData {
             generated_at: String::new(),
             warnings: Vec::new(),
             description: None,
+            config_yaml: None,
             pipeline_distance_matrices: HashMap::new(),
             gt_disc_vs_pipelines: None,
             pre_kpis: None,
@@ -323,6 +329,7 @@ impl GenomeData {
         self.generated_at = report.summary.generated_at;
         self.warnings = report.summary.warnings;
         self.description = report.description;
+        self.config_yaml = report.config_yaml;
         self.pipeline_distance_matrices = report.pipeline_distance_matrices;
         self.gt_disc_vs_pipelines = report.gt_disc_vs_pipelines;
         self.pre_kpis = report.kpis;
@@ -543,6 +550,15 @@ impl GenomeData {
     pub fn get_description(&self) -> String {
         match &self.description {
             Some(desc) => desc.clone(),
+            None => "".to_string(),
+        }
+    }
+
+    /// Get raw YAML configuration
+    #[wasm_bindgen]
+    pub fn get_config_yaml(&self) -> String {
+        match &self.config_yaml {
+            Some(yaml) => yaml.clone(),
             None => "".to_string(),
         }
     }

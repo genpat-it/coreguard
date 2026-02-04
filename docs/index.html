@@ -1674,10 +1674,6 @@ pipelines:
             // Hide loader - core UI is now visible
             hideLoader();
 
-            // Clear matrix placeholder
-            document.getElementById('matrix-result').innerHTML =
-                '<p style="color:var(--text-secondary);font-size:11px;">Select a pipeline to view its pre-computed distance matrix.</p>';
-
             console.log(`UI build complete: ${(performance.now() - t0).toFixed(0)}ms`);
         }
 

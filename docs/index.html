@@ -1536,32 +1536,6 @@ pipelines:
                 body: `<p>The length of the reference genome in base pairs (bp).</p>
                        <p>All samples are aligned against this reference sequence for SNP calling.</p>`
             },
-            'usable_space': {
-                title: 'Global Gap-Union — Usable Space',
-                body: `<p>The number of reference base pairs <strong>not covered by any GT gap</strong> across all samples.</p>
-                       <div class="formula">Usable Space = Reference Length − union(GT gaps of all samples)</div>
-                       <p>A position is excluded if <strong>at least one</strong> sample has a GT gap there. This is the most restrictive estimate of usable genome space.</p>`
-            },
-            'gl_relaxed_space': {
-                title: 'Global Gap-Intersect — Usable Space',
-                body: `<p>The number of reference base pairs after removing only positions where <strong>ALL samples</strong> have a GT gap.</p>
-                       <div class="formula">Usable Space = Reference Length − intersection(GT gaps of all samples)</div>
-                       <p>A position is excluded only if <strong>every</strong> sample has a gap there. This is more permissive than Strict.</p>
-                       <p><strong>Relaxed ≥ Strict</strong> usable space.</p>`
-            },
-            'pw_usable_space': {
-                title: 'Pairwise (Gap-Union) — Avg Usable Space',
-                body: `<p>Average usable genome space across all sample pairs.</p>
-                       <div class="formula">For each pair (A, B): Usable = RefLength − union(GT gaps A, GT gaps B)</div>
-                       <p>This considers the GT gaps specific to each pair of samples. The union of gaps from both samples is excluded, giving the effective comparable space for that pair.</p>`
-            },
-            'pw_usable_snps': {
-                title: 'Pairwise (Gap-Union) — Avg Usable SNPs',
-                body: `<p>Average number of <strong>discriminating SNPs</strong> per sample pair, excluding unreliable positions.</p>
-                       <div class="formula">For each pair (A, B): count positions where A ≠ B, not in GT gaps</div>
-                       <p>A position is discriminating if one sample has a SNP and the other doesn't, or both have different alt alleles. Positions in GT gaps (union for the pair) are excluded.</p>
-                       <p>This represents the average pairwise distance using only validated, reliable SNP positions.</p>`
-            },
             'samples': {
                 title: 'Number of Samples',
                 body: `<p>Total number of samples (isolates) included in this comparison.</p>`
@@ -1570,46 +1544,6 @@ pipelines:
                 title: 'Number of Pipelines',
                 body: `<p>Number of different SNP calling pipelines being compared.</p>
                        <p>Each pipeline may use different algorithms, parameters, or reference-based variant calling approaches.</p>`
-            },
-            'gl_strict_total_snps': {
-                title: 'Global Gap-Union — Total SNPs',
-                body: `<p>Total SNP positions in the <strong>usable space</strong> (outside gap union) where <strong>at least 1 sample</strong> has an alt allele vs the reference.</p>
-                       <div class="formula">Total SNPs = Consensus + Discriminating</div>`
-            },
-            'gl_strict_consensus_snps': {
-                title: 'Global Gap-Union — Consensus SNPs',
-                body: `<p>SNP positions in the usable space where <strong>ALL samples agree</strong> on the same alt allele.</p>
-                       <div class="formula">Consensus = positions where every sample has the same variant</div>
-                       <p>Real mutations vs the reference shared by all samples. They do <strong>not discriminate</strong> between samples.</p>`
-            },
-            'gl_strict_disc_snps': {
-                title: 'Global Gap-Union — Discriminating SNPs',
-                body: `<p>SNP positions in the usable space where samples <strong>differ</strong> in alt allele or SNP presence.</p>
-                       <div class="formula">Discriminating = Total SNPs − Consensus</div>
-                       <p>These positions are useful for pairwise distance calculations and phylogenetic analysis.</p>`
-            },
-            'gl_relaxed_total_snps': {
-                title: 'Global Gap-Intersect — Total SNPs',
-                body: `<p>Total SNP positions in the <strong>relaxed usable space</strong> (outside gap intersection) where <strong>at least 1 sample</strong> has an alt allele vs the reference.</p>
-                       <div class="formula">Total SNPs = Consensus + Discriminating</div>
-                       <p><strong>Relaxed &ge; Strict</strong> total SNPs (larger usable space).</p>`
-            },
-            'gl_relaxed_consensus_snps': {
-                title: 'Global Gap-Intersect — Consensus SNPs',
-                body: `<p>SNP positions in the usable space where all samples <strong>with data</strong> (no gap) agree on the same alt allele.</p>
-                       <p>Samples with a gap at the position are ignored. Among the remaining, all must have the same alt allele.</p>
-                       <p>Real mutations vs the reference, but they do not discriminate between samples.</p>`
-            },
-            'gl_relaxed_disc_snps': {
-                title: 'Global Gap-Intersect — Discriminating SNPs',
-                body: `<p>SNP positions in the usable space where samples <strong>differ</strong>, considering only samples that have data (no gap) at each position.</p>
-                       <p>For each position, samples with a gap are <strong>ignored</strong>. Among the remaining:</p>
-                       <ul>
-                           <li>If fewer than 2 samples have data → <strong>not counted</strong></li>
-                           <li>If all agree (same alt or all ref) → <strong>not discriminating</strong></li>
-                           <li>If at least 2 differ → <strong>discriminating</strong></li>
-                       </ul>
-                       <p>This avoids counting SNPs where gaps make comparison unreliable.</p>`
             },
             'snps': {
                 title: 'SNP Count',
@@ -1763,13 +1697,6 @@ pipelines:
                            <li>Lower = pipeline captures consistent variant calls</li>
                        </ul>`
             },
-            'gt_pileup': {
-                title: 'Ground Truth Pileup SNPs',
-                body: `<p>Total SNPs detected directly from BAM pileup analysis <strong>without variant calling filters</strong>.</p>
-                       <div class="formula">% = (Pileup SNPs / Reference Length / Samples) × 100</div>
-                       <p>This is a raw count of positions where the consensus base from read alignments differs from the reference.</p>
-                       <p><strong>Purpose:</strong> Provides a baseline for comparing how many potential variants each pipeline reports vs. the raw signal in the data.</p>`
-            },
             'bam_pileup': {
                 title: 'BAM Pileup — SNP Calling Logic',
                 body: `<p>⚠️ <strong>These SNPs were derived from BAM pileup analysis</strong>, not from a variant calling pipeline.</p>
@@ -1806,41 +1733,6 @@ pipelines:
                        </ul>
                        <p><strong>Use case:</strong> Ground truth baseline for comparing pipeline filtering behavior.</p>`
             },
-            'vs_gt': {
-                title: 'Pipeline vs Ground Truth',
-                body: `<p>Comparison of this pipeline's SNP count against the Ground Truth pileup count.</p>
-                       <div class="formula">Difference = Pipeline SNPs - GT Pileup SNPs</div>
-                       <div class="formula">% = (Difference / GT Pileup SNPs) × 100</div>
-                       <p><strong>Interpretation:</strong></p>
-                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li><span style="color:#81c784;">Green (±5%)</span>: Close to raw signal</li>
-                           <li><span style="color:#ffd54f;">Yellow (5-10%)</span>: Moderate filtering/differences</li>
-                           <li><span style="color:#e57373;">Red (&gt;10%)</span>: Significant deviation - heavy filtering or artifacts</li>
-                       </ul>
-                       <p><strong>Negative values:</strong> Pipeline reports fewer SNPs than raw pileup (filtering)</p>
-                       <p><strong>Positive values:</strong> Pipeline reports more SNPs (possible artifacts or MNP decomposition)</p>`
-            },
-            'filtered': {
-                title: 'Filtered Positions',
-                body: `<p>Number of genomic positions matching the currently active filter criteria.</p>
-                       <p>Use filters to focus on specific types of variants (consensus, discordant, pipeline-specific, etc.)</p>`
-            },
-            'intersection': {
-                title: 'SNP Intersection with Ground Truth',
-                body: `<p>Number of SNP positions that are <strong>shared</strong> between this pipeline and the Ground Truth.</p>
-                       <div class="formula">Intersection = positions where BOTH pipelines call a SNP</div>
-                       <p>The two percentages show:</p>
-                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li><strong>% GT:</strong> What fraction of GT SNPs are also found by this pipeline (sensitivity/recall)</li>
-                           <li><strong>% Pipeline:</strong> What fraction of this pipeline's SNPs are confirmed by GT (precision)</li>
-                       </ul>
-                       <p><strong>Interpretation:</strong></p>
-                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li><span style="color:#81c784;">Green (≥90%)</span>: High agreement with ground truth</li>
-                           <li><span style="color:#ffd54f;">Yellow (70-90%)</span>: Moderate agreement</li>
-                           <li><span style="color:#e57373;">Red (&lt;70%)</span>: Low agreement - investigate differences</li>
-                       </ul>`
-            },
             'concordance': {
                 title: 'Position Concordance',
                 body: `<p><strong>Concordance</strong> = SNP positions called by BOTH pipelines (regardless of allele).</p>
@@ -1867,35 +1759,6 @@ pipelines:
                            <li>Consensus ≈ Concordance: pipelines agree on alleles</li>
                            <li>Consensus &lt;&lt; Concordance: pipelines find same positions but call different alleles</li>
                        </ul>`
-            },
-            'consensus_vs_gt': {
-                title: 'VCF Consensus vs Ground Truth',
-                body: `<p><strong>VCF Consensus</strong> = SNP positions where <strong>ALL VCF pipelines agree</strong> (e.g., CFSAN ∩ Snippy).</p>
-                       <p>This metric compares VCF consensus positions with Ground Truth:</p>
-                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li><strong>Consensus in GT:</strong> How many VCF consensus SNPs are also in GT (precision)</li>
-                           <li><strong>GT in Consensus:</strong> How many GT SNPs are in the VCF consensus (sensitivity)</li>
-                       </ul>
-                       <p><strong>Interpretation:</strong></p>
-                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li><span style="color:#81c784;">High % (≥90%)</span>: VCF consensus is well-supported by GT</li>
-                           <li><span style="color:#ffd54f;">Moderate % (70-90%)</span>: Some disagreement</li>
-                           <li><span style="color:#e57373;">Low % (&lt;70%)</span>: Significant discrepancy</li>
-                       </ul>
-                       <p><strong>Note:</strong> This does NOT include GT in the consensus calculation - it's VCF pipelines only, then compared to GT.</p>`
-            },
-            'all_consensus': {
-                title: 'All Pipelines Consensus',
-                body: `<p><strong>All Consensus</strong> = SNP positions where <strong>ALL pipelines INCLUDING Ground Truth</strong> agree.</p>
-                       <div class="formula">All Consensus = GT ∩ Pipeline1 ∩ Pipeline2 ∩ ...</div>
-                       <p>These are the "high confidence" SNPs - positions where every pipeline, including the ground truth, calls a variant.</p>
-                       <p><strong>Interpretation:</strong></p>
-                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li>Higher count = more agreement across all methods</li>
-                           <li>These SNPs are the most reliable for downstream analysis</li>
-                           <li>Can be used as a "gold standard" SNP set</li>
-                       </ul>
-                       <p><strong>% of Reference:</strong> Indicates the SNP density for the consensus set.</p>`
             },
             'mnp': {
                 title: 'MNP Decomposition',
@@ -1928,13 +1791,6 @@ pipelines:
                            <li>Higher MNP count may indicate different variant calling approach</li>
                            <li>Helps understand differences between pipelines</li>
                        </ul>`
-            },
-            'vcf_consensus': {
-                title: 'VCF Pipelines Consensus',
-                body: `<p><strong>VCF Consensus</strong> = SNP positions where <strong>ALL VCF pipelines</strong> (excluding Ground Truth) agree.</p>
-                       <div class="formula">VCF Consensus = Pipeline1 ∩ Pipeline2 ∩ ...</div>
-                       <p>This represents the intersection of all VCF-based pipelines, not including the ground truth BAM-based SNPs.</p>
-                       <p><strong>Use:</strong> Identifies positions where different variant callers independently found the same SNP.</p>`
             },
             'filtered': {
                 title: 'Filtered Positions',
@@ -2008,24 +1864,6 @@ pipelines:
                        </ul>
                        <p><strong>Note:</strong> The consensus count is the same for all pipelines since it's the intersection.</p>`
             },
-            'rpw_usable_space': {
-                title: 'Pairwise (Gap-Intersect) — Avg Usable Space',
-                body: `<p>Average usable genome space across all sample pairs, using <strong>intersection</strong> of gaps.</p>
-                       <div class="formula">For each pair (A, B): Usable = RefLength − intersection(GT gaps A, GT gaps B)</div>
-                       <p>A position is excluded only if <strong>both</strong> samples in the pair have a GT gap there. This is less restrictive than Strict mode (which excludes if either has a gap).</p>
-                       <p><strong>Relaxed ≥ Strict</strong> usable space, since fewer positions are excluded.</p>`
-            },
-            'rpw_discriminating': {
-                title: 'Pairwise (Gap-Intersect) — Avg Discriminating SNPs',
-                body: `<p>Average number of <strong>discriminating SNPs</strong> per sample pair, using intersection-based gap removal.</p>
-                       <div class="formula">For each pair (A, B): count GT SNPs where A ≠ B, not in pair gap intersection, not global consensus</div>
-                       <p>Excluded positions:</p>
-                       <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li><strong>Pair gap intersection:</strong> positions where BOTH samples have a GT gap</li>
-                           <li><strong>Global consensus:</strong> positions where ALL samples have the same alt allele and no sample has a gap — reference differences, not inter-sample variation</li>
-                       </ul>
-                       <p>This represents the average pairwise distance using the relaxed (intersection-based) methodology.</p>`
-            },
             'pp_gi_usable': {
                 title: 'Gap-Intersect — Usable Space',
                 body: `<p>Reference positions remaining after removing only those where <strong>ALL samples</strong> have a gap in this pipeline.</p>
@@ -2074,30 +1912,6 @@ pipelines:
                            <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, G, G → 2×A vs 2×G. GT also shows disagreement. Real biological variation between samples.</td>
                        </tr>
                        </table>`
-            },
-            'pp_missing_calls': {
-                title: 'Missing VCF Calls',
-                body: `<p>Number of SNP positions in usable space where <strong>at least 1 sample has an alt allele</strong> but <strong>at least 1 other sample has no VCF call</strong> (defaults to reference).</p>
-                       <p>This measures <strong>variant calling inconsistency</strong>: positions where the pipeline called a SNP in some samples but not in others.</p>
-                       <table style="width:100%;font-size:11px;border-collapse:collapse;margin:8px 0;">
-                       <tr style="background:var(--bg-tertiary);"><th style="padding:4px 6px;text-align:left;">Scenario</th><th style="padding:4px 6px;text-align:left;">Example (Ref=T, 4 samples)</th><th style="padding:4px 6px;text-align:left;">Missing?</th></tr>
-                       <tr style="border-bottom:1px solid var(--border-color);">
-                           <td style="padding:4px 6px;">All called</td>
-                           <td style="padding:4px 6px;font-family:monospace;">A, A, A, A</td>
-                           <td style="padding:4px 6px;">No</td>
-                       </tr>
-                       <tr style="border-bottom:1px solid var(--border-color);">
-                           <td style="padding:4px 6px;">Some not called</td>
-                           <td style="padding:4px 6px;font-family:monospace;">A, A, A, <span style="color:#e6862a;">ref</span></td>
-                           <td style="padding:4px 6px;">Yes — sample 4 has no VCF record</td>
-                       </tr>
-                       <tr>
-                           <td style="padding:4px 6px;">Different alleles, all called</td>
-                           <td style="padding:4px 6px;font-family:monospace;">A, A, G, G</td>
-                           <td style="padding:4px 6px;">No — all have VCF calls</td>
-                       </tr>
-                       </table>
-                       <p style="font-size:11px;color:var(--text-secondary);"><em>High values indicate the variant caller is inconsistent across samples — many apparent differences may be artifacts rather than real biological variation.</em></p>`
             },
             'pp_gu_usable': {
                 title: 'Gap-Union — Usable Space',
@@ -2302,10 +2116,6 @@ pipelines:
                 return (await this.send('calculateDistanceMatrix', {
                     pipeline, mode, minDepth, minConsensus, minQual
                 })).matrix;
-            }
-
-            async getKpiData() {
-                return await this.send('getKpiData');
             }
 
             async getReproducibilityCommands(pipelineIds) {

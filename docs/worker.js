@@ -157,23 +157,6 @@ self.onmessage = async function(e) {
                 result = { matrix: JSON.parse(matrixJson) };
                 break;
 
-            case 'getGenomeOverviewData':
-                // Get data needed for genome overview canvas
-                const overviewJson = genomeData.get_genome_overview_data(
-                    payload.width,
-                    payload.binSize
-                );
-                result = { data: JSON.parse(overviewJson) };
-                break;
-
-            case 'getKpiData':
-                result = {
-                    totalPositions: genomeData.get_total_positions(),
-                    consensusCount: genomeData.get_consensus_count(),
-                    discordantCount: genomeData.get_discordant_count()
-                };
-                break;
-
             case 'getReproducibilityCommands':
                 result = {
                     commands: payload.pipelineIds.map(p => ({

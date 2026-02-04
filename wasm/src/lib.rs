@@ -561,30 +561,11 @@ impl GenomeData {
         serde_json::to_string(&self.warnings).unwrap_or_else(|_| "[]".to_string())
     }
 
-    /// Get SNPs in ground truth gaps statistics as JSON (DEPRECATED - use get_snps_in_gaps)
-    #[wasm_bindgen]
-    pub fn get_snps_in_gt_gaps(&self) -> String {
-        match &self.snps_in_gt_gaps {
-            Some(stats) => serde_json::to_string(stats).unwrap_or_else(|_| "{}".to_string()),
-            None => "null".to_string(),
-        }
-    }
-
     /// Get SNPs in gaps for ALL pipeline pairs as JSON
     /// Returns: { gap_pipeline: { snp_pipeline: { total_snps, snps_in_gaps, percentage } } }
     #[wasm_bindgen]
     pub fn get_snps_in_gaps(&self) -> String {
         match &self.snps_in_gaps {
-            Some(stats) => serde_json::to_string(stats).unwrap_or_else(|_| "{}".to_string()),
-            None => "null".to_string(),
-        }
-    }
-
-    /// Get ground truth pileup statistics as JSON
-    /// Returns: { total_snps, per_sample, covered_positions, pipeline_comparison }
-    #[wasm_bindgen]
-    pub fn get_ground_truth_pileup(&self) -> String {
-        match &self.ground_truth_pileup {
             Some(stats) => serde_json::to_string(stats).unwrap_or_else(|_| "{}".to_string()),
             None => "null".to_string(),
         }
@@ -651,12 +632,6 @@ impl GenomeData {
         serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
     }
 
-    /// Get reference nucleotide at position (0-based index)
-    #[wasm_bindgen]
-    pub fn get_ref_nuc(&self, pos: u32) -> char {
-        self.ref_seq.chars().nth(pos as usize).unwrap_or('N')
-    }
-
     /// Build a SNP map for a sample/pipeline, filtering out SNPs where alt == genomic reference.
     /// These bogus SNPs arise from BAM pileup when the local alignment reference differs from
     /// the FASTA reference. Returns HashMap<position, alt_allele>.
@@ -672,13 +647,26 @@ impl GenomeData {
             .collect()
     }
 
+    /// Get reference nucleotide at position (0-based index)
+    fn get_ref_nuc(&self, pos: u32) -> char {
+        self.ref_seq.chars().nth(pos as usize).unwrap_or('N')
+    }
+
     /// Check if position is in a gap for a sample/pipeline
-    #[wasm_bindgen]
-    pub fn is_gap(&self, sample: &str, pipeline: &str, pos: u32) -> bool {
+    fn is_gap(&self, sample: &str, pipeline: &str, pos: u32) -> bool {
         self.samples.get(sample)
             .and_then(|s| s.pipelines.get(pipeline))
             .map(|p| Self::pos_in_gaps(&p.gaps, pos))
             .unwrap_or(false)
+    }
+
+    /// Get SNP alt allele at position (returns empty if no SNP)
+    fn get_snp_alt(&self, sample: &str, pipeline: &str, pos: u32) -> String {
+        self.samples.get(sample)
+            .and_then(|s| s.pipelines.get(pipeline))
+            .and_then(|p| Self::find_snp(&p.snps, pos))
+            .map(|s| (s.alt_allele as char).to_string())
+            .unwrap_or_default()
     }
 
     /// Get SNP at position (returns "ref,alt,qual,depth" or empty string)
@@ -693,104 +681,6 @@ impl GenomeData {
                 s.qual,
                 s.depth))
             .unwrap_or_default()
-    }
-
-    /// Get SNP alt allele at position (returns empty if no SNP)
-    #[wasm_bindgen]
-    pub fn get_snp_alt(&self, sample: &str, pipeline: &str, pos: u32) -> String {
-        self.samples.get(sample)
-            .and_then(|s| s.pipelines.get(pipeline))
-            .and_then(|p| Self::find_snp(&p.snps, pos))
-            .map(|s| (s.alt_allele as char).to_string())
-            .unwrap_or_default()
-    }
-
-    /// Render HTML for a region
-    #[wasm_bindgen]
-    pub fn render_region(&self, samples_json: &str, start: u32, end: u32) -> String {
-        let samples: Vec<String> = serde_json::from_str(samples_json).unwrap_or_default();
-        let mut html = String::with_capacity(((end - start) as usize) * samples.len() * 50);
-
-        // Reference row
-        html.push_str("<div class=\"row\"><span class=\"lbl\">REF</span><span class=\"ref\">");
-        for i in start..end {
-            html.push(self.get_ref_nuc(i));
-        }
-        html.push_str("</span></div>");
-
-        // Sample rows
-        for sample in &samples {
-            let sample_label = self.get_sample_label(sample);
-
-            // Consensus row (reconstructed sequence using all pipelines)
-            html.push_str(&format!("<div class=\"row\"><span class=\"lbl\">{}</span><span class=\"sample\">", sample_label));
-            for i in start..end {
-                let pos = i + 1; // 1-based for SNP lookup
-
-                // Check if any pipeline has a gap at this position
-                let in_gap = self.pipeline_ids.iter().any(|p| self.is_gap(sample, p, pos));
-
-                if in_gap {
-                    html.push_str("<span class=\"gap\">-</span>");
-                } else {
-                    // Collect all SNP alts from different pipelines
-                    let alts: Vec<char> = self.pipeline_ids.iter()
-                        .filter_map(|p| {
-                            let alt = self.get_snp_alt(sample, p, pos);
-                            if !alt.is_empty() {
-                                alt.chars().next()
-                            } else {
-                                None
-                            }
-                        })
-                        .collect();
-
-                    if alts.is_empty() {
-                        html.push(self.get_ref_nuc(i));
-                    } else if alts.len() == 1 {
-                        // Only one pipeline has a SNP
-                        html.push_str(&format!("<span class=\"snp-uncertain\">{}</span>", alts[0]));
-                    } else if alts.iter().all(|&a| a == alts[0]) {
-                        // All pipelines agree
-                        html.push_str(&format!("<span class=\"snp-consensus\">{}</span>", alts[0]));
-                    } else {
-                        // Pipelines disagree
-                        html.push_str(&format!("<span class=\"snp-discord\">{}</span>", self.get_ref_nuc(i)));
-                    }
-                }
-            }
-            html.push_str("</span></div>");
-
-            // Pipeline-specific rows
-            // Skip ground truth pipeline (it's used for the sample row above)
-            for pipeline_id in &self.pipeline_ids {
-                // Skip ground truth pipeline - its data is shown in the sample row
-                if let Some(ref gt) = self.ground_truth_pipeline {
-                    if pipeline_id == gt {
-                        continue;
-                    }
-                }
-
-                let pipeline_label = self.get_pipeline_label(pipeline_id);
-                html.push_str(&format!("<div class=\"row\"><span class=\"lbl sub\">{}</span><span class=\"sample\">", pipeline_label));
-
-                for i in start..end {
-                    let pos = i + 1;
-                    let alt = self.get_snp_alt(sample, pipeline_id, pos);
-
-                    if !alt.is_empty() {
-                        html.push_str(&format!("<span class=\"snp-pipeline\">{}</span>", alt));
-                    } else if self.is_gap(sample, pipeline_id, pos) {
-                        html.push_str("<span class=\"gap\">-</span>");
-                    } else {
-                        html.push_str("<span class=\"dim\">.</span>");
-                    }
-                }
-                html.push_str("</span></div>");
-            }
-        }
-
-        html
     }
 
     /// Get KPI summary as JSON
@@ -2058,79 +1948,6 @@ impl GenomeData {
         serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
     }
 
-    /// Get SNP intersection statistics between pipelines
-    /// Returns: { pipeline_a: { pipeline_b: { intersection, pct_of_a, pct_of_b } } }
-    #[wasm_bindgen]
-    pub fn get_snp_intersection(&self) -> String {
-        #[derive(Serialize)]
-        struct IntersectionStats {
-            intersection: u32,
-            total_a: u32,
-            total_b: u32,
-            pct_of_a: f64,
-            pct_of_b: f64,
-        }
-
-        let mut result: HashMap<String, HashMap<String, IntersectionStats>> = HashMap::new();
-
-        // Collect all SNP positions per pipeline (across all samples)
-        let mut pipeline_snps: HashMap<String, std::collections::HashSet<u32>> = HashMap::new();
-
-        for pipeline_id in &self.pipeline_ids {
-            let mut positions: std::collections::HashSet<u32> = std::collections::HashSet::new();
-            for sample_data in self.samples.values() {
-                if let Some(pipeline_data) = sample_data.pipelines.get(pipeline_id) {
-                    for snp in &pipeline_data.snps {
-                        positions.insert(snp.pos);
-                    }
-                }
-            }
-            pipeline_snps.insert(pipeline_id.clone(), positions);
-        }
-
-        // Calculate intersection between all pairs
-        for pipeline_a in &self.pipeline_ids {
-            let mut inner: HashMap<String, IntersectionStats> = HashMap::new();
-            let snps_a = pipeline_snps.get(pipeline_a).unwrap();
-            let total_a = snps_a.len() as u32;
-
-            for pipeline_b in &self.pipeline_ids {
-                if pipeline_a == pipeline_b {
-                    continue;
-                }
-
-                let snps_b = pipeline_snps.get(pipeline_b).unwrap();
-                let total_b = snps_b.len() as u32;
-
-                let intersection = snps_a.intersection(snps_b).count() as u32;
-
-                let pct_of_a = if total_a > 0 {
-                    (intersection as f64 / total_a as f64) * 100.0
-                } else {
-                    0.0
-                };
-
-                let pct_of_b = if total_b > 0 {
-                    (intersection as f64 / total_b as f64) * 100.0
-                } else {
-                    0.0
-                };
-
-                inner.insert(pipeline_b.clone(), IntersectionStats {
-                    intersection,
-                    total_a,
-                    total_b,
-                    pct_of_a,
-                    pct_of_b,
-                });
-            }
-
-            result.insert(pipeline_a.clone(), inner);
-        }
-
-        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
-    }
-
     /// Get detailed pipeline concordance statistics
     /// Returns 4 metrics for each pipeline pair:
     /// - concordance_any: positions where at least 1 sample has SNP in both pipelines
@@ -2790,12 +2607,6 @@ impl GenomeData {
         }
     }
 
-    /// Legacy method for backwards compatibility
-    #[wasm_bindgen]
-    pub fn get_filtered_positions(&self, samples_json: &str, filters: &str) -> String {
-        self.get_filtered_positions_v2(samples_json, filters, "and", "any")
-    }
-
     /// Render filtered view (compact, only SNP positions)
     #[wasm_bindgen]
     pub fn render_filtered(&self, samples_json: &str, positions_json: &str, offset: u32, limit: u32) -> String {
@@ -2897,129 +2708,6 @@ impl GenomeData {
 
         html.push_str("</div>");
         html
-    }
-
-    /// Calculate SNP distance matrix between all samples using polymorphic_sites
-    /// Returns JSON: { "samples": [...], "matrix": [[...], ...], "comparable": [[...], ...] }
-    /// pipeline_filter: which pipeline's data to use
-    /// mode: "vcf_bam" (use BAM bases when no VCF) or "vcf_ref" (use reference when no VCF, matches Snippy)
-    #[wasm_bindgen]
-    pub fn calculate_distance_matrix(&self, pipeline_filter: &str, mode: &str) -> String {
-        // Check if we have polymorphic sites data
-        if self.polymorphic_sites.is_empty() {
-            return self.calculate_distance_matrix_fallback(pipeline_filter);
-        }
-
-        // Get the polymorphic sites for the specified pipeline
-        let pipeline_id = if pipeline_filter.is_empty() {
-            self.pipeline_ids.first().map(|s| s.as_str()).unwrap_or("")
-        } else {
-            pipeline_filter
-        };
-
-        let pipeline_sites = self.polymorphic_sites.get(pipeline_id);
-        let pipeline_refs = self.polymorphic_refs.get(pipeline_id);
-
-        let (pipeline_sites, pipeline_refs) = match (pipeline_sites, pipeline_refs) {
-            (Some(sites), Some(refs)) => (sites, refs),
-            _ => return self.calculate_distance_matrix_fallback(pipeline_filter),
-        };
-
-        let use_ref_mode = mode == "vcf_ref";
-
-        let mut sorted_samples: Vec<String> = self.samples.keys().cloned().collect();
-        sorted_samples.sort();
-        let n = sorted_samples.len();
-
-        let positions: Vec<u32> = pipeline_sites.keys().copied().collect();
-
-        // Calculate pairwise distances
-        let mut matrix: Vec<Vec<u32>> = vec![vec![0; n]; n];
-        let mut comparable: Vec<Vec<u32>> = vec![vec![0; n]; n];
-
-        for i in 0..n {
-            for j in (i+1)..n {
-                let sample_a = &sorted_samples[i];
-                let sample_b = &sorted_samples[j];
-
-                let mut dist = 0u32;
-                let mut comp = 0u32;
-
-                for &pos in &positions {
-                    if let Some(site_alleles) = pipeline_sites.get(&pos) {
-                        let allele_a = site_alleles.get(sample_a);
-                        let allele_b = site_alleles.get(sample_b);
-
-                        // Get reference for this position
-                        let ref_base = pipeline_refs.get(&pos).copied().unwrap_or('N');
-
-                        // Get bases based on mode
-                        let base_a = match allele_a {
-                            Some(a) if a.source == "gap" => None,
-                            Some(a) if a.source == "vcf" => Some(a.base),
-                            Some(a) if use_ref_mode => Some(ref_base), // Use ref instead of BAM
-                            Some(a) => Some(a.base), // Use BAM base
-                            None => if use_ref_mode { Some(ref_base) } else { None },
-                        };
-
-                        let base_b = match allele_b {
-                            Some(b) if b.source == "gap" => None,
-                            Some(b) if b.source == "vcf" => Some(b.base),
-                            Some(b) if use_ref_mode => Some(ref_base),
-                            Some(b) => Some(b.base),
-                            None => if use_ref_mode { Some(ref_base) } else { None },
-                        };
-
-                        // Only count if both have valid bases
-                        match (base_a, base_b) {
-                            (Some(a), Some(b)) if a != 'N' && b != 'N' => {
-                                comp += 1;
-                                if a != b {
-                                    dist += 1;
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-
-                matrix[i][j] = dist;
-                matrix[j][i] = dist;
-                comparable[i][j] = comp;
-                comparable[j][i] = comp;
-            }
-        }
-
-        #[derive(Serialize)]
-        struct DistanceMatrix {
-            samples: Vec<String>,
-            labels: Vec<String>,
-            matrix: Vec<Vec<u32>>,
-            comparable: Vec<Vec<u32>>,
-            polymorphic_count: usize,
-            pipeline: String,
-            mode: String,
-        }
-
-        let labels: Vec<String> = sorted_samples.iter()
-            .map(|s| self.get_sample_label(s))
-            .collect();
-
-        let result = DistanceMatrix {
-            samples: sorted_samples,
-            labels,
-            matrix,
-            comparable,
-            polymorphic_count: positions.len(),
-            pipeline: if pipeline_filter.is_empty() {
-                self.pipeline_ids.first().cloned().unwrap_or_default()
-            } else {
-                pipeline_filter.to_string()
-            },
-            mode: mode.to_string(),
-        };
-
-        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
     }
 
     /// Fallback distance matrix calculation when polymorphic_sites is not available

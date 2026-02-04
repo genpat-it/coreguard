@@ -361,6 +361,26 @@
             gap: 15px;
             margin-top: 4px;
         }
+        /* Parent sections that contain children: visual container */
+        .kpi-section.has-children {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0 12px 12px 12px;
+            margin-top: 10px;
+            background: var(--bg-secondary);
+        }
+        .kpi-section.has-children > summary {
+            padding: 10px 0 6px 0;
+        }
+        /* Nested (child) sections inside a parent container */
+        .kpi-section-content > .kpi-section:not(.bg-gi):not(.bg-gu):not(.bg-pw) {
+            margin-top: 8px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 4px;
+        }
+        .kpi-section-content > .kpi-section:not(.bg-gi):not(.bg-gu):not(.bg-pw) > summary {
+            font-size: 10px;
+        }
         .kpi-section-content > table,
         .kpi-section-content > .kpi-sub-label,
         .kpi-section-content > div[style],
@@ -2483,7 +2503,7 @@ pipelines:
             const pipelineInfo = workerApi.cachedData.pipelineInfo || {};
             if (gtPipelineId) {
                 const gtLabel = (pipelineInfo[gtPipelineId] && pipelineInfo[gtPipelineId].label) || gtPipelineId;
-                html += sectionStart(`${gtLabel} <span style="color:#e6862a;font-weight:bold;">(Reference)</span>`, true);
+                html += sectionStart(`${gtLabel} <span style="color:#e6862a;font-weight:bold;">(Reference)</span>`, true, 'has-children');
                 if (workerApi.isFromBamPileup(gtPipelineId)) {
                     const opts = workerApi.pileupOptions;
                     let optsStr = '';

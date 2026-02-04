@@ -1643,6 +1643,14 @@ pipelines:
                 filterHtml += '</span>';
                 filterHtml += '</div>';
 
+                // Gap-Intersect footnote
+                if (strategy === 'gap_intersect') {
+                    filterHtml += '<div style="font-size:11px;color:var(--text-secondary);padding:4px 8px;margin-top:2px;">'
+                        + '<strong>Note:</strong> Gap-Intersect excludes a position only when <em>all</em> samples have a gap there. '
+                        + 'Positions where only some samples have a gap ("-") are still evaluated, so they can appear as concordant or discordant based on the non-gap alleles.'
+                        + '</div>';
+                }
+
                 // Filter positions by status and position search
                 const posSearch = (window._gtDiscPosSearch || '').replace(/,/g, '').trim();
                 let filtered = statusFilter === 'all'

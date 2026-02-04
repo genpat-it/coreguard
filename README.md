@@ -120,7 +120,7 @@ pipelines:
   minimap2:
     label: "Reference (minimap2)"
     command: "minimap2 -ax sr -t 8 ref.fa reads_1.fq.gz reads_2.fq.gz | samtools sort -o out.bam"
-    ground_truth: true
+    reference: true
     samples:
       sample1:
         bam: alignments/sample1.bam
@@ -199,7 +199,7 @@ Supported formats: `.json`, `.json.gz`, `.bin`, `.bin.gz`
 |--------|-------------|---------|
 | `label` | Display name in the viewer | pipeline ID |
 | `command` | Command line used (shown in viewer) | - |
-| `ground_truth` | Mark as reference alignment (BAM-only baseline) | false |
+| `reference` | Mark as reference alignment (BAM-only baseline) | false |
 | `distance_matrix` | Path to pre-computed SNP distance matrix (TSV) | - |
 | `core_snps` | Path to core SNP output (snippy `core.tab` or CFSAN `snplist.txt`) | - |
 

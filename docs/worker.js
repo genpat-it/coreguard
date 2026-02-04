@@ -48,14 +48,14 @@ self.onmessage = async function(e) {
                     pileupOptions: JSON.parse(genomeData.get_pileup_options()),
                     warnings: JSON.parse(genomeData.get_warnings() || '[]'),
                     vcfPipelines: JSON.parse(genomeData.get_vcf_pipelines()),
-                    groundTruthPipeline: genomeData.get_ground_truth_pipeline(),
+                    referencePipeline: genomeData.get_reference_pipeline(),
                     pipelineDistanceMatrices: JSON.parse(genomeData.get_pipeline_distance_matrices() || '{}'),
                     // Pre-fetch pipeline info to avoid round-trips
                     pipelineInfo: pIds.reduce((acc, p) => {
                         acc[p] = {
                             label: genomeData.get_pipeline_label(p),
                             command: genomeData.get_pipeline_command(p),
-                            isGroundTruth: genomeData.is_ground_truth(p),
+                            isReference: genomeData.is_reference(p),
                             isFromBamPileup: genomeData.is_from_bam_pileup(p)
                         };
                         return acc;
@@ -84,13 +84,13 @@ self.onmessage = async function(e) {
                     pileupOptions: JSON.parse(genomeData.get_pileup_options()),
                     warnings: JSON.parse(genomeData.get_warnings() || '[]'),
                     vcfPipelines: JSON.parse(genomeData.get_vcf_pipelines()),
-                    groundTruthPipeline: genomeData.get_ground_truth_pipeline(),
+                    referencePipeline: genomeData.get_reference_pipeline(),
                     pipelineDistanceMatrices: JSON.parse(genomeData.get_pipeline_distance_matrices() || '{}'),
                     pipelineInfo: pIdsJ.reduce((acc, p) => {
                         acc[p] = {
                             label: genomeData.get_pipeline_label(p),
                             command: genomeData.get_pipeline_command(p),
-                            isGroundTruth: genomeData.is_ground_truth(p),
+                            isReference: genomeData.is_reference(p),
                             isFromBamPileup: genomeData.is_from_bam_pileup(p)
                         };
                         return acc;
@@ -108,7 +108,7 @@ self.onmessage = async function(e) {
                         id: p,
                         label: genomeData.get_pipeline_label(p),
                         command: genomeData.get_pipeline_command(p),
-                        isGroundTruth: genomeData.is_ground_truth(p),
+                        isReference: genomeData.is_reference(p),
                         isFromBamPileup: genomeData.is_from_bam_pileup(p)
                     }))
                 };

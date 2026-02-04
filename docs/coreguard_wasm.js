@@ -103,19 +103,6 @@ export class GenomeData {
         }
     }
     /**
-     * Get ground truth pipeline ID (if any)
-     * @returns {string | undefined}
-     */
-    get_ground_truth_pipeline() {
-        const ret = wasm.genomedata_get_ground_truth_pipeline(this.__wbg_ptr);
-        let v1;
-        if (ret[0] !== 0) {
-            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
-            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
-        }
-        return v1;
-    }
-    /**
      * Return per-position detail for GT discriminating SNPs vs a specific pipeline.
      * Returns pre-computed data from the CLI if available, otherwise falls back to
      * VCF-based computation (which may differ due to different allele sources).
@@ -323,6 +310,19 @@ export class GenomeData {
         }
     }
     /**
+     * Get ground truth pipeline ID (if any)
+     * @returns {string | undefined}
+     */
+    get_reference_pipeline() {
+        const ret = wasm.genomedata_get_reference_pipeline(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    /**
      * Get all sample IDs as JSON array
      * @returns {string}
      */
@@ -405,10 +405,10 @@ export class GenomeData {
      * @param {string} pipeline_id
      * @returns {boolean}
      */
-    is_ground_truth(pipeline_id) {
+    is_reference(pipeline_id) {
         const ptr0 = passStringToWasm0(pipeline_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.genomedata_is_ground_truth(this.__wbg_ptr, ptr0, len0);
+        const ret = wasm.genomedata_is_reference(this.__wbg_ptr, ptr0, len0);
         return ret !== 0;
     }
     /**

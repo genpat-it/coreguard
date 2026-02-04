@@ -64,9 +64,9 @@ pub struct PipelineConfig {
     #[serde(default)]
     pub command: Option<String>,
 
-    /// Mark this pipeline as ground truth (baseline for comparison)
-    #[serde(default)]
-    pub ground_truth: bool,
+    /// Mark this pipeline as reference alignment (baseline for comparison)
+    #[serde(default, alias = "ground_truth")]
+    pub reference: bool,
 
     /// Path to pre-computed SNP distance matrix (TSV format, optional)
     #[serde(default)]
@@ -235,19 +235,19 @@ impl Config {
             .unwrap_or_else(|| pipeline_id.to_string())
     }
 
-    /// Get the ground truth pipeline ID (if any)
-    pub fn ground_truth_pipeline(&self) -> Option<String> {
+    /// Get the reference pipeline ID (if any)
+    pub fn reference_pipeline(&self) -> Option<String> {
         self.pipelines
             .iter()
-            .find(|(_, p)| p.ground_truth)
+            .find(|(_, p)| p.reference)
             .map(|(id, _)| id.clone())
     }
 
-    /// Check if a pipeline is the ground truth
-    pub fn is_ground_truth(&self, pipeline_id: &str) -> bool {
+    /// Check if a pipeline is the reference alignment
+    pub fn is_reference(&self, pipeline_id: &str) -> bool {
         self.pipelines
             .get(pipeline_id)
-            .map(|p| p.ground_truth)
+            .map(|p| p.reference)
             .unwrap_or(false)
     }
 

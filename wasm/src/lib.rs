@@ -208,8 +208,8 @@ struct JsonPipelineInfo {
     command: Option<String>,
     has_vcf: bool,
     has_bam: bool,
-    #[serde(default)]
-    ground_truth: bool,
+    #[serde(default, alias = "ground_truth")]
+    reference: bool,
     #[serde(default)]
     from_bam_pileup: bool,
 }
@@ -268,7 +268,7 @@ pub struct GenomeData {
     /// Pipelines where SNPs come from BAM pileup (no variant calling)
     pipelines_from_bam_pileup: std::collections::HashSet<String>,
     /// Ground truth pipeline ID (if any) - used as baseline for comparison
-    ground_truth_pipeline: Option<String>,
+    reference_pipeline: Option<String>,
     ref_seq: String,
     ref_name: String,
     ref_label: Option<String>,
@@ -304,7 +304,7 @@ impl GenomeData {
             pipeline_labels: HashMap::new(),
             pipeline_commands: HashMap::new(),
             pipelines_from_bam_pileup: std::collections::HashSet::new(),
-            ground_truth_pipeline: None,
+            reference_pipeline: None,
             ref_seq: String::new(),
             ref_name: String::new(),
             ref_label: None,
@@ -351,7 +351,7 @@ impl GenomeData {
         self.pipeline_labels.clear();
         self.pipeline_commands.clear();
         self.pipelines_from_bam_pileup.clear();
-        self.ground_truth_pipeline = None;
+        self.reference_pipeline = None;
 
         // Load reference
         self.ref_seq = report.reference.sequence;
@@ -378,15 +378,15 @@ impl GenomeData {
 
         // Detect ground truth pipeline from JSON
         for (id, info) in &report.pipelines {
-            if info.ground_truth {
-                self.ground_truth_pipeline = Some(id.clone());
+            if info.reference {
+                self.reference_pipeline = Some(id.clone());
                 break;
             }
         }
 
         // Load pipeline metadata (ground truth first, then alphabetical)
         let mut pipeline_ids: Vec<_> = report.pipelines.keys().cloned().collect();
-        let gt_id = self.ground_truth_pipeline.clone();
+        let gt_id = self.reference_pipeline.clone();
         pipeline_ids.sort_by(|a, b| {
             // Ground truth pipeline always first
             match (&gt_id, a.as_str(), b.as_str()) {
@@ -535,14 +535,14 @@ impl GenomeData {
 
     /// Get ground truth pipeline ID (if any)
     #[wasm_bindgen]
-    pub fn get_ground_truth_pipeline(&self) -> Option<String> {
-        self.ground_truth_pipeline.clone()
+    pub fn get_reference_pipeline(&self) -> Option<String> {
+        self.reference_pipeline.clone()
     }
 
     /// Check if a pipeline is the ground truth
     #[wasm_bindgen]
-    pub fn is_ground_truth(&self, pipeline_id: &str) -> bool {
-        self.ground_truth_pipeline.as_ref().map(|gt| gt == pipeline_id).unwrap_or(false)
+    pub fn is_reference(&self, pipeline_id: &str) -> bool {
+        self.reference_pipeline.as_ref().map(|gt| gt == pipeline_id).unwrap_or(false)
     }
 
     /// Check if a pipeline's SNPs come from BAM pileup (no variant calling)
@@ -817,7 +817,7 @@ impl GenomeData {
         let mut consensus_gt_missing: HashMap<String, u32> = HashMap::new();
         let mut consensus_gt_total: u32 = 0;
 
-        if let Some(ref gt_id) = self.ground_truth_pipeline {
+        if let Some(ref gt_id) = self.reference_pipeline {
             // First calculate total GT SNPs
             for sample_data in self.samples.values() {
                 if let Some(gt_data) = sample_data.pipelines.get(gt_id) {
@@ -881,7 +881,7 @@ impl GenomeData {
         let mut snps_in_gt_gaps_core: HashMap<String, u32> = HashMap::new();
         let mut snps_in_gt_gaps_consensus: HashMap<String, u32> = HashMap::new();
 
-        if let Some(ref gt_id) = self.ground_truth_pipeline {
+        if let Some(ref gt_id) = self.reference_pipeline {
             // Collect all GT gap regions across all samples
             let mut all_gt_gaps: Vec<(u32, u32)> = Vec::new();
             for sample_data in self.samples.values() {
@@ -981,7 +981,7 @@ impl GenomeData {
     /// Global stats for GT pipeline (backward compat)
     #[wasm_bindgen]
     pub fn get_global_stats(&self) -> String {
-        match &self.ground_truth_pipeline {
+        match &self.reference_pipeline {
             Some(id) => self.get_global_stats_for_pipeline(id),
             None => "null".to_string(),
         }
@@ -1117,7 +1117,7 @@ impl GenomeData {
         }
 
         // Build per-sample GT SNP maps (for cross-check heuristic)
-        let gt_id = self.ground_truth_pipeline.clone().unwrap_or_default();
+        let gt_id = self.reference_pipeline.clone().unwrap_or_default();
         let is_gt_pipeline = pid == gt_id;
         let mut gt_snp_maps: Vec<HashMap<u32, u8>> = Vec::new();
         if !is_gt_pipeline && !gt_id.is_empty() {
@@ -1286,7 +1286,7 @@ impl GenomeData {
     /// Pairwise stats for GT pipeline (backward compat)
     #[wasm_bindgen]
     pub fn get_pairwise_usable_stats(&self) -> String {
-        match &self.ground_truth_pipeline {
+        match &self.reference_pipeline {
             Some(id) => self.get_pairwise_usable_stats_for_pipeline(id),
             None => "{}".to_string(),
         }
@@ -1639,7 +1639,7 @@ impl GenomeData {
             pairwise_num_pairs: u32,
         }
 
-        let gt_id = match &self.ground_truth_pipeline {
+        let gt_id = match &self.reference_pipeline {
             Some(id) => id.clone(),
             None => return "{}".to_string(),
         };

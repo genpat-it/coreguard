@@ -24,7 +24,7 @@ pipelines:
   mm2:
     label: "Reference"
     command: "minimap2 -ax sr reference.fa reads.fq.gz | samtools sort -o output.bam"
-    ground_truth: true
+    reference: true
     samples:
       TE15676:
         bam: ${COREGUARD}/testdata/mm2_bams/TE15676.bam

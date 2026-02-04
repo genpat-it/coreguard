@@ -929,6 +929,7 @@ fn compute_all_stats(
     pipelines: &HashMap<String, PipelineInfo>,
     ref_length: usize,
     ref_seq: &str,
+    core_snp_data: &HashMap<String, CoreSnpData>,
 ) -> (PreComputedKpis, HashMap<String, PipelineStats>) {
     use std::collections::HashSet;
 
@@ -947,10 +948,16 @@ fn compute_all_stats(
         let mut gap_sets: Vec<HashSet<usize>> = Vec::with_capacity(n);
         let mut snp_maps: Vec<HashMap<usize, u8>> = Vec::with_capacity(n);
 
+        // Check if core_snps with alleles is available for this pipeline
+        let use_core_snps = core_snp_data.get(pipeline_id)
+            .map(|cd| cd.has_alleles)
+            .unwrap_or(false);
+
         for sample_id in sample_ids {
             let mut gaps = HashSet::new();
             let mut snps = HashMap::new();
 
+            // Gaps always come from BAM data
             if let Some(sample_data) = data.get(sample_id) {
                 if let Some(pd) = sample_data.get(pipeline_id) {
                     for gap in &pd.gaps {
@@ -958,11 +965,30 @@ fn compute_all_stats(
                             gaps.insert(pos);
                         }
                     }
-                    for snp in &pd.snps {
-                        let pos = snp.pos - 1; // 1-based to 0-based
-                        let alt = snp.alt.as_bytes().first().copied().unwrap_or(b'N');
-                        if pos < ref_bytes.len() && alt != ref_bytes[pos] {
-                            snps.insert(pos, alt);
+                }
+            }
+
+            if use_core_snps {
+                // Build SNP map from core_snps (same source as GT disc comparison)
+                let core_data = core_snp_data.get(pipeline_id).unwrap();
+                for cp in &core_data.positions {
+                    if let Some(allele_str) = cp.alleles.get(sample_id) {
+                        let a = allele_str.as_bytes().first().copied().unwrap_or(b'N');
+                        if a != b'-' && a != b'N' && cp.pos < ref_bytes.len() && a != ref_bytes[cp.pos] {
+                            snps.insert(cp.pos, a);
+                        }
+                    }
+                }
+            } else {
+                // Fallback: build SNP map from VCF data
+                if let Some(sample_data) = data.get(sample_id) {
+                    if let Some(pd) = sample_data.get(pipeline_id) {
+                        for snp in &pd.snps {
+                            let pos = snp.pos - 1; // 1-based to 0-based
+                            let alt = snp.alt.as_bytes().first().copied().unwrap_or(b'N');
+                            if pos < ref_bytes.len() && alt != ref_bytes[pos] {
+                                snps.insert(pos, alt);
+                            }
                         }
                     }
                 }
@@ -1046,9 +1072,10 @@ fn compute_all_stats(
         let (total_i, consensus_i, disc_i, missing_i) = classify(&gap_intersect);
         let (total_u, consensus_u, disc_u, missing_u) = classify(&gap_union);
 
-        // Discriminating SNP breakdown (for VCF pipelines with GT available)
+        // Discriminating SNP breakdown (when GT available and pipeline has SNP data)
+        let has_snp_data = use_core_snps || pipelines.get(pipeline_id).map(|p| p.has_vcf).unwrap_or(false);
         let disc_breakdown = if let Some(gt_id) = gt_pipeline_id {
-            if pipeline_id != gt_id && pipelines.get(pipeline_id).map(|p| p.has_vcf).unwrap_or(false) {
+            if pipeline_id != gt_id && has_snp_data {
                 // Build GT SNP maps for breakdown analysis
                 let mut gt_snp_maps_for_breakdown: Vec<HashMap<usize, u8>> = Vec::with_capacity(n);
                 for sample_id in sample_ids {
@@ -1428,26 +1455,27 @@ impl CompareReport {
             }
         }
 
-        // Compute GT disc vs pipelines using core SNP files
-        let gt_disc_vs_pipelines = if let Some(gt_pipeline_id) = config.ground_truth_pipeline() {
-            let mut core_snp_data: HashMap<String, CoreSnpData> = HashMap::new();
-            for (pipeline_id, pipeline_config) in &config.pipelines {
-                if let Some(core_snps_path) = &pipeline_config.core_snps {
-                    match parsers::parse_core_snps(core_snps_path) {
-                        Ok(core_data) => {
-                            log::info!(
-                                "Loaded core SNPs for pipeline '{}': {} positions ({} discriminating, has_alleles: {})",
-                                pipeline_id, core_data.positions.len(), core_data.discriminating_count, core_data.has_alleles
-                            );
-                            core_snp_data.insert(pipeline_id.clone(), core_data);
-                        }
-                        Err(e) => {
-                            log::warn!("Failed to load core SNPs for pipeline '{}': {}", pipeline_id, e);
-                        }
+        // Load core SNP data for all pipelines that have it
+        let mut core_snp_data: HashMap<String, CoreSnpData> = HashMap::new();
+        for (pipeline_id, pipeline_config) in &config.pipelines {
+            if let Some(core_snps_path) = &pipeline_config.core_snps {
+                match parsers::parse_core_snps(core_snps_path) {
+                    Ok(core_data) => {
+                        log::info!(
+                            "Loaded core SNPs for pipeline '{}': {} positions ({} discriminating, has_alleles: {})",
+                            pipeline_id, core_data.positions.len(), core_data.discriminating_count, core_data.has_alleles
+                        );
+                        core_snp_data.insert(pipeline_id.clone(), core_data);
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to load core SNPs for pipeline '{}': {}", pipeline_id, e);
                     }
                 }
             }
+        }
 
+        // Compute GT disc vs pipelines using core SNP files
+        let gt_disc_vs_pipelines = if let Some(gt_pipeline_id) = config.ground_truth_pipeline() {
             if !core_snp_data.is_empty() {
                 let results = compute_gt_disc_vs_pipelines(
                     &data,
@@ -1492,6 +1520,7 @@ impl CompareReport {
             &pipelines,
             ref_length,
             &ref_seq,
+            &core_snp_data,
         );
         log::info!("Pre-computed stats for {} pipeline(s)", pipeline_stats.len());
 

@@ -265,7 +265,24 @@ fn run_compare(args: CompareArgs) -> Result<()> {
 
     // Generate report
     info!("Generating comparison report...");
-    let config_yaml = std::fs::read_to_string(&args.config).ok();
+    let config_yaml = std::fs::read_to_string(&args.config).ok().map(|yaml| {
+        // Sanitize absolute paths: make them relative to the config file directory
+        let config_dir = args.config.parent()
+            .and_then(|p| p.canonicalize().ok())
+            .unwrap_or_default();
+        let home_dir = std::env::var("HOME").unwrap_or_default();
+        let mut sanitized = yaml;
+        // Replace config dir prefix with relative paths
+        if !config_dir.as_os_str().is_empty() {
+            let prefix = format!("{}/", config_dir.display());
+            sanitized = sanitized.replace(&prefix, "");
+        }
+        // Replace home directory with ~
+        if !home_dir.is_empty() {
+            sanitized = sanitized.replace(&home_dir, "~");
+        }
+        sanitized
+    });
     let report = compare::CompareReport::from_config_with_yaml(&config, config_yaml)?;
 
     // Auto-detect gzip from output extension

@@ -160,6 +160,18 @@ struct JsonGapStrategyResult {
     same_pos: u32,
     concordant: Option<u32>,
     pl_snps_in_gt_gaps: u32,
+    #[serde(default)]
+    position_details: Option<Vec<JsonPositionDetail>>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct JsonPositionDetail {
+    pos: usize,
+    #[serde(rename = "ref")]
+    ref_allele: String,
+    gt: HashMap<String, String>,
+    pl: HashMap<String, String>,
+    status: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -1899,290 +1911,44 @@ impl GenomeData {
     }
 
     /// Return per-position detail for GT discriminating SNPs vs a specific pipeline.
-    /// Used by the UI to show what's behind each aggregated count.
+    /// Returns pre-computed data from the CLI if available, otherwise falls back to
+    /// VCF-based computation (which may differ due to different allele sources).
     /// `strategy` must be "gap_union" or "gap_intersect".
     #[wasm_bindgen]
     pub fn get_gt_disc_position_details(&self, pipeline_id: &str, strategy: &str) -> String {
-        use std::collections::HashSet;
-
-        let gt_id = match &self.ground_truth_pipeline {
-            Some(id) => id.clone(),
-            None => return "{}".to_string(),
-        };
-
-        let sample_ids: Vec<&String> = self.samples.keys().collect();
-        let n = sample_ids.len();
-        if n < 2 {
-            return "{}".to_string();
-        }
-
-        let ref_bytes = self.ref_seq.as_bytes();
-
-        // Build per-sample GT gap sets
-        let mut gt_gap_sets: Vec<HashSet<u32>> = Vec::new();
-        for sample_id in &sample_ids {
-            let sample_data = &self.samples[*sample_id];
-            let mut gaps: HashSet<u32> = HashSet::new();
-            if let Some(gt_data) = sample_data.pipelines.get(&gt_id) {
-                for gap in &gt_data.gaps {
-                    for pos in gap.start..gap.end {
-                        gaps.insert(pos);
-                    }
-                }
-            }
-            gt_gap_sets.push(gaps);
-        }
-
-        // GT gap union and intersection
-        let mut gt_gap_union: HashSet<u32> = HashSet::new();
-        for gs in &gt_gap_sets {
-            gt_gap_union.extend(gs);
-        }
-
-        let gt_gap_intersection = if gt_gap_sets.len() > 1 {
-            let mut isect = gt_gap_sets[0].clone();
-            for gs in &gt_gap_sets[1..] {
-                isect = isect.intersection(gs).cloned().collect();
-            }
-            isect
-        } else if gt_gap_sets.len() == 1 {
-            gt_gap_sets[0].clone()
-        } else {
-            HashSet::new()
-        };
-
-        // Build per-sample GT SNP maps
-        let mut gt_snp_maps: Vec<HashMap<u32, u8>> = Vec::new();
-        for sample_id in &sample_ids {
-            let sample_data = &self.samples[*sample_id];
-            let snps: HashMap<u32, u8> = sample_data.pipelines.get(&gt_id)
-                .map(|p| self.build_snp_map(p))
-                .unwrap_or_default();
-            gt_snp_maps.push(snps);
-        }
-
-        // All GT SNP positions
-        let mut all_gt_snp_positions: HashSet<u32> = HashSet::new();
-        for snp_map in &gt_snp_maps {
-            all_gt_snp_positions.extend(snp_map.keys());
-        }
-
-        // Determine GT discriminating positions based on strategy
-        let use_union = strategy == "gap_union";
-        let gap_exclude = if use_union { &gt_gap_union } else { &gt_gap_intersection };
-
-        let mut gt_disc_positions: Vec<u32> = Vec::new();
-        for &pos in &all_gt_snp_positions {
-            if gap_exclude.contains(&pos) {
-                continue;
-            }
-            if use_union {
-                // Gap-union: all samples participate
-                let alleles: Vec<Option<u8>> = (0..n).map(|idx| gt_snp_maps[idx].get(&pos).copied()).collect();
-                let first = alleles[0];
-                if alleles.iter().any(|a| *a != first) {
-                    gt_disc_positions.push(pos);
-                }
-            } else {
-                // Gap-intersect: only non-gapped samples participate
-                let alleles: Vec<Option<u8>> = (0..n)
-                    .filter(|&idx| !gt_gap_sets[idx].contains(&pos))
-                    .map(|idx| gt_snp_maps[idx].get(&pos).copied())
-                    .collect();
-                if alleles.len() < 2 { continue; }
-                let first = alleles[0];
-                if alleles.iter().any(|a| *a != first) {
-                    gt_disc_positions.push(pos);
-                }
-            }
-        }
-
-        // Build per-sample pipeline gap sets and SNP maps
-        let mut pl_gap_sets: Vec<HashSet<u32>> = Vec::new();
-        let mut pl_snp_maps: Vec<HashMap<u32, u8>> = Vec::new();
-        for sample_id in &sample_ids {
-            let sample_data = &self.samples[*sample_id];
-            let mut gaps: HashSet<u32> = HashSet::new();
-            if let Some(pl_data) = sample_data.pipelines.get(pipeline_id) {
-                for gap in &pl_data.gaps {
-                    for pos in gap.start..gap.end {
-                        gaps.insert(pos);
-                    }
-                }
-            }
-            pl_gap_sets.push(gaps);
-
-            let snps: HashMap<u32, u8> = sample_data.pipelines.get(pipeline_id)
-                .map(|p| self.build_snp_map(p))
-                .unwrap_or_default();
-            pl_snp_maps.push(snps);
-        }
-
-        // Pipeline gap union (for "in_pl_gap" detection)
-        let mut pl_gap_union: HashSet<u32> = HashSet::new();
-        for gs in &pl_gap_sets {
-            pl_gap_union.extend(gs);
-        }
-
-        // All pipeline SNP positions (for "lost" — pipeline has SNP not in GT disc)
-        let mut all_pl_snp_pos: HashSet<u32> = HashSet::new();
-        for snp_map in &pl_snp_maps {
-            all_pl_snp_pos.extend(snp_map.keys());
-        }
-
-        // Classify each GT disc position
-        gt_disc_positions.sort_unstable();
-
-        let sample_names: Vec<&str> = sample_ids.iter().map(|s| s.as_str()).collect();
-
-        let ref_char = |pos: u32| -> char {
-            if (pos as usize) < ref_bytes.len() {
-                ref_bytes[pos as usize] as char
-            } else {
-                'N'
-            }
-        };
-
-        let allele_or_ref = |map: &HashMap<u32, u8>, pos: u32| -> char {
-            map.get(&pos).map(|&b| b as char).unwrap_or_else(|| ref_char(pos))
-        };
-
-        let mut positions = Vec::new();
-        for &pos in &gt_disc_positions {
-            // Check if pipeline has this position as a DISCRIMINATING SNP
-            // (matches CLI logic: disc_positions.contains(&pos))
-            let pl_alleles_at_pos: Vec<Option<u8>> = (0..n)
-                .map(|idx| pl_snp_maps[idx].get(&pos).copied())
-                .collect();
-            let pl_has_snp = pl_alleles_at_pos.iter().any(|a| a.is_some());
-            let pl_is_disc = if pl_alleles_at_pos.len() >= 2 {
-                let first = pl_alleles_at_pos[0];
-                pl_alleles_at_pos.iter().any(|a| *a != first)
-            } else {
-                false
-            };
-
-            // Build per-sample alleles
-            let gt_alleles: Vec<(&str, char)> = (0..n).map(|idx| {
-                let sid = sample_names[idx];
-                if gt_gap_sets[idx].contains(&pos) {
-                    (sid, '-')
-                } else {
-                    (sid, allele_or_ref(&gt_snp_maps[idx], pos))
-                }
-            }).collect();
-
-            let pl_alleles: Vec<(&str, char)> = (0..n).map(|idx| {
-                let sid = sample_names[idx];
-                if pl_gap_sets[idx].contains(&pos) {
-                    (sid, '-')
-                } else {
-                    (sid, allele_or_ref(&pl_snp_maps[idx], pos))
-                }
-            }).collect();
-
-            // Classify status
-            // "same_pos" in CLI = GT disc position that is also DISCRIMINATING in pipeline
-            let status = if !pl_is_disc {
-                // Pipeline doesn't have a discriminating SNP here
-                if !pl_has_snp {
-                    if pl_gap_union.contains(&pos) {
-                        "in_pl_gap"
+        // Try pre-computed data first (guaranteed to match table counts)
+        if let Some(ref results) = self.gt_disc_vs_pipelines {
+            if let Some(r) = results.iter().find(|r| r.pipeline_id == pipeline_id) {
+                let strategy_result = if strategy == "gap_union" { &r.gap_union } else { &r.gap_intersect };
+                if let Some(ref details) = strategy_result.position_details {
+                    // Get sample list from the detail entries
+                    let samples: Vec<String> = if let Some(first) = details.first() {
+                        let mut s: Vec<String> = first.gt.keys().cloned().collect();
+                        s.sort();
+                        s
                     } else {
-                        "lost"
-                    }
-                } else {
-                    // Pipeline has SNP but not discriminating — not "same_pos"
-                    "not_disc_in_pl"
-                }
-            } else {
-                // Pipeline has discriminating SNP — this is a "same_pos" position
-                // Check concordance
-                let any_pl_gap = (0..n).any(|idx| pl_gap_sets[idx].contains(&pos));
-                if any_pl_gap {
-                    "in_pl_gap"
-                } else {
-                    let active_indices: Vec<usize> = if use_union {
-                        (0..n).collect()
-                    } else {
-                        (0..n).filter(|&idx| !gt_gap_sets[idx].contains(&pos)).collect()
+                        Vec::new()
                     };
 
-                    let all_match = active_indices.iter().all(|&idx| {
-                        let gt_a = allele_or_ref(&gt_snp_maps[idx], pos);
-                        let pl_a = allele_or_ref(&pl_snp_maps[idx], pos);
-                        gt_a == pl_a
+                    let result = serde_json::json!({
+                        "samples": samples,
+                        "positions": details.iter().map(|d| {
+                            serde_json::json!({
+                                "pos": d.pos,
+                                "ref": d.ref_allele,
+                                "gt": d.gt,
+                                "pl": d.pl,
+                                "status": d.status
+                            })
+                        }).collect::<Vec<_>>()
                     });
-                    if all_match { "concordant" } else { "discordant" }
+                    return serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string());
                 }
-            };
-
-            // Build gt/pl allele objects as arrays of [sample, allele]
-            let gt_obj: HashMap<&str, String> = gt_alleles.iter().map(|(s, a)| (*s, a.to_string())).collect();
-            let pl_obj: HashMap<&str, String> = pl_alleles.iter().map(|(s, a)| (*s, a.to_string())).collect();
-
-            positions.push(serde_json::json!({
-                "pos": pos,
-                "ref": ref_char(pos).to_string(),
-                "gt": gt_obj,
-                "pl": pl_obj,
-                "status": status
-            }));
-        }
-
-        // Collect "in_gt_gap" positions: pipeline DISCRIMINATING SNP positions that fall in GT gap regions
-        // (matches the CLI core_snps path which filters disc_positions by GT gaps)
-        let gt_gap_set_for_strategy = if use_union { &gt_gap_union } else { &gt_gap_intersection };
-        let mut in_gt_gap_positions: Vec<u32> = Vec::new();
-        for &pos in &all_pl_snp_pos {
-            if !gt_gap_set_for_strategy.contains(&pos) { continue; }
-            // Only include if discriminating in pipeline (at least 2 samples with different alleles)
-            let alleles: Vec<Option<u8>> = pl_snp_maps.iter().map(|m| m.get(&pos).copied()).collect();
-            if alleles.len() < 2 { continue; }
-            let first = alleles[0];
-            if alleles.iter().any(|a| *a != first) {
-                in_gt_gap_positions.push(pos);
             }
         }
-        in_gt_gap_positions.sort_unstable();
 
-        for &pos in &in_gt_gap_positions {
-            let gt_obj: HashMap<&str, String> = (0..n).map(|idx| {
-                let sid = sample_names[idx];
-                if gt_gap_sets[idx].contains(&pos) {
-                    (sid, "-".to_string())
-                } else {
-                    (sid, allele_or_ref(&gt_snp_maps[idx], pos).to_string())
-                }
-            }).collect();
-
-            let pl_obj: HashMap<&str, String> = (0..n).map(|idx| {
-                let sid = sample_names[idx];
-                if pl_gap_sets[idx].contains(&pos) {
-                    (sid, "-".to_string())
-                } else {
-                    (sid, allele_or_ref(&pl_snp_maps[idx], pos).to_string())
-                }
-            }).collect();
-
-            positions.push(serde_json::json!({
-                "pos": pos,
-                "ref": ref_char(pos).to_string(),
-                "gt": gt_obj,
-                "pl": pl_obj,
-                "status": "in_gt_gap"
-            }));
-        }
-
-        // Sort all positions by pos
-        positions.sort_by_key(|p| p["pos"].as_u64().unwrap_or(0));
-
-        let result = serde_json::json!({
-            "samples": sample_names,
-            "positions": positions
-        });
-
-        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
+        // No pre-computed data available
+        "{}".to_string()
     }
 
     // Internal helper: binary search for SNP at position

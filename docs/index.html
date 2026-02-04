@@ -2234,20 +2234,35 @@ pipelines:
                 if (kpis.samples >= 2) {
                     const pw2 = await workerApi.getPairwiseUsableStatsForPipeline(gtPipelineId);
                     if (pw2 && pw2.per_sample && pw2.per_sample.length > 0) {
+                        // Collect all sample labels for column headers
+                        const allSamples = pw2.per_sample.map(s => ({ id: s.sample_id, label: s.sample_label }));
                         html += sectionStart(`Per-Sample Pairwise ${infoIcon('pp_ps_table')}`, true);
                         html += `<table class="kpi-table"><thead><tr>
-                            <th>Sample</th>
-                            <th>Avg Usable Space (bp)</th>
-                            <th>Avg Usable Space (%)</th>
-                            <th>Avg Disc. SNPs</th>
-                        </tr></thead><tbody>`;
+                            <th>Sample</th>`;
+                        for (const s of allSamples) {
+                            html += `<th>${s.label}</th>`;
+                        }
+                        html += `</tr></thead><tbody>`;
                         for (const s of pw2.per_sample) {
-                            html += `<tr>
-                                <td>${s.sample_label}</td>
-                                <td>${Math.round(s.avg_usable_space).toLocaleString()}</td>
-                                <td>${s.avg_usable_space_pct.toFixed(2)}%</td>
-                                <td>${s.avg_disc_snps.toFixed(2)}</td>
-                            </tr>`;
+                            html += `<tr><td>${s.sample_label}</td>`;
+                            const pairMap = {};
+                            if (s.pairs) s.pairs.forEach(p => { pairMap[p.other_sample] = p; });
+                            for (const other of allSamples) {
+                                if (other.id === s.sample_id) {
+                                    html += `<td class="diagonal">—</td>`;
+                                } else {
+                                    const p = pairMap[other.id];
+                                    const val = p ? p.disc_snps : '?';
+                                    let cls = '';
+                                    if (p) {
+                                        if (p.disc_snps <= 5) cls = 'low-dist';
+                                        else if (p.disc_snps <= 20) cls = 'medium-dist';
+                                        else cls = 'high-dist';
+                                    }
+                                    html += `<td class="${cls}">${typeof val === 'number' ? val.toLocaleString() : val}</td>`;
+                                }
+                            }
+                            html += `</tr>`;
                         }
                         html += `</tbody></table>`;
                         html += sectionEnd();

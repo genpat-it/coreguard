@@ -227,11 +227,20 @@ pub struct PairwisePipelineStats {
     pub per_sample: HashMap<String, SamplePairwiseStats>,
 }
 
-/// Per-sample pairwise averages
+/// Per-sample pairwise stats (individual pair values + averages)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SamplePairwiseStats {
     pub avg_usable_space: f64,
     pub avg_disc_snps: f64,
+    /// Per-pair breakdown: other_sample_id -> (usable_space, disc_snps)
+    #[serde(default)]
+    pub pairs: HashMap<String, PairDetail>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PairDetail {
+    pub usable_space: u32,
+    pub disc_snps: u32,
 }
 
 /// Pre-computed distance matrix from a pipeline
@@ -1042,6 +1051,7 @@ fn compute_all_stats(
         let mut pair_disc_snps: Vec<u32> = Vec::new();
         let mut pair_usable: Vec<u32> = Vec::new();
         let mut sample_disc_totals: HashMap<String, (f64, f64, u32)> = HashMap::new(); // (usable_sum, disc_sum, count)
+        let mut sample_pairs: HashMap<String, HashMap<String, PairDetail>> = HashMap::new();
 
         for i in 0..n {
             for j in (i+1)..n {
@@ -1063,12 +1073,18 @@ fn compute_all_stats(
                 pair_disc_snps.push(disc);
                 pair_usable.push(usable);
 
-                // Accumulate per-sample stats
+                let detail = PairDetail { usable_space: usable, disc_snps: disc };
+
+                // Accumulate per-sample stats + store pair details
                 for &idx in &[i, j] {
+                    let other_idx = if idx == i { j } else { i };
                     let entry = sample_disc_totals.entry(sample_ids[idx].clone()).or_default();
                     entry.0 += usable as f64;
                     entry.1 += disc as f64;
                     entry.2 += 1;
+                    sample_pairs.entry(sample_ids[idx].clone())
+                        .or_default()
+                        .insert(sample_ids[other_idx].clone(), detail.clone());
                 }
             }
         }
@@ -1094,9 +1110,11 @@ fn compute_all_stats(
         let per_sample: HashMap<String, SamplePairwiseStats> = sample_disc_totals.into_iter()
             .map(|(sample, (us, ds, cnt))| {
                 let cnt = cnt as f64;
+                let pairs = sample_pairs.remove(&sample).unwrap_or_default();
                 (sample, SamplePairwiseStats {
                     avg_usable_space: if cnt > 0.0 { us / cnt } else { 0.0 },
                     avg_disc_snps: if cnt > 0.0 { ds / cnt } else { 0.0 },
+                    pairs,
                 })
             })
             .collect();

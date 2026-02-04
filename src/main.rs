@@ -268,10 +268,13 @@ fn run_compare(args: CompareArgs) -> Result<()> {
     let config_yaml = std::fs::read_to_string(&args.config).ok();
     let report = compare::CompareReport::from_config_with_yaml(&config, config_yaml)?;
 
+    // Auto-detect gzip from output extension
+    let use_gzip = args.gzip || args.output.extension().map(|e| e == "gz").unwrap_or(false);
+
     // Save report
     if args.binary {
         // Binary format (bincode)
-        let output_path = if args.gzip {
+        let output_path = if use_gzip {
             if args.output.extension().map(|e| e == "gz").unwrap_or(false) {
                 args.output.clone()
             } else {
@@ -285,14 +288,14 @@ fn run_compare(args: CompareArgs) -> Result<()> {
             }
         };
 
-        if args.gzip {
+        if use_gzip {
             report.save_binary_gzip(&output_path)?;
             info!("Gzipped binary report saved to: {}", output_path.display());
         } else {
             report.save_binary(&output_path)?;
             info!("Binary report saved to: {}", output_path.display());
         }
-    } else if args.gzip {
+    } else if use_gzip {
         // Add .gz extension if not present
         let output_path = if args.output.extension().map(|e| e == "gz").unwrap_or(false) {
             args.output.clone()
@@ -319,7 +322,7 @@ fn run_compare(args: CompareArgs) -> Result<()> {
     #[cfg(feature = "serve")]
     if args.serve {
         let output_path = if args.binary {
-            if args.gzip {
+            if use_gzip {
                 if args.output.extension().map(|e| e == "gz").unwrap_or(false) {
                     args.output.clone()
                 } else {
@@ -330,7 +333,7 @@ fn run_compare(args: CompareArgs) -> Result<()> {
             } else {
                 args.output.with_extension("bin")
             }
-        } else if args.gzip {
+        } else if use_gzip {
             if args.output.extension().map(|e| e == "gz").unwrap_or(false) {
                 args.output.clone()
             } else {

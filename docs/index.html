@@ -2263,7 +2263,12 @@ pipelines:
                                         else if (p.disc_snps <= 20) cls = 'medium-dist';
                                         else cls = 'high-dist';
                                     }
-                                    html += `<td class="${cls}">${typeof val === 'number' ? val.toLocaleString() : val}</td>`;
+                                    if (p && p.usable_space != null) {
+                                        const uPct = refLen > 0 ? ((p.usable_space / refLen) * 100).toFixed(2) : '0.00';
+                                        html += `<td class="${cls}">${typeof val === 'number' ? val.toLocaleString() : val}<br><span class="pct">${p.usable_space.toLocaleString()} (${uPct}%)</span></td>`;
+                                    } else {
+                                        html += `<td class="${cls}">${typeof val === 'number' ? val.toLocaleString() : val}</td>`;
+                                    }
                                 }
                             }
                             const avgPct = refLen > 0 ? ((s.avg_usable_space / refLen) * 100).toFixed(2) : '0.00';

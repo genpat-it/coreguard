@@ -131,6 +131,14 @@ struct JsonPairwisePipelineStats {
 struct JsonSamplePairwiseStats {
     avg_usable_space: f64,
     avg_disc_snps: f64,
+    #[serde(default)]
+    pairs: HashMap<String, JsonPairDetail>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct JsonPairDetail {
+    usable_space: u32,
+    disc_snps: u32,
 }
 
 /// Pre-computed GT disc vs pipeline result (from CLI compare)
@@ -1285,17 +1293,27 @@ impl GenomeData {
                 let pw = &ps.pairwise;
 
                 #[derive(Serialize)]
-                struct PerSamplePairwiseOut { sample_id: String, sample_label: String, avg_usable_space: f64, avg_usable_space_pct: f64, avg_disc_snps: f64 }
+                struct PairDetailOut { other_sample: String, other_label: String, disc_snps: u32 }
+                #[derive(Serialize)]
+                struct PerSamplePairwiseOut { sample_id: String, sample_label: String, avg_usable_space: f64, avg_usable_space_pct: f64, avg_disc_snps: f64, pairs: Vec<PairDetailOut> }
                 #[derive(Serialize)]
                 struct PairwiseUsableStatsOut { avg_usable_space: f64, avg_usable_space_pct: f64, avg_usable_snps: f64, min_usable_snps: u32, max_usable_snps: u32, median_usable_snps: f64, num_pairs: u32, per_sample: Vec<PerSamplePairwiseOut> }
 
                 let per_sample: Vec<PerSamplePairwiseOut> = pw.per_sample.iter().map(|(sid, stats)| {
+                    let pairs: Vec<PairDetailOut> = stats.pairs.iter().map(|(other_id, detail)| {
+                        PairDetailOut {
+                            other_sample: other_id.clone(),
+                            other_label: self.sample_labels.get(other_id).cloned().unwrap_or_else(|| other_id.clone()),
+                            disc_snps: detail.disc_snps,
+                        }
+                    }).collect();
                     PerSamplePairwiseOut {
                         sample_id: sid.clone(),
                         sample_label: self.sample_labels.get(sid).cloned().unwrap_or_else(|| sid.clone()),
                         avg_usable_space: stats.avg_usable_space,
                         avg_usable_space_pct: if self.ref_len > 0 { (stats.avg_usable_space / self.ref_len as f64) * 100.0 } else { 0.0 },
                         avg_disc_snps: stats.avg_disc_snps,
+                        pairs,
                     }
                 }).collect();
 

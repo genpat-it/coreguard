@@ -1595,6 +1595,7 @@ pipelines:
             get generatedAt() { return this.cachedData.generatedAt; }
             get description() { return this.cachedData.description; }
             get configYaml() { return this.cachedData.configYaml; }
+            get pileupOptions() { return this.cachedData.pileupOptions; }
             get warnings() { return this.cachedData.warnings; }
             get vcfPipelines() { return this.cachedData.vcfPipelines; }
             get groundTruthPipeline() { return this.cachedData.groundTruthPipeline; }
@@ -2182,6 +2183,16 @@ pipelines:
             if (gtPipelineId) {
                 const gtLabel = (pipelineInfo[gtPipelineId] && pipelineInfo[gtPipelineId].label) || gtPipelineId;
                 html += sectionStart(`${gtLabel} <span style="color:#e6862a;font-weight:bold;">(GT)</span>`, true);
+                if (workerApi.isFromBamPileup(gtPipelineId)) {
+                    const opts = workerApi.pileupOptions;
+                    let optsStr = '';
+                    if (opts) {
+                        optsStr = ` — min_depth: ${opts.min_depth}, min_consensus: ${opts.min_consensus}, min_qual: ${opts.min_qual}, include_indels: ${opts.include_indels}`;
+                    }
+                    html += `<div style="background:rgba(255,152,0,0.1);border-left:3px solid #ff9800;padding:6px 10px;margin-bottom:10px;font-size:10px;color:var(--text-secondary);border-radius:0 4px 4px 0;">
+                        ⚠ Ground truth SNPs derived from <strong>BAM pileup</strong> (no variant calling performed). Positions with depth &lt; min_depth are gaps; bases are called by majority consensus.${optsStr}
+                    </div>`;
+                }
                 html += `<div class="kpi-row">`;
 
                 // Global stats

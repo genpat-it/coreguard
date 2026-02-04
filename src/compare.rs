@@ -366,6 +366,8 @@ fn parse_cfsan_snplist_for_core(path: &str) -> anyhow::Result<CoreSnpData> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GtDiscVsPipelineResult {
     pub pipeline_id: String,
+    /// Total core SNP positions in the pipeline's core_snps file
+    pub pl_total_core_snps: u32,
     pub gap_intersect: GapStrategyResult,
     pub gap_union: GapStrategyResult,
     pub pairwise: PairwiseGtDiscResult,
@@ -605,6 +607,7 @@ pub fn compute_gt_disc_vs_pipelines(
 
         results.push(GtDiscVsPipelineResult {
             pipeline_id: pipeline_id.clone(),
+            pl_total_core_snps: core_data.positions.len() as u32,
             gap_intersect: GapStrategyResult {
                 gt_disc: gt_disc_intersect.len() as u32,
                 same_pos: gi_same_pos,

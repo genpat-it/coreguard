@@ -69,6 +69,8 @@ struct JsonReport {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct JsonGtDiscVsPipelineResult {
     pipeline_id: String,
+    #[serde(default)]
+    pl_total_core_snps: u32,
     gap_intersect: JsonGapStrategyResult,
     gap_union: JsonGapStrategyResult,
     pairwise: JsonPairwiseGtDiscResult,
@@ -1635,6 +1637,8 @@ impl GenomeData {
         if let Some(ref results) = self.gt_disc_vs_pipelines {
             #[derive(Serialize)]
             struct GtDiscVsPipeline {
+                pl_total_core_snps: u32,
+
                 gap_intersect_gt_disc: u32,
                 gap_intersect_same_pos: u32,
                 gap_intersect_concordant: Option<u32>,
@@ -1654,6 +1658,7 @@ impl GenomeData {
             let mut map: HashMap<String, GtDiscVsPipeline> = HashMap::new();
             for r in results {
                 map.insert(r.pipeline_id.clone(), GtDiscVsPipeline {
+                    pl_total_core_snps: r.pl_total_core_snps,
                     gap_intersect_gt_disc: r.gap_intersect.gt_disc,
                     gap_intersect_same_pos: r.gap_intersect.same_pos,
                     gap_intersect_concordant: r.gap_intersect.concordant,

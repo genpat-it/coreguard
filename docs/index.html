@@ -2610,7 +2610,7 @@ pipelines:
             if (gtPipelineId && kpis.samples >= 2) {
                 const gtDiscVsPl = await workerApi.getGtDiscVsPipelines();
                 if (gtDiscVsPl && Object.keys(gtDiscVsPl).length > 0) {
-                    html += sectionStart(`Ref Discriminating SNPs vs Pipelines ${infoIcon('gt_disc_vs_pl')}`, true);
+                    html += sectionStart(`Ref Discriminating SNPs vs Pipelines ${infoIcon('gt_disc_vs_pl')}`, true, 'has-children');
                     const sep = 'border-left:2px solid var(--text-muted);';
                     html += `<table class="kpi-table fixed-cols">`;
                     html += `<colgroup><col style="width:7%"><col style="width:5%"><col span="4" style="width:6.5%"><col style="width:3%"><col span="4" style="width:6.5%"><col style="width:3%"><col span="2" style="width:10%"></colgroup>`;

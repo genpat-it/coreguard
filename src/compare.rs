@@ -132,6 +132,17 @@ pub struct Summary {
     /// Warnings (e.g., MNP decomposition notices)
     #[serde(default)]
     pub warnings: Vec<String>,
+    /// Pileup options used for GT computation
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pileup_options: Option<PileupOptions>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PileupOptions {
+    pub min_depth: usize,
+    pub min_qual: f64,
+    pub min_consensus: f64,
+    pub include_indels: bool,
 }
 
 /// Pre-computed KPIs for all pipelines (replaces WASM get_kpis)
@@ -1269,6 +1280,12 @@ impl CompareReport {
             generated_at: chrono::Utc::now().to_rfc3339(),
             coreguard_version: env!("CARGO_PKG_VERSION").to_string(),
             warnings,
+            pileup_options: Some(PileupOptions {
+                min_depth: config.options.min_depth,
+                min_qual: config.options.min_qual,
+                min_consensus: config.options.min_consensus,
+                include_indels: config.options.include_indels,
+            }),
         };
 
         // Get description content (from file or inline)

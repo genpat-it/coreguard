@@ -1,5 +1,5 @@
 # CoreGuard Demo Configuration
-# Listeria monocytogenes comparison: Snippy vs CFSAN vs Ground Truth
+# Listeria monocytogenes comparison: Snippy vs CFSAN vs Reference alignment
 #
 # To use: copy to demo_config.yaml and replace ${VARIABLES} with actual paths
 # Or run: ./scripts/make_demo_config.sh
@@ -22,7 +22,7 @@ samples:
 
 pipelines:
   mm2:
-    label: "Ground Truth"
+    label: "Reference"
     command: "minimap2 -ax sr reference.fa reads.fq.gz | samtools sort -o output.bam"
     ground_truth: true
     samples:
@@ -39,39 +39,34 @@ pipelines:
     label: "Snippy"
     command: "snippy --reference ref.fa --R1 reads_1.fq.gz --R2 reads_2.fq.gz --outdir out"
     distance_matrix: ${SNPS_STUDY}/results/analysis_outputs/snippy_snp_distance_matrix.tsv
+    core_snps: ${SNPS_STUDY}/results/snippy_core/core.tab
     samples:
       TE15676:
-        vcf: ${SNPS_STUDY}/results/TE15676_snippy/TE15676_snippy.vcf
         bam: ${SNPS_STUDY}/results/TE15676_snippy/TE15676_snippy.bam
       TE15677:
-        vcf: ${SNPS_STUDY}/results/TE15677_snippy/TE15677_snippy.vcf
         bam: ${SNPS_STUDY}/results/TE15677_snippy/TE15677_snippy.bam
       TE15678:
-        vcf: ${SNPS_STUDY}/results/TE15678_snippy/TE15678_snippy.vcf
         bam: ${SNPS_STUDY}/results/TE15678_snippy/TE15678_snippy.bam
       TE8064:
-        vcf: ${SNPS_STUDY}/results/TE8064_snippy/TE8064_snippy.vcf
         bam: ${SNPS_STUDY}/results/TE8064_snippy/TE8064_snippy.bam
 
   cfsan:
     label: "CFSAN"
     command: "cfsan_snp_pipeline run -s samples/ -o output/ reference.fasta"
     distance_matrix: ${SNPS_STUDY}/results/cfsan/snp_distance_matrix.tsv
+    core_snps: ${SNPS_STUDY}/results/cfsan/snplist.txt
     samples:
       TE15676:
-        vcf: ${SNPS_STUDY}/results/cfsan/samples/TE15676/var.flt.vcf
         bam: ${SNPS_STUDY}/results/cfsan/samples/TE15676/reads.sorted.bam
       TE15677:
-        vcf: ${SNPS_STUDY}/results/cfsan/samples/TE15677/var.flt.vcf
         bam: ${SNPS_STUDY}/results/cfsan/samples/TE15677/reads.sorted.bam
       TE15678:
-        vcf: ${SNPS_STUDY}/results/cfsan/samples/TE15678/var.flt.vcf
         bam: ${SNPS_STUDY}/results/cfsan/samples/TE15678/reads.sorted.bam
       TE8064:
-        vcf: ${SNPS_STUDY}/results/cfsan/samples/TE8064/var.flt.vcf
         bam: ${SNPS_STUDY}/results/cfsan/samples/TE8064/reads.sorted.bam
 
 options:
   min_depth: 1
-  min_qual: 20
+  min_qual: 0
+  min_consensus: 0.7
   include_indels: false

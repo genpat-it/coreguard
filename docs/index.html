@@ -951,7 +951,7 @@
                 <div style="text-align: center; margin-bottom: 1rem;">
                     <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 0.75rem 0;">Or try the demo dataset:</p>
                     <button onclick="loadDemo()" style="background: #455a64; font-size: 13px; padding: 10px 20px;">Load Demo</button>
-                    <p style="font-size: 11px; opacity: 0.7; margin-top: 8px;">4 <i>Listeria monocytogenes</i> samples &bull; Snippy vs CFSAN vs Ground Truth (minimap2)</p>
+                    <p style="font-size: 11px; opacity: 0.7; margin-top: 8px;">4 <i>Listeria monocytogenes</i> samples &bull; Snippy vs CFSAN vs Reference (minimap2)</p>
                 </div>
                 <div style="background: var(--bg-tertiary); padding: 0.75rem; border-radius: 6px; margin-top: 0.75rem;">
                     <p style="font-size: 10px; color: var(--accent); margin: 0 0 0.5rem 0; font-weight: bold;">Demo YAML config:</p>
@@ -969,7 +969,7 @@ samples:
 
 pipelines:
   mm2:
-    label: "Ground Truth"
+    label: "Reference"
     ground_truth: true
     samples:
       TE15676: { bam: mm2_bams/TE15676.bam }
@@ -1115,9 +1115,9 @@ pipelines:
                        <p><strong>High gap percentage</strong> may indicate poor sequencing quality or divergent samples.</p>`
             },
             'snps_in_gt_gaps': {
-                title: 'Any SNPs in GT Gaps',
-                body: `<p>SNP positions in GT gap regions where <strong>at least 1 sample</strong> has a SNP.</p>
-                       <div class="formula">% = (Any SNPs in GT Gaps / Any SNPs) × 100</div>
+                title: 'Any SNPs in Ref Gaps',
+                body: `<p>SNP positions in Ref gap regions where <strong>at least 1 sample</strong> has a SNP.</p>
+                       <div class="formula">% = (Any SNPs in Ref Gaps / Any SNPs) × 100</div>
                        <p><strong>Any</strong> = position has SNP in ≥1 sample</p>
                        <p><strong>Interpretation:</strong></p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
@@ -1126,9 +1126,9 @@ pipelines:
                        </ul>`
             },
             'all_snps_in_gt_gaps': {
-                title: 'All SNPs in GT Gaps',
-                body: `<p>SNP positions in GT gap regions where <strong>ALL samples</strong> have a SNP.</p>
-                       <div class="formula">% = (All SNPs in GT Gaps / All SNPs) × 100</div>
+                title: 'All SNPs in Ref Gaps',
+                body: `<p>SNP positions in Ref gap regions where <strong>ALL samples</strong> have a SNP.</p>
+                       <div class="formula">% = (All SNPs in Ref Gaps / All SNPs) × 100</div>
                        <p><strong>All</strong> = position has SNP in ALL samples (position-based, any allele)</p>
                        <p><strong>Interpretation:</strong></p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
@@ -1137,14 +1137,14 @@ pipelines:
                        </ul>`
             },
             'consensus_snps_in_gt_gaps': {
-                title: 'Consensus SNPs in GT Gaps',
-                body: `<p>SNP positions in GT gap regions where <strong>ALL samples have the SAME allele</strong>.</p>
-                       <div class="formula">% = (Consensus SNPs in GT Gaps / Consensus SNPs) × 100</div>
+                title: 'Consensus SNPs in Ref Gaps',
+                body: `<p>SNP positions in Ref gap regions where <strong>ALL samples have the SAME allele</strong>.</p>
+                       <div class="formula">% = (Consensus SNPs in Ref Gaps / Consensus SNPs) × 100</div>
                        <p><strong>Consensus</strong> = ALL samples have identical alt allele</p>
                        <p><strong>Interpretation:</strong></p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
                            <li>Most reliable variant calls in unreliable regions</li>
-                           <li>Consensus SNPs in GT gaps warrant closer inspection</li>
+                           <li>Consensus SNPs in Ref gaps warrant closer inspection</li>
                        </ul>`
             },
             'snps_in_pipeline_gaps': {
@@ -1172,84 +1172,84 @@ pipelines:
                        <p>Gaps indicate regions where the pipeline could not confidently call variants.</p>`
             },
             'ps_vs_gt': {
-                title: 'vs GT (Agreement)',
-                body: `<p>Pipeline SNPs that are at the same positions as GT SNPs for this sample.</p>
-                       <div class="formula">% = (Pipeline ∩ GT SNP positions / Pipeline SNPs) × 100</div>
+                title: 'vs Ref (Agreement)',
+                body: `<p>Pipeline SNPs that are at the same positions as Ref SNPs for this sample.</p>
+                       <div class="formula">% = (Pipeline ∩ Ref SNP positions / Pipeline SNPs) × 100</div>
                        <p><strong>Interpretation:</strong></p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li><span style="color:#81c784;">≥90%</span>: Good agreement with ground truth</li>
+                           <li><span style="color:#81c784;">≥90%</span>: Good agreement with reference</li>
                            <li><span style="color:#ffc107;">70-90%</span>: Moderate agreement</li>
                            <li><span style="color:#e57373;">&lt;70%</span>: Poor agreement</li>
                        </ul>`
             },
             'ps_in_gt_gaps': {
-                title: 'in GT Gaps',
-                body: `<p>Pipeline SNPs that fall within GT gap regions (low coverage in GT).</p>
-                       <div class="formula">% = (SNPs in GT Gaps / Pipeline SNPs) × 100</div>
+                title: 'in Ref Gaps',
+                body: `<p>Pipeline SNPs that fall within Ref gap regions (low coverage in Ref).</p>
+                       <div class="formula">% = (SNPs in Ref Gaps / Pipeline SNPs) × 100</div>
                        <p><strong>Interpretation:</strong></p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li><span style="color:#81c784;">≤1%</span>: Good - few SNPs in unreliable GT regions</li>
-                           <li><span style="color:#ffc107;">1-5%</span>: Some SNPs in GT gaps</li>
-                           <li><span style="color:#e57373;">&gt;5%</span>: Many SNPs in GT gaps - potential false positives</li>
+                           <li><span style="color:#81c784;">≤1%</span>: Good - few SNPs in unreliable Ref regions</li>
+                           <li><span style="color:#ffc107;">1-5%</span>: Some SNPs in Ref gaps</li>
+                           <li><span style="color:#e57373;">&gt;5%</span>: Many SNPs in Ref gaps - potential false positives</li>
                        </ul>`
             },
             'ps_intersection': {
-                title: 'Pipeline ∩ GT Intersection',
-                body: `<p>SNP positions where both the pipeline and GT have called a SNP for this sample.</p>
-                       <div class="formula">Intersection = |Pipeline SNP positions ∩ GT SNP positions|</div>
-                       <div class="formula">% = (Intersection / GT SNPs) × 100</div>
-                       <p>Shows what percentage of GT SNPs are also called by the pipeline.</p>`
+                title: 'Pipeline ∩ Ref Intersection',
+                body: `<p>SNP positions where both the pipeline and Ref have called a SNP for this sample.</p>
+                       <div class="formula">Intersection = |Pipeline SNP positions ∩ Ref SNP positions|</div>
+                       <div class="formula">% = (Intersection / Ref SNPs) × 100</div>
+                       <p>Shows what percentage of Ref SNPs are also called by the pipeline.</p>`
             },
             'ps_vcf_consensus': {
                 title: 'VCF Consensus SNPs',
-                body: `<p>SNP positions where ALL VCF pipelines (excluding GT) agree for this sample.</p>
+                body: `<p>SNP positions where ALL VCF pipelines (excluding Ref) agree for this sample.</p>
                        <div class="formula">VCF Consensus = ∩ all VCF pipelines</div>
                        <div class="formula">% = (VCF Consensus / Reference Length) × 100</div>
                        <p>These are the most confident variant calls where all VCF-based pipelines agree.</p>`
             },
             'ps_consensus_in_gt': {
-                title: 'VCF Consensus in GT',
-                body: `<p>VCF consensus SNPs that are also present in GT for this sample.</p>
-                       <div class="formula">% = (VCF Consensus ∩ GT / VCF Consensus) × 100</div>
-                       <p>High percentage means VCF consensus aligns well with ground truth.</p>`
+                title: 'VCF Consensus in Ref',
+                body: `<p>VCF consensus SNPs that are also present in Ref for this sample.</p>
+                       <div class="formula">% = (VCF Consensus ∩ Ref / VCF Consensus) × 100</div>
+                       <p>High percentage means VCF consensus aligns well with reference.</p>`
             },
             'ps_all_consensus': {
-                title: 'All Consensus (GT ∩ VCF)',
-                body: `<p>Positions where ALL pipelines (including GT) agree for this sample.</p>
-                       <div class="formula">All Consensus = GT ∩ VCF Consensus</div>
+                title: 'All Consensus (Ref ∩ VCF)',
+                body: `<p>Positions where ALL pipelines (including Ref) agree for this sample.</p>
+                       <div class="formula">All Consensus = Ref ∩ VCF Consensus</div>
                        <div class="formula">% = (All Consensus / Reference Length) × 100</div>
                        <p>These are the highest confidence calls - all pipelines agree.</p>`
             },
             'gt_snps_missing': {
-                title: 'Any GT SNPs Filtered',
-                body: `<p>GT SNP positions (≥1 sample) that this pipeline does <strong>NOT</strong> call.</p>
-                       <div class="formula">Σ(GT<sub>sample</sub> - (GT<sub>sample</sub> ∩ Pipeline<sub>sample</sub>))</div>
+                title: 'Any Ref SNPs Filtered',
+                body: `<p>Ref SNP positions (≥1 sample) that this pipeline does <strong>NOT</strong> call.</p>
+                       <div class="formula">Σ(Ref<sub>sample</sub> - (Ref<sub>sample</sub> ∩ Pipeline<sub>sample</sub>))</div>
                        <p><strong>Any</strong> = position has SNP in ≥1 sample</p>
                        <p><strong>Interpretation:</strong></p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li>Shows GT SNPs being "filtered out" by each pipeline</li>
+                           <li>Shows Ref SNPs being "filtered out" by each pipeline</li>
                            <li>Higher values = more aggressive filtering</li>
                        </ul>`
             },
             'all_gt_missing': {
-                title: 'All GT SNPs Filtered',
-                body: `<p>GT SNP positions (ALL samples) not present in the pipeline.</p>
-                       <div class="formula">|All GT| - |All GT ∩ All Pipeline|</div>
+                title: 'All Ref SNPs Filtered',
+                body: `<p>Ref SNP positions (ALL samples) not present in the pipeline.</p>
+                       <div class="formula">|All Ref| - |All Ref ∩ All Pipeline|</div>
                        <p><strong>All</strong> = position has SNP in ALL samples (position-based)</p>
                        <p><strong>Interpretation:</strong></p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li>Shows consistent GT SNPs missing from pipeline</li>
-                           <li>Lower = pipeline captures consistent GT signal</li>
+                           <li>Shows consistent Ref SNPs missing from pipeline</li>
+                           <li>Lower = pipeline captures consistent Ref signal</li>
                        </ul>`
             },
             'consensus_gt_missing': {
-                title: 'Consensus GT SNPs Filtered',
-                body: `<p>GT Consensus positions not present in the pipeline's consensus.</p>
-                       <div class="formula">|Consensus GT| - |Consensus GT ∩ Consensus Pipeline|</div>
+                title: 'Consensus Ref SNPs Filtered',
+                body: `<p>Ref Consensus positions not present in the pipeline's consensus.</p>
+                       <div class="formula">|Consensus Ref| - |Consensus Ref ∩ Consensus Pipeline|</div>
                        <p><strong>Consensus</strong> = ALL samples have identical alt allele</p>
                        <p><strong>Interpretation:</strong></p>
                        <ul style="margin:5px 0;padding-left:20px;font-size:12px;">
-                           <li>Shows highly reliable GT SNPs missing from pipeline's consensus</li>
+                           <li>Shows highly reliable Ref SNPs missing from pipeline's consensus</li>
                            <li>Lower = pipeline captures consistent variant calls</li>
                        </ul>`
             },
@@ -1287,7 +1287,7 @@ pipelines:
                            <li><code>min_depth</code>: minimum read depth to consider a position (default from <code>options.min_depth</code>)</li>
                            <li><code>min_consensus</code>: minimum fraction of reads agreeing on a base (currently 80%)</li>
                        </ul>
-                       <p><strong>Use case:</strong> Ground truth baseline for comparing pipeline filtering behavior.</p>`
+                       <p><strong>Use case:</strong> Reference baseline for comparing pipeline filtering behavior.</p>`
             },
             'concordance': {
                 title: 'Position Concordance',
@@ -1453,19 +1453,19 @@ pipelines:
                            <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, <span style="color:#e6862a;">gap</span>, T → 2 samples differ (A vs T) but one was skipped. Without the gap the result might change.</td>
                        </tr>
                        <tr style="border-bottom:1px solid var(--border-color);">
-                           <td style="padding:4px 6px;font-weight:600;">GT-consensus</td>
-                           <td style="padding:4px 6px;">GT pileup shows all samples agree — variant calling artifact</td>
-                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, A, <span style="color:#e6862a;">ref</span> → discriminating (3×A vs 1×ref).<br>GT pileup: A, A, A, A → all agree. The VCF missed the call in sample 4.</td>
+                           <td style="padding:4px 6px;font-weight:600;">Ref-consensus</td>
+                           <td style="padding:4px 6px;">Ref pileup shows all samples agree — variant calling artifact</td>
+                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, A, <span style="color:#e6862a;">ref</span> → discriminating (3×A vs 1×ref).<br>Ref pileup: A, A, A, A → all agree. The VCF missed the call in sample 4.</td>
                        </tr>
                        <tr style="border-bottom:1px solid var(--border-color);">
                            <td style="padding:4px 6px;font-weight:600;">Majority-rule</td>
                            <td style="padding:4px 6px;">All but one sample agree — likely single-sample VC miss</td>
-                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, A, <span style="color:#e6862a;">ref</span> → 3 agree on A, 1 has ref. No GT data to confirm, but the majority suggests the 4th sample missed the call.</td>
+                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, A, <span style="color:#e6862a;">ref</span> → 3 agree on A, 1 has ref. No Ref data to confirm, but the majority suggests the 4th sample missed the call.</td>
                        </tr>
                        <tr>
                            <td style="padding:4px 6px;font-weight:600;">Confirmed</td>
                            <td style="padding:4px 6px;">Genuine disagreement — none of the above apply</td>
-                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, G, G → 2×A vs 2×G. GT also shows disagreement. Real biological variation between samples.</td>
+                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, G, G → 2×A vs 2×G. Ref also shows disagreement. Real biological variation between samples.</td>
                        </tr>
                        </table>`
             },
@@ -1491,19 +1491,19 @@ pipelines:
                        <table style="width:100%;font-size:11px;border-collapse:collapse;margin:8px 0;">
                        <tr style="background:var(--bg-tertiary);"><th style="padding:4px 6px;text-align:left;">Heuristic</th><th style="padding:4px 6px;text-align:left;">Description</th><th style="padding:4px 6px;text-align:left;">Example (Ref=T, 4 samples)</th></tr>
                        <tr style="border-bottom:1px solid var(--border-color);">
-                           <td style="padding:4px 6px;font-weight:600;">GT-consensus</td>
-                           <td style="padding:4px 6px;">GT pileup shows all samples agree — variant calling artifact</td>
-                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, A, <span style="color:#e6862a;">ref</span> → discriminating.<br>GT pileup: A, A, A, A → all agree. The variant caller missed the SNP in sample 4.</td>
+                           <td style="padding:4px 6px;font-weight:600;">Ref-consensus</td>
+                           <td style="padding:4px 6px;">Ref pileup shows all samples agree — variant calling artifact</td>
+                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, A, <span style="color:#e6862a;">ref</span> → discriminating.<br>Ref pileup: A, A, A, A → all agree. The variant caller missed the SNP in sample 4.</td>
                        </tr>
                        <tr style="border-bottom:1px solid var(--border-color);">
                            <td style="padding:4px 6px;font-weight:600;">Majority-rule</td>
                            <td style="padding:4px 6px;">All but one sample agree — likely single-sample VC miss</td>
-                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, A, <span style="color:#e6862a;">ref</span> → 3×A vs 1×ref. No GT data to confirm, but the majority suggests the 4th missed the call.</td>
+                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, A, <span style="color:#e6862a;">ref</span> → 3×A vs 1×ref. No Ref data to confirm, but the majority suggests the 4th missed the call.</td>
                        </tr>
                        <tr>
                            <td style="padding:4px 6px;font-weight:600;">Confirmed</td>
                            <td style="padding:4px 6px;">Genuine disagreement — none of the above apply</td>
-                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, G, G → 2×A vs 2×G. GT also shows disagreement. Real biological variation.</td>
+                           <td style="padding:4px 6px;font-family:monospace;">VCF: A, A, G, G → 2×A vs 2×G. Ref also shows disagreement. Real biological variation.</td>
                        </tr>
                        </table>
                        <p style="font-size:11px;color:var(--text-secondary);"><em>Note: Gap-affected is always 0 in Gap-Union because all positions with any gap are already excluded from usable space.</em></p>`
@@ -1529,13 +1529,13 @@ pipelines:
                        <p>A sample with high avg discriminating SNPs is more distant from the others.</p>`
             },
             'gt_disc_vs_pl': {
-                title: 'GT Discriminating SNPs vs Pipelines',
-                body: `<p>For each gap strategy, compares <strong>GT discriminating SNPs</strong> against each pipeline's core SNP positions:</p>
+                title: 'Ref Discriminating SNPs vs Pipelines',
+                body: `<p>For each gap strategy, compares <strong>Ref discriminating SNPs</strong> against each pipeline's core SNP positions:</p>
                        <ul>
-                           <li><strong>GT Disc:</strong> number of GT discriminating positions in the usable space</li>
-                           <li><strong>Same Pos:</strong> how many GT disc positions also exist in the pipeline's core SNP list (overlap)</li>
-                           <li><strong>Concordant:</strong> among Same Pos, how many positions have the <em>same allele for every sample</em> in both GT and pipeline. A position is concordant only if GT and pipeline agree on the called base for all samples. Low concordance (e.g. 0) can occur when the pipeline has gaps where the GT calls a base.</li>
-                           <li><strong>In GT Gaps:</strong> pipeline core SNP positions that fall within GT gap regions</li>
+                           <li><strong>Ref Disc:</strong> number of Ref discriminating positions in the usable space</li>
+                           <li><strong>Same Pos:</strong> how many Ref disc positions also exist in the pipeline's core SNP list (overlap)</li>
+                           <li><strong>Concordant:</strong> among Same Pos, how many positions have the <em>same allele for every sample</em> in both Ref and pipeline. A position is concordant only if Ref and pipeline agree on the called base for all samples. Low concordance (e.g. 0) can occur when the pipeline has gaps where the Ref calls a base.</li>
+                           <li><strong>In Ref Gaps:</strong> pipeline core SNP positions that fall within Ref gap regions</li>
                        </ul>`
             },
             'pl_disc_snps': {
@@ -1545,32 +1545,32 @@ pipelines:
                        <p>This value can be 0 even when <strong>Same Pos &gt; 0</strong> because:</p>
                        <ul>
                            <li><strong>Disc. SNPs</strong> uses the pipeline's own allele calls (e.g. from snpma.fasta or core.tab)</li>
-                           <li><strong>Same Pos</strong> counts GT discriminating positions that overlap with the pipeline's core SNP positions — the GT may see discordance (from BAM pileup) at positions where the pipeline has gaps for some samples</li>
+                           <li><strong>Same Pos</strong> counts Ref discriminating positions that overlap with the pipeline's core SNP positions — the Ref may see discordance (from BAM pileup) at positions where the pipeline has gaps for some samples</li>
                        </ul>
-                       <p>In other words: the GT calls a base where the pipeline has a gap, so the GT sees discordance that the pipeline cannot detect.</p>`
+                       <p>In other words: the Ref calls a base where the pipeline has a gap, so the Ref sees discordance that the pipeline cannot detect.</p>`
             },
             'pl_lost_snps': {
                 title: 'Lost Discriminating SNPs',
-                body: `<p><strong>Lost</strong> = Disc. SNPs − Same Pos − In GT Gaps</p>
-                       <p>Pipeline discriminating SNPs that the GT neither confirms (Same Pos) nor explains by gap regions (In GT Gaps).</p>
-                       <p>These are positions where the pipeline sees allele variation, but the GT does not see them as discriminating — they may be false positives from the pipeline, or positions where the GT calls all samples as consensus.</p>`
+                body: `<p><strong>Lost</strong> = Disc. SNPs − Same Pos − In Ref Gaps</p>
+                       <p>Pipeline discriminating SNPs that the Ref neither confirms (Same Pos) nor explains by gap regions (In Ref Gaps).</p>
+                       <p>These are positions where the pipeline sees allele variation, but the Ref does not see them as discriminating — they may be false positives from the pipeline, or positions where the Ref calls all samples as consensus.</p>`
             },
             'gt_disc_gi': {
                 title: 'Gap-Intersect Strategy',
-                body: `<p>GT discriminating positions computed using <strong>Gap-Intersect</strong>: only positions where ALL samples have a GT gap are excluded.</p>
+                body: `<p>Ref discriminating positions computed using <strong>Gap-Intersect</strong>: only positions where ALL samples have a Ref gap are excluded.</p>
                        <p>More permissive — positions where some (but not all) samples have gaps are still evaluated among the non-gap samples.</p>
-                       <p><strong>In GT Gaps</strong> counts pipeline SNPs falling in the GT gap-intersection set.</p>`
+                       <p><strong>In Ref Gaps</strong> counts pipeline SNPs falling in the Ref gap-intersection set.</p>`
             },
             'gt_disc_gu': {
                 title: 'Gap-Union Strategy',
-                body: `<p>GT discriminating positions computed using <strong>Gap-Union</strong>: positions where ANY sample has a GT gap are excluded.</p>
+                body: `<p>Ref discriminating positions computed using <strong>Gap-Union</strong>: positions where ANY sample has a Ref gap are excluded.</p>
                        <p>More strict — all samples must have data at a position for it to be considered.</p>
-                       <p><strong>In GT Gaps</strong> counts pipeline SNPs falling in the GT gap-union set.</p>`
+                       <p><strong>In Ref Gaps</strong> counts pipeline SNPs falling in the Ref gap-union set.</p>`
             },
             'gt_disc_pw': {
                 title: 'Pairwise Strategy',
-                body: `<p>For each pair of samples, GT discriminating positions are computed using <strong>pairwise Gap-Union</strong> (excluding positions where either sample has a gap).</p>
-                       <p>Values shown are <strong>averages</strong> across all sample pairs. No "In GT Gaps" column — it would be the same per pipeline regardless of pair.</p>`
+                body: `<p>For each pair of samples, Ref discriminating positions are computed using <strong>pairwise Gap-Union</strong> (excluding positions where either sample has a gap).</p>
+                       <p>Values shown are <strong>averages</strong> across all sample pairs. No "In Ref Gaps" column — it would be the same per pipeline regardless of pair.</p>`
             }
         };
 
@@ -1627,7 +1627,7 @@ pipelines:
                     'discordant': 'Discordant',
                     'not_disc_in_pl': 'Not Disc. in PL',
                     'lost': 'Not in PL',
-                    'in_gt_gap': 'In GT Gaps',
+                    'in_gt_gap': 'In Ref Gaps',
                     'in_pl_gap': 'In PL Gaps',
                     'pl_only': 'Lost (PL only)'
                 };
@@ -1670,7 +1670,7 @@ pipelines:
                 let tbl = '<table><thead><tr><th>Pos</th><th>Ref</th>';
                 for (const s of samples) {
                     const lbl = sampleLabels[s] || s;
-                    tbl += `<th>${lbl}<br><span style="font-size:10px;color:var(--text-secondary)">GT→PL</span></th>`;
+                    tbl += `<th>${lbl}<br><span style="font-size:10px;color:var(--text-secondary)">Ref→PL</span></th>`;
                 }
                 tbl += '<th>Status</th></tr></thead><tbody>';
 
@@ -2417,7 +2417,7 @@ pipelines:
                 html += `<div class="pipeline-info-item">`;
                 html += `<div class="pipeline-name">${label}`;
                 if (isGroundTruth) {
-                    html += `<span class="pipeline-badge">Ground Truth</span>`;
+                    html += `<span class="pipeline-badge">Reference</span>`;
                     if (isFromBamPileup) {
                         html += `<span class="pipeline-badge" style="background:#ff9800;" title="SNPs derived from BAM pileup, no variant calling filters applied">BAM pileup</span>`;
                     }
@@ -2483,7 +2483,7 @@ pipelines:
             const pipelineInfo = workerApi.cachedData.pipelineInfo || {};
             if (gtPipelineId) {
                 const gtLabel = (pipelineInfo[gtPipelineId] && pipelineInfo[gtPipelineId].label) || gtPipelineId;
-                html += sectionStart(`${gtLabel} <span style="color:#e6862a;font-weight:bold;">(GT)</span>`, true);
+                html += sectionStart(`${gtLabel} <span style="color:#e6862a;font-weight:bold;">(Ref)</span>`, true);
                 if (workerApi.isFromBamPileup(gtPipelineId)) {
                     const opts = workerApi.pileupOptions;
                     let optsStr = '';
@@ -2491,7 +2491,7 @@ pipelines:
                         optsStr = ` — min_depth: ${opts.min_depth}, min_consensus: ${opts.min_consensus}, min_qual: ${opts.min_qual}, include_indels: ${opts.include_indels}`;
                     }
                     html += `<div style="background:rgba(255,152,0,0.1);border-left:3px solid #ff9800;padding:6px 10px;margin-bottom:10px;font-size:10px;color:var(--text-secondary);border-radius:0 4px 4px 0;">
-                        ⚠ Ground truth SNPs derived from <strong>BAM pileup</strong> (no variant calling performed). Positions with depth &lt; min_depth are gaps; bases are called by majority consensus.${optsStr}
+                        ⚠ Reference SNPs derived from <strong>BAM pileup</strong> (no variant calling performed). Positions with depth &lt; min_depth are gaps; bases are called by majority consensus.${optsStr}
                     </div>`;
                 }
                 html += `<div class="kpi-row">`;
@@ -2590,7 +2590,7 @@ pipelines:
             if (gtPipelineId && kpis.samples >= 2) {
                 const gtDiscVsPl = await workerApi.getGtDiscVsPipelines();
                 if (gtDiscVsPl && Object.keys(gtDiscVsPl).length > 0) {
-                    html += sectionStart(`GT Discriminating SNPs vs Pipelines ${infoIcon('gt_disc_vs_pl')}`, true);
+                    html += sectionStart(`Ref Discriminating SNPs vs Pipelines ${infoIcon('gt_disc_vs_pl')}`, true);
                     const sep = 'border-left:2px solid var(--text-muted);';
                     html += `<table class="kpi-table fixed-cols">`;
                     html += `<colgroup><col style="width:7%"><col style="width:5%"><col span="4" style="width:6.5%"><col style="width:3%"><col span="4" style="width:6.5%"><col style="width:3%"><col span="2" style="width:10%"></colgroup>`;
@@ -2601,8 +2601,8 @@ pipelines:
                         <th colspan="5" class="bg-gu" style="text-align:center;${sep}">Gap-Union ${infoIcon('gt_disc_gu')}</th>
                         <th colspan="2" class="bg-pw" style="text-align:center;${sep}">Pairwise ${infoIcon('gt_disc_pw')}</th>
                     </tr><tr>
-                        <th class="bg-gi" style="${sep}">Same Pos</th><th class="bg-gi">Concordant</th><th class="bg-gi">In GT Gaps</th><th class="bg-gi">Lost ${infoIcon('pl_lost_snps')}</th><th class="bg-gi"></th>
-                        <th class="bg-gu" style="${sep}">Same Pos</th><th class="bg-gu">Concordant</th><th class="bg-gu">In GT Gaps</th><th class="bg-gu">Lost ${infoIcon('pl_lost_snps')}</th><th class="bg-gu"></th>
+                        <th class="bg-gi" style="${sep}">Same Pos</th><th class="bg-gi">Concordant</th><th class="bg-gi">In Ref Gaps</th><th class="bg-gi">Lost ${infoIcon('pl_lost_snps')}</th><th class="bg-gi"></th>
+                        <th class="bg-gu" style="${sep}">Same Pos</th><th class="bg-gu">Concordant</th><th class="bg-gu">In Ref Gaps</th><th class="bg-gu">Lost ${infoIcon('pl_lost_snps')}</th><th class="bg-gu"></th>
                         <th class="bg-pw" style="${sep}">Same Pos (avg)</th><th class="bg-pw">Concordant (avg)</th>
                     </tr></thead><tbody>`;
                     for (const [plId, stats] of Object.entries(gtDiscVsPl)) {

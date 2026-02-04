@@ -30,8 +30,6 @@ pub struct CompareReport {
     pub pipelines: HashMap<String, PipelineInfo>,
 
     /// Data: sample -> pipeline -> gaps/snps
-    /// Skipped during serialization - KPIs are now pre-computed
-    #[serde(skip_serializing)]
     #[serde(default)]
     pub data: HashMap<String, HashMap<String, PipelineData>>,
 

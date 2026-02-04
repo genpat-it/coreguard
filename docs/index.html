@@ -2530,11 +2530,11 @@ pipelines:
                             <td class="bg-gi" style="${sep}">${dLink(plId, 'gap_intersect', 'all', stats.gap_intersect_same_pos.toLocaleString())}</td>
                             <td class="bg-gi">${fmtConcLink(plId, 'gap_intersect', stats.gap_intersect_concordant, giConcPct, giHasConc)}</td>
                             <td class="bg-gi">${dLink(plId, 'gap_intersect', 'in_gt_gap', stats.gap_intersect_pl_snps_in_gt_gaps.toLocaleString())}</td>
-                            <td class="bg-gi">${dLink(plId, 'gap_intersect', 'lost', `${giLost.toLocaleString()} <span class="pct">(${giLostPct}%)</span>`)}</td>
+                            <td class="bg-gi">${giLost.toLocaleString()} <span class="pct">(${giLostPct}%)</span></td>
                             <td class="bg-gu" style="${sep}">${dLink(plId, 'gap_union', 'all', stats.gap_union_same_pos.toLocaleString())}</td>
                             <td class="bg-gu">${fmtConcLink(plId, 'gap_union', stats.gap_union_concordant, guConcPct, guHasConc)}</td>
                             <td class="bg-gu">${dLink(plId, 'gap_union', 'in_gt_gap', stats.gap_union_pl_snps_in_gt_gaps.toLocaleString())}</td>
-                            <td class="bg-gu">${dLink(plId, 'gap_union', 'lost', `${guLost.toLocaleString()} <span class="pct">(${guLostPct}%)</span>`)}</td>
+                            <td class="bg-gu">${guLost.toLocaleString()} <span class="pct">(${guLostPct}%)</span></td>
                             <td class="bg-pw" style="${sep}">${stats.pairwise_same_pos_avg.toFixed(1)}</td>
                             <td class="bg-pw">${pwHasConc ? `${stats.pairwise_concordant_avg.toFixed(1)} <span class="pct">(${pwConcPct}%)</span>` : 'N/A'}</td>
                         </tr>`;

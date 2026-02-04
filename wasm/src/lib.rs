@@ -1686,6 +1686,8 @@ impl GenomeData {
     fn compute_gt_disc_vs_pipelines_from_vcf(&self) -> String {
         #[derive(Serialize)]
         struct GtDiscVsPipeline {
+            pl_total_core_snps: u32,
+
             gap_intersect_gt_disc: u32,
             gap_intersect_same_pos: u32,
             gap_intersect_concordant: Option<u32>,
@@ -1867,13 +1869,16 @@ impl GenomeData {
 
             // Build per-sample pipeline SNP maps
             let mut pl_snp_maps: Vec<HashMap<u32, u8>> = Vec::new();
+            let mut all_pl_snp_pos: std::collections::HashSet<u32> = std::collections::HashSet::new();
             for sample_id in &sample_ids {
                 let sample_data = &self.samples[*sample_id];
                 let snps: HashMap<u32, u8> = sample_data.pipelines.get(pipeline_id)
                     .map(|p| self.build_snp_map(p))
                     .unwrap_or_default();
+                all_pl_snp_pos.extend(snps.keys());
                 pl_snp_maps.push(snps);
             }
+            let pl_total_core_snps = all_pl_snp_pos.len() as u32;
 
             let (gu_same_pos, gu_concordant) = count_same_concordant(
                 &gt_disc_union, &all_indices, &gt_snp_maps, &pl_gap_sets, &pl_snp_maps);
@@ -1938,6 +1943,7 @@ impl GenomeData {
             let np = if num_pairs > 0 { num_pairs as f64 } else { 1.0 };
 
             result.insert(pipeline_id.clone(), GtDiscVsPipeline {
+                pl_total_core_snps,
                 gap_intersect_gt_disc: gt_disc_intersect.len() as u32,
                 gap_intersect_same_pos: gi_same_pos,
                 gap_intersect_concordant: Some(gi_concordant),

@@ -50,9 +50,6 @@ struct JsonReport {
     samples: HashMap<String, JsonSampleInfo>,
     pipelines: HashMap<String, JsonPipelineInfo>,
     data: HashMap<String, HashMap<String, JsonPipelineData>>,
-    /// Polymorphic sites per pipeline: pipeline_id -> position (as string) -> site data
-    #[serde(default)]
-    polymorphic_sites: HashMap<String, HashMap<String, JsonPolymorphicSite>>,
     summary: JsonSummary,
     /// Description (markdown content)
     #[serde(default)]
@@ -71,6 +68,8 @@ struct JsonGtDiscVsPipelineResult {
     pipeline_id: String,
     #[serde(default)]
     pl_total_core_snps: u32,
+    #[serde(default)]
+    pl_discriminating_core_snps: u32,
     gap_intersect: JsonGapStrategyResult,
     gap_union: JsonGapStrategyResult,
     pairwise: JsonPairwiseGtDiscResult,
@@ -97,27 +96,6 @@ struct JsonPairwiseGtDiscResult {
 struct JsonPipelineDistanceMatrix {
     samples: Vec<String>,
     matrix: Vec<Vec<i64>>,
-}
-
-/// Polymorphic site data for distance matrix calculation
-#[derive(Debug, Deserialize, Serialize)]
-struct JsonPolymorphicSite {
-    #[serde(rename = "ref")]
-    ref_allele: char,
-    alleles: HashMap<String, JsonSampleAllele>,
-}
-
-/// Sample allele at a polymorphic site
-#[derive(Debug, Deserialize, Serialize)]
-struct JsonSampleAllele {
-    base: char,
-    source: String,
-    #[serde(default)]
-    depth: Option<u32>,
-    #[serde(default)]
-    qual: Option<f64>,
-    #[serde(default)]
-    consensus: Option<f64>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -176,56 +154,6 @@ struct JsonSummary {
     coreguard_version: String,
     #[serde(default)]
     warnings: Vec<String>,
-    #[serde(default)]
-    snps_in_gt_gaps: Option<HashMap<String, JsonSnpsInGapsStats>>,
-    /// SNPs in gaps for ALL pipeline pairs (gap_pipeline -> snp_pipeline -> stats)
-    #[serde(default)]
-    snps_in_gaps: Option<HashMap<String, HashMap<String, JsonSnpsInGapsStats>>>,
-    #[serde(default)]
-    ground_truth_pileup: Option<JsonGroundTruthPileupStats>,
-    #[serde(default)]
-    mnp_stats: Option<HashMap<String, JsonMnpStats>>,
-}
-
-/// Ground truth pileup statistics from BAM (without variant calling)
-#[derive(Debug, Deserialize, Serialize, Clone)]
-struct JsonGroundTruthPileupStats {
-    total_snps: usize,
-    per_sample: HashMap<String, usize>,
-    covered_positions: usize,
-    pipeline_comparison: HashMap<String, JsonPipelineVsGroundTruth>,
-}
-
-/// Comparison of a pipeline's SNP count vs ground truth pileup
-#[derive(Debug, Deserialize, Serialize, Clone)]
-struct JsonPipelineVsGroundTruth {
-    pipeline_snps: usize,
-    ground_truth_snps: usize,
-    difference: i64,
-    percentage_diff: f64,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-struct JsonSnpsInGapsStats {
-    total_snps: usize,
-    snps_in_gaps: usize,
-    percentage: f64,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-struct JsonMnpStats {
-    mnps_found: usize,
-    snps_from_mnps: usize,
-}
-
-/// Allele data at a polymorphic site for a specific sample
-#[derive(Clone, Debug)]
-struct AlleleData {
-    base: char,
-    source: String,  // "vcf", "bam", "gap", "inferred"
-    depth: Option<u32>,
-    qual: Option<f64>,
-    consensus: Option<f64>,
 }
 
 /// Main data store - holds all samples and pipeline data
@@ -247,19 +175,6 @@ pub struct GenomeData {
     report_version: String,
     generated_at: String,
     warnings: Vec<String>,
-    /// SNPs in ground truth gaps statistics (DEPRECATED - use snps_in_gaps)
-    snps_in_gt_gaps: Option<HashMap<String, JsonSnpsInGapsStats>>,
-    /// SNPs in gaps for ALL pipeline pairs (gap_pipeline -> snp_pipeline -> stats)
-    snps_in_gaps: Option<HashMap<String, HashMap<String, JsonSnpsInGapsStats>>>,
-    /// Ground truth pileup statistics (SNP count from BAM without variant calling)
-    ground_truth_pileup: Option<JsonGroundTruthPileupStats>,
-    /// MNP decomposition statistics per pipeline
-    mnp_stats: Option<HashMap<String, JsonMnpStats>>,
-    /// Polymorphic sites for distance matrix calculation (per pipeline)
-    /// Key: pipeline_id -> position -> sample_id -> allele data
-    polymorphic_sites: HashMap<String, HashMap<u32, HashMap<String, AlleleData>>>,
-    /// Reference allele at each polymorphic site (per pipeline)
-    polymorphic_refs: HashMap<String, HashMap<u32, char>>,
     /// Description (markdown content)
     description: Option<String>,
     /// Pre-computed distance matrices from pipelines
@@ -288,12 +203,6 @@ impl GenomeData {
             report_version: String::new(),
             generated_at: String::new(),
             warnings: Vec::new(),
-            snps_in_gt_gaps: None,
-            snps_in_gaps: None,
-            ground_truth_pileup: None,
-            mnp_stats: None,
-            polymorphic_sites: HashMap::new(),
-            polymorphic_refs: HashMap::new(),
             description: None,
             pipeline_distance_matrices: HashMap::new(),
             gt_disc_vs_pipelines: None,
@@ -339,10 +248,6 @@ impl GenomeData {
         self.report_version = report.version;
         self.generated_at = report.summary.generated_at;
         self.warnings = report.summary.warnings;
-        self.snps_in_gt_gaps = report.summary.snps_in_gt_gaps;
-        self.snps_in_gaps = report.summary.snps_in_gaps;
-        self.ground_truth_pileup = report.summary.ground_truth_pileup;
-        self.mnp_stats = report.summary.mnp_stats;
         self.description = report.description;
         self.pipeline_distance_matrices = report.pipeline_distance_matrices;
         self.gt_disc_vs_pipelines = report.gt_disc_vs_pipelines;
@@ -444,49 +349,14 @@ impl GenomeData {
         let t3 = js_sys::Date::now();
         web_sys::console::log_1(&format!("Finalized: {}ms", t3 - t2).into());
 
-        // Load polymorphic sites for distance matrix calculation (per pipeline)
-        self.polymorphic_sites.clear();
-        self.polymorphic_refs.clear();
-
-        let mut total_sites = 0usize;
-        for (pipeline_id, pipeline_sites) in &report.polymorphic_sites {
-            let mut sites_map: HashMap<u32, HashMap<String, AlleleData>> = HashMap::new();
-            let mut refs_map: HashMap<u32, char> = HashMap::new();
-
-            for (pos_str, site) in pipeline_sites {
-                if let Ok(pos) = pos_str.parse::<u32>() {
-                    refs_map.insert(pos, site.ref_allele);
-
-                    let mut sample_alleles: HashMap<String, AlleleData> = HashMap::new();
-                    for (sample_id, allele) in &site.alleles {
-                        sample_alleles.insert(sample_id.clone(), AlleleData {
-                            base: allele.base,
-                            source: allele.source.clone(),
-                            depth: allele.depth,
-                            qual: allele.qual,
-                            consensus: allele.consensus,
-                        });
-                    }
-                    sites_map.insert(pos, sample_alleles);
-                }
-            }
-
-            total_sites = total_sites.max(sites_map.len());
-            self.polymorphic_sites.insert(pipeline_id.clone(), sites_map);
-            self.polymorphic_refs.insert(pipeline_id.clone(), refs_map);
-        }
-
-        let t4 = js_sys::Date::now();
-        web_sys::console::log_1(&format!("Polymorphic sites: {}ms", t4 - t3).into());
-        web_sys::console::log_1(&format!("TOTAL: {}ms", t4 - t0).into());
+        web_sys::console::log_1(&format!("TOTAL: {}ms", js_sys::Date::now() - t0).into());
 
         web_sys::console::log_1(&format!(
-            "Loaded report v{}: {} samples, {} pipelines, {} bp reference, {} polymorphic sites per pipeline",
+            "Loaded report v{}: {} samples, {} pipelines, {} bp reference",
             self.report_version,
             self.samples.len(),
             self.pipeline_ids.len(),
             self.ref_len,
-            total_sites
         ).into());
 
         Ok(())
@@ -595,26 +465,6 @@ impl GenomeData {
         serde_json::to_string(&self.warnings).unwrap_or_else(|_| "[]".to_string())
     }
 
-    /// Get SNPs in gaps for ALL pipeline pairs as JSON
-    /// Returns: { gap_pipeline: { snp_pipeline: { total_snps, snps_in_gaps, percentage } } }
-    #[wasm_bindgen]
-    pub fn get_snps_in_gaps(&self) -> String {
-        match &self.snps_in_gaps {
-            Some(stats) => serde_json::to_string(stats).unwrap_or_else(|_| "{}".to_string()),
-            None => "null".to_string(),
-        }
-    }
-
-    /// Get MNP (Multi-Nucleotide Polymorphism) statistics per pipeline
-    /// Returns: { pipeline_id: { mnps_found, snps_from_mnps } }
-    #[wasm_bindgen]
-    pub fn get_mnp_stats(&self) -> String {
-        match &self.mnp_stats {
-            Some(stats) => serde_json::to_string(stats).unwrap_or_else(|_| "{}".to_string()),
-            None => "null".to_string(),
-        }
-    }
-
     /// Get report description (markdown content)
     /// Returns: description string or null if not available
     #[wasm_bindgen]
@@ -635,35 +485,6 @@ impl GenomeData {
             serde_json::to_string(&self.pipeline_distance_matrices)
                 .unwrap_or_else(|_| "{}".to_string())
         }
-    }
-
-    /// Get file paths for reproducibility (sample -> pipeline -> {vcf_path, bam_path})
-    #[wasm_bindgen]
-    pub fn get_file_paths(&self) -> String {
-        let mut result: HashMap<String, HashMap<String, HashMap<String, String>>> = HashMap::new();
-
-        for (sample_id, sample_data) in &self.samples {
-            let mut sample_paths: HashMap<String, HashMap<String, String>> = HashMap::new();
-
-            for (pipeline_id, pipeline_data) in &sample_data.pipelines {
-                let mut paths: HashMap<String, String> = HashMap::new();
-                if let Some(vcf) = &pipeline_data.vcf_path {
-                    paths.insert("vcf".to_string(), vcf.clone());
-                }
-                if let Some(bam) = &pipeline_data.bam_path {
-                    paths.insert("bam".to_string(), bam.clone());
-                }
-                if !paths.is_empty() {
-                    sample_paths.insert(pipeline_id.clone(), paths);
-                }
-            }
-
-            if !sample_paths.is_empty() {
-                result.insert(sample_id.clone(), sample_paths);
-            }
-        }
-
-        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
     }
 
     /// Build a SNP map for a sample/pipeline, filtering out SNPs where alt == genomic reference.
@@ -1482,150 +1303,6 @@ impl GenomeData {
         serde_json::to_string(&stats).unwrap_or_else(|_| "{}".to_string())
     }
 
-    /// Pairwise Relaxed: per-pair stats with intersection-based gap removal
-    ///
-    /// For each pair (A, B):
-    ///   Usable Space = refLength - positions where BOTH A and B have GT gap (intersection)
-    ///   Discriminating SNPs = GT SNPs not in pair's gap intersection, not consensus (global), and different between A and B
-    #[wasm_bindgen]
-    pub fn get_reviewer_pairwise_stats(&self) -> String {
-        #[derive(Serialize)]
-        struct RelaxedPairwiseStats {
-            avg_usable_space: f64,
-            avg_usable_space_pct: f64,
-            avg_usable_snps: f64,
-            num_pairs: usize,
-        }
-
-        let gt_id = match &self.ground_truth_pipeline {
-            Some(id) => id.clone(),
-            None => return "null".to_string(),
-        };
-
-        let sample_ids: Vec<&String> = self.samples.keys().collect();
-        let n = sample_ids.len();
-
-        if n < 2 {
-            return serde_json::to_string(&RelaxedPairwiseStats {
-                avg_usable_space: self.ref_len as f64,
-                avg_usable_space_pct: 100.0,
-                avg_usable_snps: 0.0,
-                num_pairs: 0,
-            }).unwrap_or_else(|_| "{}".to_string());
-        }
-
-        // Pre-compute per-sample GT gap position sets
-        let mut sample_gap_sets: Vec<std::collections::HashSet<u32>> = Vec::new();
-        for sample_id in &sample_ids {
-            let sample_data = &self.samples[*sample_id];
-            let mut gap_positions: std::collections::HashSet<u32> = std::collections::HashSet::new();
-            if let Some(gt_data) = sample_data.pipelines.get(&gt_id) {
-                for gap in &gt_data.gaps {
-                    for pos in gap.start..gap.end {
-                        gap_positions.insert(pos);
-                    }
-                }
-            }
-            sample_gap_sets.push(gap_positions);
-        }
-
-        // Pre-compute per-sample GT SNP maps
-        let mut gt_snp_maps: Vec<HashMap<u32, u8>> = Vec::new();
-        for sample_id in &sample_ids {
-            let sample_data = &self.samples[*sample_id];
-            let snps: HashMap<u32, u8> = sample_data.pipelines.get(&gt_id)
-                .map(|p| self.build_snp_map(p))
-                .unwrap_or_default();
-            gt_snp_maps.push(snps);
-        }
-
-        // Pre-compute global consensus: positions where ALL samples have same alt
-        // and no sample has a gap there
-        let mut all_snp_positions: std::collections::HashSet<u32> = std::collections::HashSet::new();
-        for snp_map in &gt_snp_maps {
-            all_snp_positions.extend(snp_map.keys());
-        }
-
-        let mut consensus_outside_gaps: std::collections::HashSet<u32> = std::collections::HashSet::new();
-        for &pos in &all_snp_positions {
-            let mut all_have = true;
-            let mut first_alt: Option<u8> = None;
-            let mut all_same = true;
-            let mut in_any_gap = false;
-
-            for idx in 0..n {
-                if let Some(&alt) = gt_snp_maps[idx].get(&pos) {
-                    if sample_gap_sets[idx].contains(&pos) {
-                        in_any_gap = true;
-                    }
-                    match first_alt {
-                        None => first_alt = Some(alt),
-                        Some(f) => if alt != f { all_same = false; }
-                    }
-                } else {
-                    all_have = false;
-                    break;
-                }
-            }
-
-            if all_have && !in_any_gap && all_same && first_alt.is_some() {
-                consensus_outside_gaps.insert(pos);
-            }
-        }
-
-        // Pairwise loop
-        let num_pairs = n * (n - 1) / 2;
-        let mut total_usable_space: f64 = 0.0;
-        let mut total_discriminating: f64 = 0.0;
-
-        for i in 0..n {
-            for j in (i+1)..n {
-                // Intersection of gaps: positions where BOTH have gap
-                let pair_gap_intersection: std::collections::HashSet<u32> =
-                    sample_gap_sets[i].intersection(&sample_gap_sets[j]).cloned().collect();
-
-                // Usable space for this pair
-                let usable_space = self.ref_len - pair_gap_intersection.len() as u32;
-                total_usable_space += usable_space as f64;
-
-                // Collect all GT SNP positions for this pair
-                let mut pair_snp_positions: std::collections::HashSet<u32> = std::collections::HashSet::new();
-                pair_snp_positions.extend(gt_snp_maps[i].keys());
-                pair_snp_positions.extend(gt_snp_maps[j].keys());
-
-                // Count discriminating: different between A and B,
-                // not in pair gap intersection, not global consensus
-                let mut disc = 0u32;
-                for &pos in &pair_snp_positions {
-                    if pair_gap_intersection.contains(&pos) {
-                        continue;
-                    }
-                    if consensus_outside_gaps.contains(&pos) {
-                        continue;
-                    }
-                    let alt_a = gt_snp_maps[i].get(&pos);
-                    let alt_b = gt_snp_maps[j].get(&pos);
-                    if alt_a != alt_b {
-                        disc += 1;
-                    }
-                }
-                total_discriminating += disc as f64;
-            }
-        }
-
-        let avg_usable_space = total_usable_space / num_pairs as f64;
-        let avg_usable_space_pct = (avg_usable_space / self.ref_len as f64) * 100.0;
-        let avg_usable_snps = total_discriminating / num_pairs as f64;
-
-        let stats = RelaxedPairwiseStats {
-            avg_usable_space,
-            avg_usable_space_pct,
-            avg_usable_snps,
-            num_pairs,
-        };
-
-        serde_json::to_string(&stats).unwrap_or_else(|_| "{}".to_string())
-    }
 
     /// For each VCF pipeline, return GT discriminating SNPs vs pipeline core SNP data.
     /// Returns pre-computed results from the CLI compare command, or falls back to
@@ -1638,6 +1315,7 @@ impl GenomeData {
             #[derive(Serialize)]
             struct GtDiscVsPipeline {
                 pl_total_core_snps: u32,
+                pl_discriminating_core_snps: u32,
 
                 gap_intersect_gt_disc: u32,
                 gap_intersect_same_pos: u32,
@@ -1659,6 +1337,7 @@ impl GenomeData {
             for r in results {
                 map.insert(r.pipeline_id.clone(), GtDiscVsPipeline {
                     pl_total_core_snps: r.pl_total_core_snps,
+                    pl_discriminating_core_snps: r.pl_discriminating_core_snps,
                     gap_intersect_gt_disc: r.gap_intersect.gt_disc,
                     gap_intersect_same_pos: r.gap_intersect.same_pos,
                     gap_intersect_concordant: r.gap_intersect.concordant,
@@ -1687,6 +1366,7 @@ impl GenomeData {
         #[derive(Serialize)]
         struct GtDiscVsPipeline {
             pl_total_core_snps: u32,
+            pl_discriminating_core_snps: u32,
 
             gap_intersect_gt_disc: u32,
             gap_intersect_same_pos: u32,
@@ -1880,6 +1560,16 @@ impl GenomeData {
             }
             let pl_total_core_snps = all_pl_snp_pos.len() as u32;
 
+            // Count discriminating positions: at least 2 samples with different alleles
+            let pl_discriminating_core_snps = all_pl_snp_pos.iter().filter(|&&pos| {
+                let alleles: Vec<Option<u8>> = pl_snp_maps.iter()
+                    .map(|m| m.get(&pos).copied())
+                    .collect();
+                if alleles.len() < 2 { return false; }
+                let first = alleles[0];
+                alleles.iter().any(|a| *a != first)
+            }).count() as u32;
+
             let (gu_same_pos, gu_concordant) = count_same_concordant(
                 &gt_disc_union, &all_indices, &gt_snp_maps, &pl_gap_sets, &pl_snp_maps);
             let gu_pl_in_gaps = count_pl_snps_in_gt_gaps(&gt_gap_union, &pl_snp_maps);
@@ -1944,6 +1634,7 @@ impl GenomeData {
 
             result.insert(pipeline_id.clone(), GtDiscVsPipeline {
                 pl_total_core_snps,
+                pl_discriminating_core_snps,
                 gap_intersect_gt_disc: gt_disc_intersect.len() as u32,
                 gap_intersect_same_pos: gi_same_pos,
                 gap_intersect_concordant: Some(gi_concordant),
@@ -1964,461 +1655,9 @@ impl GenomeData {
         serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
     }
 
-    /// Get per-sample statistics as JSON
-    /// Returns: { sample_id: { pipeline_id: { snps, snps_in_gt_gaps, agreement_with_gt, ... } } }
-    #[wasm_bindgen]
-    pub fn get_per_sample_stats(&self) -> String {
-        #[derive(Serialize)]
-        struct PipelineStats {
-            snps: u32,
-            gap_bp: u32,
-            snps_in_gt_gaps: u32,
-            snps_in_gt_gaps_pct: f64,
-            agreement_with_gt: u32,
-            agreement_with_gt_pct: f64,
-        }
 
-        #[derive(Serialize)]
-        struct SampleStats {
-            pipelines: HashMap<String, PipelineStats>,
-        }
 
-        let mut result: HashMap<String, SampleStats> = HashMap::new();
 
-        // Find ground truth pipeline
-        let gt_pipeline = self.pipeline_ids.iter()
-            .find(|p| self.ground_truth_pipeline.as_ref() == Some(*p))
-            .cloned();
-
-        for (sample_id, sample_data) in &self.samples {
-            let mut pipelines_stats: HashMap<String, PipelineStats> = HashMap::new();
-
-            // Get GT SNP positions for this sample (for comparison)
-            let gt_snp_positions: std::collections::HashSet<u32> = if let Some(ref gt_id) = gt_pipeline {
-                sample_data.pipelines.get(gt_id)
-                    .map(|p| p.snps.iter().map(|s| s.pos).collect())
-                    .unwrap_or_default()
-            } else {
-                std::collections::HashSet::new()
-            };
-
-            // Get GT gap regions for this sample
-            let gt_gaps: Vec<&GapRegion> = if let Some(ref gt_id) = gt_pipeline {
-                sample_data.pipelines.get(gt_id)
-                    .map(|p| p.gaps.iter().collect())
-                    .unwrap_or_default()
-            } else {
-                Vec::new()
-            };
-
-            for pipeline_id in &self.pipeline_ids {
-                if let Some(pipeline_data) = sample_data.pipelines.get(pipeline_id) {
-                    let snps = pipeline_data.snps.len() as u32;
-                    let gap_bp: u32 = pipeline_data.gaps.iter()
-                        .map(|g| g.end - g.start)
-                        .sum();
-
-                    // Count SNPs in GT gaps
-                    let snps_in_gt_gaps: u32 = if gt_pipeline.is_some() && gt_pipeline.as_ref() != Some(pipeline_id) {
-                        pipeline_data.snps.iter()
-                            .filter(|snp| {
-                                gt_gaps.iter().any(|g| snp.pos >= g.start && snp.pos < g.end)
-                            })
-                            .count() as u32
-                    } else {
-                        0
-                    };
-
-                    let snps_in_gt_gaps_pct = if snps > 0 {
-                        (snps_in_gt_gaps as f64 / snps as f64) * 100.0
-                    } else {
-                        0.0
-                    };
-
-                    // Count agreement with GT (SNPs at same position)
-                    let agreement_with_gt: u32 = if gt_pipeline.is_some() && gt_pipeline.as_ref() != Some(pipeline_id) {
-                        pipeline_data.snps.iter()
-                            .filter(|snp| gt_snp_positions.contains(&snp.pos))
-                            .count() as u32
-                    } else {
-                        0
-                    };
-
-                    let agreement_with_gt_pct = if !gt_snp_positions.is_empty() && gt_pipeline.as_ref() != Some(pipeline_id) {
-                        (agreement_with_gt as f64 / gt_snp_positions.len() as f64) * 100.0
-                    } else if gt_pipeline.as_ref() == Some(pipeline_id) {
-                        100.0
-                    } else {
-                        0.0
-                    };
-
-                    pipelines_stats.insert(pipeline_id.clone(), PipelineStats {
-                        snps,
-                        gap_bp,
-                        snps_in_gt_gaps,
-                        snps_in_gt_gaps_pct,
-                        agreement_with_gt,
-                        agreement_with_gt_pct,
-                    });
-                }
-            }
-
-            result.insert(sample_id.clone(), SampleStats {
-                pipelines: pipelines_stats,
-            });
-        }
-
-        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
-    }
-
-    /// Get detailed pipeline concordance statistics
-    /// Returns 4 metrics for each pipeline pair:
-    /// - concordance_any: positions where at least 1 sample has SNP in both pipelines
-    /// - concordance_all: positions where ALL samples have SNP in both pipelines
-    /// - consensus_any: positions where at least 1 sample has same allele in both pipelines
-    /// - consensus_all: positions where ALL samples have same allele in both pipelines
-    #[wasm_bindgen]
-    pub fn get_pipeline_concordance(&self) -> String {
-        #[derive(Serialize)]
-        struct ConcordanceStats {
-            concordance_any: u32,
-            concordance_all: u32,
-            consensus_any: u32,
-            consensus_all: u32,
-            total_a: u32,
-            total_b: u32,
-        }
-
-        let mut result: HashMap<String, HashMap<String, ConcordanceStats>> = HashMap::new();
-        let num_samples = self.samples.len();
-
-        // For each pipeline, collect per-sample SNP data: position -> (sample_id -> alt_allele)
-        let mut pipeline_sample_snps: HashMap<String, HashMap<u32, HashMap<String, u8>>> = HashMap::new();
-
-        let ref_bytes = self.ref_seq.as_bytes();
-        for pipeline_id in &self.pipeline_ids {
-            let mut pos_to_samples: HashMap<u32, HashMap<String, u8>> = HashMap::new();
-            for (sample_id, sample_data) in &self.samples {
-                if let Some(pipeline_data) = sample_data.pipelines.get(pipeline_id) {
-                    for snp in &pipeline_data.snps {
-                        let pos = snp.pos as usize;
-                        if pos < ref_bytes.len() && snp.alt_allele != ref_bytes[pos] {
-                            pos_to_samples
-                                .entry(snp.pos)
-                                .or_insert_with(HashMap::new)
-                                .insert(sample_id.clone(), snp.alt_allele);
-                        }
-                    }
-                }
-            }
-            pipeline_sample_snps.insert(pipeline_id.clone(), pos_to_samples);
-        }
-
-        // Calculate concordance between all pairs
-        for pipeline_a in &self.pipeline_ids {
-            let mut inner: HashMap<String, ConcordanceStats> = HashMap::new();
-            let snps_a = pipeline_sample_snps.get(pipeline_a).unwrap();
-            let total_a = snps_a.len() as u32;
-
-            for pipeline_b in &self.pipeline_ids {
-                if pipeline_a >= pipeline_b {
-                    continue; // Only compute each pair once (avoid duplicates)
-                }
-
-                let snps_b = pipeline_sample_snps.get(pipeline_b).unwrap();
-                let total_b = snps_b.len() as u32;
-
-                let mut concordance_any = 0u32;
-                let mut concordance_all = 0u32;
-                let mut consensus_any = 0u32;
-                let mut consensus_all = 0u32;
-
-                // Get all positions present in either pipeline
-                let all_positions: std::collections::HashSet<u32> =
-                    snps_a.keys().chain(snps_b.keys()).cloned().collect();
-
-                for pos in all_positions {
-                    let samples_a = snps_a.get(&pos);
-                    let samples_b = snps_b.get(&pos);
-
-                    match (samples_a, samples_b) {
-                        (Some(sa), Some(sb)) => {
-                            // Count samples that have SNP in BOTH pipelines at this position
-                            let mut samples_with_both = 0;
-                            let mut any_same_allele = false;
-                            let mut all_same_allele = true;
-
-                            for (sample_id, alt_a) in sa {
-                                if let Some(alt_b) = sb.get(sample_id) {
-                                    samples_with_both += 1;
-                                    if alt_a == alt_b {
-                                        any_same_allele = true;
-                                    } else {
-                                        all_same_allele = false;
-                                    }
-                                }
-                            }
-
-                            // concordance_any: at least 1 sample has SNP in BOTH pipelines
-                            if samples_with_both > 0 {
-                                concordance_any += 1;
-                            }
-
-                            // concordance_all: ALL samples have SNP in BOTH pipelines
-                            if samples_with_both == num_samples {
-                                concordance_all += 1;
-                            }
-
-                            // consensus_any: at least 1 sample has SAME allele in both
-                            if any_same_allele {
-                                consensus_any += 1;
-                            }
-
-                            // consensus_all: ALL samples have SAME allele in both pipelines
-                            if samples_with_both == num_samples && all_same_allele {
-                                consensus_all += 1;
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-
-                inner.insert(pipeline_b.clone(), ConcordanceStats {
-                    concordance_any,
-                    concordance_all,
-                    consensus_any,
-                    consensus_all,
-                    total_a,
-                    total_b,
-                });
-            }
-
-            if !inner.is_empty() {
-                result.insert(pipeline_a.clone(), inner);
-            }
-        }
-
-        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
-    }
-
-    /// Get per-sample SNP intersection with GT
-    /// Returns: { sample_id: { pipeline_id: { intersection, pipeline_snps, gt_snps, pct_of_pipeline, pct_of_gt } } }
-    #[wasm_bindgen]
-    pub fn get_per_sample_intersection_with_gt(&self) -> String {
-        #[derive(Serialize)]
-        struct SampleIntersection {
-            intersection: u32,
-            pipeline_snps: u32,
-            gt_snps: u32,
-            pct_of_pipeline: f64,
-            pct_of_gt: f64,
-        }
-
-        let mut result: HashMap<String, HashMap<String, SampleIntersection>> = HashMap::new();
-
-        let gt_pipeline = match &self.ground_truth_pipeline {
-            Some(gt) => gt,
-            None => return "{}".to_string(),
-        };
-
-        let ref_bytes = self.ref_seq.as_bytes();
-        for (sample_id, sample_data) in &self.samples {
-            let mut sample_intersections: HashMap<String, SampleIntersection> = HashMap::new();
-
-            // Get GT SNPs for this sample (filtering bogus alt==ref)
-            let gt_snps: std::collections::HashSet<u32> = sample_data.pipelines.get(gt_pipeline)
-                .map(|pd| pd.snps.iter()
-                    .filter(|s| {
-                        let pos = s.pos as usize;
-                        pos < ref_bytes.len() && s.alt_allele != ref_bytes[pos]
-                    })
-                    .map(|s| s.pos).collect())
-                .unwrap_or_default();
-            let gt_count = gt_snps.len() as u32;
-
-            // Calculate intersection with each non-GT pipeline
-            for pipeline_id in &self.pipeline_ids {
-                if pipeline_id == gt_pipeline {
-                    continue;
-                }
-
-                if let Some(pipeline_data) = sample_data.pipelines.get(pipeline_id) {
-                    let pipeline_snps: std::collections::HashSet<u32> = pipeline_data.snps.iter()
-                        .filter(|s| {
-                            let pos = s.pos as usize;
-                            pos < ref_bytes.len() && s.alt_allele != ref_bytes[pos]
-                        })
-                        .map(|s| s.pos)
-                        .collect();
-                    let pipeline_count = pipeline_snps.len() as u32;
-
-                    let intersection = pipeline_snps.intersection(&gt_snps).count() as u32;
-
-                    let pct_of_pipeline = if pipeline_count > 0 {
-                        (intersection as f64 / pipeline_count as f64) * 100.0
-                    } else {
-                        0.0
-                    };
-
-                    let pct_of_gt = if gt_count > 0 {
-                        (intersection as f64 / gt_count as f64) * 100.0
-                    } else {
-                        0.0
-                    };
-
-                    sample_intersections.insert(pipeline_id.clone(), SampleIntersection {
-                        intersection,
-                        pipeline_snps: pipeline_count,
-                        gt_snps: gt_count,
-                        pct_of_pipeline,
-                        pct_of_gt,
-                    });
-                }
-            }
-
-            result.insert(sample_id.clone(), sample_intersections);
-        }
-
-        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
-    }
-
-    /// Get consensus SNP statistics (positions where ALL VCF pipelines agree)
-    /// Returns global and per-sample consensus vs GT comparison
-    #[wasm_bindgen]
-    pub fn get_consensus_stats(&self) -> String {
-        #[derive(Serialize)]
-        struct ConsensusVsGt {
-            consensus_snps: u32,
-            gt_snps: u32,
-            consensus_in_gt: u32,
-            consensus_in_gt_pct: f64,
-            gt_in_consensus: u32,
-            gt_in_consensus_pct: f64,
-        }
-
-        #[derive(Serialize)]
-        struct SampleConsensusStats {
-            vcf_consensus: ConsensusVsGt,
-            all_consensus: u32,  // GT ∩ all VCF pipelines
-        }
-
-        #[derive(Serialize)]
-        struct ConsensusStats {
-            global: ConsensusVsGt,
-            global_all: u32,  // Total positions where ALL pipelines (including GT) agree
-            per_sample: HashMap<String, SampleConsensusStats>,
-        }
-
-        // Get VCF pipelines (pipelines that have SNP data)
-        let vcf_pipelines: Vec<&String> = self.pipeline_ids.iter()
-            .filter(|p| {
-                self.samples.values().any(|s| {
-                    s.pipelines.get(*p).map(|pd| pd.has_vcf).unwrap_or(false)
-                })
-            })
-            .collect();
-
-        // Find ground truth pipeline
-        let gt_pipeline = self.ground_truth_pipeline.as_ref();
-
-        // Use sums instead of unique positions to be consistent with other KPIs
-        let mut sum_consensus_snps: u32 = 0;
-        let mut sum_gt_snps: u32 = 0;
-        let mut sum_consensus_in_gt: u32 = 0;
-        let mut sum_all_consensus: u32 = 0;
-        let mut per_sample_stats: HashMap<String, SampleConsensusStats> = HashMap::new();
-
-        // Calculate per-sample consensus
-        for (sample_id, sample_data) in &self.samples {
-            // Get SNP positions for each VCF pipeline in this sample
-            let mut pipeline_positions: Vec<std::collections::HashSet<u32>> = Vec::new();
-
-            for pipeline_id in &vcf_pipelines {
-                if let Some(pipeline_data) = sample_data.pipelines.get(*pipeline_id) {
-                    let positions: std::collections::HashSet<u32> = pipeline_data.snps.iter()
-                        .map(|s| s.pos)
-                        .collect();
-                    pipeline_positions.push(positions);
-                }
-            }
-
-            // VCF Consensus = intersection of all VCF pipelines (excluding GT)
-            let sample_vcf_consensus: std::collections::HashSet<u32> = if pipeline_positions.len() > 1 {
-                let mut consensus = pipeline_positions[0].clone();
-                for positions in &pipeline_positions[1..] {
-                    consensus = consensus.intersection(positions).cloned().collect();
-                }
-                consensus
-            } else if pipeline_positions.len() == 1 {
-                pipeline_positions[0].clone()
-            } else {
-                std::collections::HashSet::new()
-            };
-
-            // Get GT SNPs for this sample
-            let sample_gt: std::collections::HashSet<u32> = if let Some(gt_id) = gt_pipeline {
-                sample_data.pipelines.get(gt_id)
-                    .map(|pd| pd.snps.iter().map(|s| s.pos).collect())
-                    .unwrap_or_default()
-            } else {
-                std::collections::HashSet::new()
-            };
-
-            // ALL Consensus = GT ∩ all VCF pipelines
-            let sample_all_consensus: std::collections::HashSet<u32> =
-                sample_vcf_consensus.intersection(&sample_gt).cloned().collect();
-
-            // Calculate sample stats
-            let consensus_in_gt = sample_vcf_consensus.intersection(&sample_gt).count() as u32;
-            let gt_in_consensus = sample_gt.intersection(&sample_vcf_consensus).count() as u32;
-
-            let consensus_snps = sample_vcf_consensus.len() as u32;
-            let gt_snps = sample_gt.len() as u32;
-            let all_consensus = sample_all_consensus.len() as u32;
-
-            // Add to sums (consistent with other KPIs that sum across samples)
-            sum_consensus_snps += consensus_snps;
-            sum_gt_snps += gt_snps;
-            sum_consensus_in_gt += consensus_in_gt;
-            sum_all_consensus += all_consensus;
-
-            per_sample_stats.insert(sample_id.clone(), SampleConsensusStats {
-                vcf_consensus: ConsensusVsGt {
-                    consensus_snps,
-                    gt_snps,
-                    consensus_in_gt,
-                    consensus_in_gt_pct: if consensus_snps > 0 {
-                        (consensus_in_gt as f64 / consensus_snps as f64) * 100.0
-                    } else { 0.0 },
-                    gt_in_consensus,
-                    gt_in_consensus_pct: if gt_snps > 0 {
-                        (gt_in_consensus as f64 / gt_snps as f64) * 100.0
-                    } else { 0.0 },
-                },
-                all_consensus,
-            });
-        }
-
-        // Calculate global stats using SUMS (consistent with other KPIs)
-        let result = ConsensusStats {
-            global: ConsensusVsGt {
-                consensus_snps: sum_consensus_snps,
-                gt_snps: sum_gt_snps,
-                consensus_in_gt: sum_consensus_in_gt,
-                consensus_in_gt_pct: if sum_consensus_snps > 0 {
-                    (sum_consensus_in_gt as f64 / sum_consensus_snps as f64) * 100.0
-                } else { 0.0 },
-                gt_in_consensus: sum_consensus_in_gt,  // Same as consensus_in_gt when using sums
-                gt_in_consensus_pct: if sum_gt_snps > 0 {
-                    (sum_consensus_in_gt as f64 / sum_gt_snps as f64) * 100.0
-                } else { 0.0 },
-            },
-            global_all: sum_all_consensus,
-            per_sample: per_sample_stats,
-        };
-
-        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
-    }
 
     /// Get all SNP positions that match the given filters
     /// filters: comma-separated list of pipeline IDs, or special filters:
@@ -2833,128 +2072,6 @@ impl GenomeData {
         html
     }
 
-    /// Fallback distance matrix calculation when polymorphic_sites is not available
-    /// (for older reports that don't have polymorphic_sites)
-    fn calculate_distance_matrix_fallback(&self, pipeline_filter: &str) -> String {
-        use std::collections::HashSet;
-
-        let mut sorted_samples: Vec<String> = self.samples.keys().cloned().collect();
-        sorted_samples.sort();
-        let n = sorted_samples.len();
-
-        // Pre-compute allele map for each sample from SNP data
-        let ref_bytes = self.ref_seq.as_bytes();
-
-        let sample_alleles: Vec<HashMap<u32, u8>> = sorted_samples.iter().map(|sample_id| {
-            let mut alleles: HashMap<u32, u8> = HashMap::new();
-
-            if let Some(sample_data) = self.samples.get(sample_id) {
-                // First, collect all gap positions for this sample
-                let mut gap_positions: HashSet<u32> = HashSet::new();
-                for (_pid, pipeline_data) in &sample_data.pipelines {
-                    for gap in &pipeline_data.gaps {
-                        for pos in gap.start..gap.end {
-                            gap_positions.insert(pos);
-                        }
-                    }
-                }
-
-                // Then collect SNP alleles
-                for (_pid, pipeline_data) in &sample_data.pipelines {
-                    for snp in &pipeline_data.snps {
-                        if !gap_positions.contains(&snp.pos) {
-                            let ref_base = ref_bytes.get(snp.pos as usize).copied().unwrap_or(b'N');
-                            if snp.alt_allele != ref_base {
-                                alleles.entry(snp.pos).or_insert(snp.alt_allele);
-                            }
-                        }
-                    }
-                }
-
-                // Mark gap positions with 0
-                for pos in gap_positions {
-                    alleles.insert(pos, 0);
-                }
-            }
-            alleles
-        }).collect();
-
-        // Collect all positions where at least one sample has a SNP
-        let mut all_positions: HashSet<u32> = HashSet::new();
-        for allele_map in &sample_alleles {
-            for (&pos, &allele) in allele_map {
-                if allele != 0 {
-                    all_positions.insert(pos);
-                }
-            }
-        }
-        let positions: Vec<u32> = all_positions.into_iter().collect();
-
-        // Calculate pairwise distances
-        let mut matrix: Vec<Vec<u32>> = vec![vec![0; n]; n];
-        let mut comparable: Vec<Vec<u32>> = vec![vec![0; n]; n];
-
-        for i in 0..n {
-            for j in (i+1)..n {
-                let map_a = &sample_alleles[i];
-                let map_b = &sample_alleles[j];
-
-                let mut dist = 0u32;
-                let mut comp = 0u32;
-
-                for &pos in &positions {
-                    let a_val = match map_a.get(&pos).copied() {
-                        Some(0) => 0,
-                        Some(v) => v,
-                        None => ref_bytes.get((pos - 1) as usize).copied().unwrap_or(b'N'),
-                    };
-                    let b_val = match map_b.get(&pos).copied() {
-                        Some(0) => 0,
-                        Some(v) => v,
-                        None => ref_bytes.get((pos - 1) as usize).copied().unwrap_or(b'N'),
-                    };
-
-                    if a_val == 0 || b_val == 0 {
-                        continue;
-                    }
-
-                    comp += 1;
-                    if a_val != b_val {
-                        dist += 1;
-                    }
-                }
-
-                matrix[i][j] = dist;
-                matrix[j][i] = dist;
-                comparable[i][j] = comp;
-                comparable[j][i] = comp;
-            }
-        }
-
-        #[derive(Serialize)]
-        struct DistanceMatrix {
-            samples: Vec<String>,
-            labels: Vec<String>,
-            matrix: Vec<Vec<u32>>,
-            comparable: Vec<Vec<u32>>,
-            polymorphic_count: usize,
-        }
-
-        let labels: Vec<String> = sorted_samples.iter()
-            .map(|s| self.get_sample_label(s))
-            .collect();
-
-        let result = DistanceMatrix {
-            samples: sorted_samples,
-            labels,
-            matrix,
-            comparable,
-            polymorphic_count: positions.len(),
-        };
-
-        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
-    }
-
     // Internal helper: binary search for position in gaps
     fn pos_in_gaps(gaps: &[GapRegion], pos: u32) -> bool {
         let idx = gaps.partition_point(|g| g.end <= pos);
@@ -2973,382 +2090,6 @@ impl GenomeData {
             .map(|idx| &snps[idx])
     }
 
-    /// Get coverage statistics per sample per pipeline
-    #[wasm_bindgen]
-    pub fn get_coverage_stats(&self) -> String {
-        #[derive(Serialize)]
-        struct PipelineStats {
-            snp_count: usize,
-            avg_depth: Option<f64>,
-            positions: usize,
-            gap_bases: usize,
-            // New: min/max/avg from polymorphic sites
-            depth_min: Option<u32>,
-            depth_max: Option<u32>,
-            depth_avg: Option<f64>,
-            qual_min: Option<f64>,
-            qual_max: Option<f64>,
-            qual_avg: Option<f64>,
-            consensus_min: Option<f64>,
-            consensus_max: Option<f64>,
-            consensus_avg: Option<f64>,
-        }
-
-        let mut result: HashMap<String, HashMap<String, PipelineStats>> = HashMap::new();
-
-        for (sample_id, sample_data) in &self.samples {
-            let mut sample_stats: HashMap<String, PipelineStats> = HashMap::new();
-
-            for (pipeline_id, pipeline_data) in &sample_data.pipelines {
-                let snp_count = pipeline_data.snps.len();
-
-                // Calculate average depth from SNPs
-                let avg_depth = if snp_count > 0 {
-                    let total_depth: u64 = pipeline_data.snps.iter()
-                        .map(|s| s.depth as u64)
-                        .sum();
-                    Some(total_depth as f64 / snp_count as f64)
-                } else {
-                    None
-                };
-
-                // Calculate total gap bases
-                let gap_bases: usize = pipeline_data.gaps.iter()
-                    .map(|g| (g.end - g.start) as usize)
-                    .sum();
-
-                // Positions covered = ref_len - gap_bases
-                let positions = self.ref_len as usize - gap_bases;
-
-                // Calculate min/max/avg from polymorphic sites for this sample/pipeline
-                let mut depths: Vec<u32> = Vec::new();
-                let mut quals: Vec<f64> = Vec::new();
-                let mut consensuses: Vec<f64> = Vec::new();
-
-                if let Some(pipeline_sites) = self.polymorphic_sites.get(pipeline_id) {
-                    for (_pos, site_alleles) in pipeline_sites {
-                        if let Some(allele) = site_alleles.get(sample_id) {
-                            if let Some(d) = allele.depth {
-                                depths.push(d);
-                            }
-                            if let Some(q) = allele.qual {
-                                quals.push(q);
-                            }
-                            if let Some(c) = allele.consensus {
-                                consensuses.push(c);
-                            }
-                        }
-                    }
-                    web_sys::console::log_1(&format!(
-                        "Stats {}/{}: {} depths, {} quals, {} consensus from {} sites",
-                        sample_id, pipeline_id, depths.len(), quals.len(), consensuses.len(), pipeline_sites.len()
-                    ).into());
-                } else {
-                    web_sys::console::log_1(&format!(
-                        "No polymorphic_sites for pipeline: {}", pipeline_id
-                    ).into());
-                }
-
-                let (depth_min, depth_max, depth_avg) = if !depths.is_empty() {
-                    let min = *depths.iter().min().unwrap();
-                    let max = *depths.iter().max().unwrap();
-                    let avg = depths.iter().map(|d| *d as f64).sum::<f64>() / depths.len() as f64;
-                    (Some(min), Some(max), Some(avg))
-                } else {
-                    (None, None, None)
-                };
-
-                let (qual_min, qual_max, qual_avg) = if !quals.is_empty() {
-                    let min = quals.iter().cloned().fold(f64::INFINITY, f64::min);
-                    let max = quals.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-                    let avg = quals.iter().sum::<f64>() / quals.len() as f64;
-                    (Some(min), Some(max), Some(avg))
-                } else {
-                    (None, None, None)
-                };
-
-                let (consensus_min, consensus_max, consensus_avg) = if !consensuses.is_empty() {
-                    let min = consensuses.iter().cloned().fold(f64::INFINITY, f64::min);
-                    let max = consensuses.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-                    let avg = consensuses.iter().sum::<f64>() / consensuses.len() as f64;
-                    (Some(min), Some(max), Some((avg * 100.0).round() / 100.0)) // Round to 2 decimals
-                } else {
-                    (None, None, None)
-                };
-
-                sample_stats.insert(pipeline_id.clone(), PipelineStats {
-                    snp_count,
-                    avg_depth,
-                    positions,
-                    gap_bases,
-                    depth_min,
-                    depth_max,
-                    depth_avg,
-                    qual_min,
-                    qual_max,
-                    qual_avg,
-                    consensus_min,
-                    consensus_max,
-                    consensus_avg,
-                });
-            }
-
-            result.insert(sample_id.clone(), sample_stats);
-        }
-
-        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
-    }
-
-    /// Calculate distance matrix with quality filters
-    /// mode: "vcf_ref", "vcf_bam", or "bam_only"
-    /// min_depth: minimum depth to consider a position
-    /// min_consensus: minimum consensus percentage (0-100)
-    /// min_qual: minimum VCF QUAL score (only applies to VCF-sourced alleles)
-    #[wasm_bindgen]
-    pub fn calculate_distance_matrix_filtered(
-        &self,
-        pipeline_filter: &str,
-        mode: &str,
-        min_depth: u32,
-        min_consensus: u32,
-        min_qual: f64,
-    ) -> String {
-        // Check if we have polymorphic sites data
-        if self.polymorphic_sites.is_empty() {
-            return self.calculate_distance_matrix_fallback(pipeline_filter);
-        }
-
-        // Get the polymorphic sites for the specified pipeline
-        let pipeline_id = if pipeline_filter.is_empty() {
-            self.pipeline_ids.first().map(|s| s.as_str()).unwrap_or("")
-        } else {
-            pipeline_filter
-        };
-
-        let pipeline_sites = self.polymorphic_sites.get(pipeline_id);
-        let pipeline_refs = self.polymorphic_refs.get(pipeline_id);
-
-        let (pipeline_sites, pipeline_refs) = match (pipeline_sites, pipeline_refs) {
-            (Some(sites), Some(refs)) => (sites, refs),
-            _ => return self.calculate_distance_matrix_fallback(pipeline_filter),
-        };
-
-        let use_bam_only = mode == "bam_only";
-        let use_ref_mode = mode == "vcf_ref";
-
-        web_sys::console::log_1(&format!(
-            "Distance matrix: pipeline={}, mode={}, min_depth={}, min_consensus={}, min_qual={}, use_bam_only={}",
-            pipeline_id, mode, min_depth, min_consensus, min_qual, use_bam_only
-        ).into());
-
-        let mut sorted_samples: Vec<String> = self.samples.keys().cloned().collect();
-        sorted_samples.sort();
-        let n = sorted_samples.len();
-
-        let positions: Vec<u32> = pipeline_sites.keys().copied().collect();
-
-        web_sys::console::log_1(&format!(
-            "Processing {} polymorphic positions for {} samples",
-            positions.len(), n
-        ).into());
-
-        // Calculate pairwise distances
-        let mut matrix: Vec<Vec<u32>> = vec![vec![0; n]; n];
-        let mut comparable: Vec<Vec<u32>> = vec![vec![0; n]; n];
-        let mut filtered_positions = 0usize;
-
-        for i in 0..n {
-            for j in (i+1)..n {
-                let sample_a = &sorted_samples[i];
-                let sample_b = &sorted_samples[j];
-
-                let mut dist = 0u32;
-                let mut comp = 0u32;
-
-                for &pos in &positions {
-                    if let Some(site_alleles) = pipeline_sites.get(&pos) {
-                        let allele_a = site_alleles.get(sample_a);
-                        let allele_b = site_alleles.get(sample_b);
-
-                        // Apply depth filter based on mode
-                        // In BAM only mode, only filter BAM-sourced alleles
-                        // In VCF modes, filter all alleles with depth data
-                        if min_depth > 0 {
-                            let depth_a_ok = allele_a.map_or(false, |a| {
-                                if use_bam_only {
-                                    // In BAM only mode, only check BAM sources
-                                    if a.source == "bam" {
-                                        a.depth.map_or(false, |d| d >= min_depth)
-                                    } else {
-                                        false // Non-BAM sources don't pass in BAM only mode
-                                    }
-                                } else {
-                                    // In VCF modes, check all sources with depth
-                                    a.depth.map_or(true, |d| d >= min_depth)
-                                }
-                            });
-                            let depth_b_ok = allele_b.map_or(false, |b| {
-                                if use_bam_only {
-                                    if b.source == "bam" {
-                                        b.depth.map_or(false, |d| d >= min_depth)
-                                    } else {
-                                        false
-                                    }
-                                } else {
-                                    b.depth.map_or(true, |d| d >= min_depth)
-                                }
-                            });
-                            if !depth_a_ok || !depth_b_ok {
-                                continue;
-                            }
-                        }
-
-                        // Apply QUAL filter for VCF-sourced alleles only
-                        if min_qual > 0.0 && !use_bam_only {
-                            // Check if either allele is from VCF and has low qual
-                            let qual_a_ok = allele_a.map_or(true, |a| {
-                                if a.source == "vcf" {
-                                    a.qual.map_or(true, |q| q >= min_qual)
-                                } else {
-                                    true
-                                }
-                            });
-                            let qual_b_ok = allele_b.map_or(true, |b| {
-                                if b.source == "vcf" {
-                                    b.qual.map_or(true, |q| q >= min_qual)
-                                } else {
-                                    true
-                                }
-                            });
-                            if !qual_a_ok || !qual_b_ok {
-                                continue;
-                            }
-                        }
-
-                        // Apply consensus filter for BAM-sourced alleles
-                        if min_consensus > 0 {
-                            let min_cons_frac = min_consensus as f64 / 100.0;
-                            let cons_a_ok = allele_a.map_or(true, |a| {
-                                if a.source == "bam" {
-                                    a.consensus.map_or(true, |c| c >= min_cons_frac)
-                                } else {
-                                    true
-                                }
-                            });
-                            let cons_b_ok = allele_b.map_or(true, |b| {
-                                if b.source == "bam" {
-                                    b.consensus.map_or(true, |c| c >= min_cons_frac)
-                                } else {
-                                    true
-                                }
-                            });
-                            if !cons_a_ok || !cons_b_ok {
-                                continue;
-                            }
-                        }
-
-                        // Get reference for this position
-                        let ref_base = pipeline_refs.get(&pos).copied().unwrap_or('N');
-
-                        // Get bases based on mode
-                        let base_a = if use_bam_only {
-                            // BAM only mode: only use BAM sources, ignore VCF
-                            match allele_a {
-                                Some(a) if a.source == "bam" => Some(a.base),
-                                Some(a) if a.source == "gap" => None,
-                                _ => None,
-                            }
-                        } else {
-                            match allele_a {
-                                Some(a) if a.source == "gap" => None,
-                                Some(a) if a.source == "vcf" => Some(a.base),
-                                Some(a) if use_ref_mode => Some(ref_base),
-                                Some(a) => Some(a.base),
-                                None => if use_ref_mode { Some(ref_base) } else { None },
-                            }
-                        };
-
-                        let base_b = if use_bam_only {
-                            match allele_b {
-                                Some(b) if b.source == "bam" => Some(b.base),
-                                Some(b) if b.source == "gap" => None,
-                                _ => None,
-                            }
-                        } else {
-                            match allele_b {
-                                Some(b) if b.source == "gap" => None,
-                                Some(b) if b.source == "vcf" => Some(b.base),
-                                Some(b) if use_ref_mode => Some(ref_base),
-                                Some(b) => Some(b.base),
-                                None => if use_ref_mode { Some(ref_base) } else { None },
-                            }
-                        };
-
-                        // Only count if both have valid bases
-                        match (base_a, base_b) {
-                            (Some(a), Some(b)) if a != 'N' && b != 'N' => {
-                                comp += 1;
-                                if a != b {
-                                    dist += 1;
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-
-                matrix[i][j] = dist;
-                matrix[j][i] = dist;
-                comparable[i][j] = comp;
-                comparable[j][i] = comp;
-
-                if i == 0 && j == 1 {
-                    filtered_positions = comp as usize;
-                    web_sys::console::log_1(&format!(
-                        "First pair {}-{}: dist={}, comparable={} out of {} positions",
-                        sample_a, sample_b, dist, comp, positions.len()
-                    ).into());
-                }
-            }
-        }
-
-        #[derive(Serialize)]
-        struct DistanceMatrix {
-            samples: Vec<String>,
-            labels: Vec<String>,
-            matrix: Vec<Vec<u32>>,
-            comparable: Vec<Vec<u32>>,
-            polymorphic_count: usize,
-            pipeline: String,
-            mode: String,
-            min_depth: u32,
-            min_consensus: u32,
-            min_qual: f64,
-        }
-
-        let labels: Vec<String> = sorted_samples.iter()
-            .map(|s| self.get_sample_label(s))
-            .collect();
-
-        let result = DistanceMatrix {
-            samples: sorted_samples,
-            labels,
-            matrix,
-            comparable,
-            polymorphic_count: positions.len(),
-            pipeline: if pipeline_filter.is_empty() {
-                self.pipeline_ids.first().cloned().unwrap_or_default()
-            } else {
-                pipeline_filter.to_string()
-            },
-            mode: mode.to_string(),
-            min_depth,
-            min_consensus,
-            min_qual,
-        };
-
-        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
-    }
 }
 
 /// Initialize panic hook for better error messages

@@ -1271,53 +1271,6 @@ pipelines:
             <div class="warnings-container" id="warnings"></div>
         </details>
 
-        <details class="collapsible-panel" id="per-sample-panel">
-            <summary>Per-Sample Statistics</summary>
-            <div id="per-sample-stats" style="overflow-x:auto;">
-                <p style="color:var(--text-secondary);font-size:11px;">Per-sample statistics will be shown here after loading data.</p>
-            </div>
-        </details>
-
-        <details class="collapsible-panel" id="coverage-panel">
-            <summary>Coverage Statistics</summary>
-            <div id="coverage-stats-content">
-                <p style="color:var(--text-secondary);font-size:11px;">Coverage statistics will be shown here after loading data.</p>
-            </div>
-        </details>
-
-        <details class="collapsible-panel" id="reproducibility-panel">
-            <summary>Reproducibility Commands</summary>
-            <div id="reproducibility-content">
-                <p style="color:var(--text-secondary);font-size:11px;">Verification commands will be shown here after loading data.</p>
-            </div>
-        </details>
-
-        <details class="collapsible-panel">
-            <summary>Quality Filters</summary>
-            <div class="quality-filters">
-                <div class="quality-filter-item">
-                    <label for="min-qual">Min QUAL:</label>
-                    <input type="number" id="min-qual" min="0" max="10000" value="0" step="1" onchange="updateQualityFilter()" style="width:70px;">
-                </div>
-                <div class="quality-filter-item">
-                    <label for="min-depth">Min Depth:</label>
-                    <input type="number" id="min-depth" min="0" max="1000" value="0" step="1" onchange="updateQualityFilter()" style="width:70px;">
-                </div>
-                <div class="quality-filter-item">
-                    <label for="min-consensus">Min Consensus %:</label>
-                    <input type="number" id="min-consensus" min="50" max="100" value="50" step="1" onchange="updateQualityFilter()" style="width:70px;">
-                </div>
-                <div class="quality-filter-item">
-                    <button onclick="resetQualityFilters()">Reset</button>
-                </div>
-            </div>
-            <p style="margin:8px 0 0 0;color:var(--text-secondary);font-size:10px;">
-                <strong>Distance Matrix:</strong> Filters apply per-position. Min Depth filters all sources with depth data. Min QUAL filters VCF sources only. Min Consensus filters BAM sources only.<br>
-                <strong>Note:</strong> QUAL works for Snippy (CFSAN uses "."). Depth/consensus available for BAM sources.
-            </p>
-            <div class="quality-stats" id="quality-stats" style="margin-top:8px;color:var(--text-secondary);font-size:10px;"></div>
-        </details>
-
         <details class="collapsible-panel" id="distance-matrix-panel">
             <summary>SNP Distance Matrix <span id="matrix-info"></span></summary>
             <div class="distance-matrix-content" id="distance-matrix-content">
@@ -1326,28 +1279,7 @@ pipelines:
                         <select id="matrix-pipeline" onchange="onMatrixPipelineChange()" style="margin-left:5px;background:var(--btn-bg);color:var(--text-primary);border:1px solid var(--btn-border);padding:4px 8px;border-radius:4px;font-size:11px;">
                         </select>
                     </label>
-                    <label style="color:var(--text-secondary);font-size:11px;">Source:
-                        <select id="matrix-source" onchange="onMatrixSourceChange()" style="margin-left:5px;background:var(--btn-bg);color:var(--text-primary);border:1px solid var(--btn-border);padding:4px 8px;border-radius:4px;font-size:11px;">
-                            <option value="coreguard">CoreGuard (calculated)</option>
-                        </select>
-                    </label>
-                    <label id="matrix-mode-label" style="color:var(--text-secondary);font-size:11px;">Mode:
-                        <select id="matrix-mode" style="margin-left:5px;background:var(--btn-bg);color:var(--text-primary);border:1px solid var(--btn-border);padding:4px 8px;border-radius:4px;font-size:11px;">
-                            <option value="vcf_ref">VCF + Reference</option>
-                            <option value="vcf_bam">VCF + BAM pileup</option>
-                            <option value="bam_only">BAM only</option>
-                        </select>
-                    </label>
                 </div>
-                <div id="matrix-calculate-row" style="display:flex;align-items:center;gap:15px;margin:10px 0;flex-wrap:wrap;">
-                    <button onclick="calculateDistanceMatrix()" style="padding:8px 16px;background:var(--accent);color:white;border:none;border-radius:4px;cursor:pointer;">Calculate</button>
-                    <span style="color:var(--text-secondary);font-size:11px;">(Uses global quality filters above)</span>
-                </div>
-                <p style="color:var(--text-secondary);font-size:11px;margin:5px 0;">
-                    <strong>VCF + Reference:</strong> Uses VCF calls where available, reference allele otherwise (matches Snippy-core).<br>
-                    <strong>VCF + BAM:</strong> Uses VCF calls where available, BAM pileup otherwise.<br>
-                    <strong>BAM only:</strong> Uses only BAM pileup bases, ignoring VCF calls (most accurate for real differences).
-                </p>
                 <div id="matrix-result"></div>
             </div>
         </details>
@@ -2101,14 +2033,6 @@ pipelines:
                 return (await this.send('getPipelineLabel', { pipelineId })).label;
             }
 
-            async getPerSampleStats() {
-                return (await this.send('getPerSampleStats')).stats;
-            }
-
-            async getCoverageStats() {
-                return (await this.send('getCoverageStats')).stats;
-            }
-
             async getFilteredPositions(samples, filterStr, filterMode, sampleMode) {
                 return (await this.send('getFilteredPositions', {
                     samples, filterStr, filterMode, sampleMode
@@ -2121,42 +2045,8 @@ pipelines:
                 })).html;
             }
 
-            async calculateDistanceMatrix(pipeline, mode, minDepth, minConsensus, minQual) {
-                return (await this.send('calculateDistanceMatrix', {
-                    pipeline, mode, minDepth, minConsensus, minQual
-                })).matrix;
-            }
-
-            async getReproducibilityCommands(pipelineIds) {
-                return (await this.send('getReproducibilityCommands', { pipelineIds })).commands;
-            }
-
-            async getConsensusStats() {
-                return (await this.send('getConsensusStats')).stats;
-            }
-
-            async getPerSampleIntersectionWithGt() {
-                return (await this.send('getPerSampleIntersectionWithGt')).intersection;
-            }
-
-            async getFilePaths() {
-                return (await this.send('getFilePaths')).paths;
-            }
-
             async getKpis() {
                 return (await this.send('getKpis')).kpis;
-            }
-
-            async getMnpStats() {
-                return (await this.send('getMnpStats')).stats;
-            }
-
-            async getPipelineConcordance() {
-                return (await this.send('getPipelineConcordance')).concordance;
-            }
-
-            async getSnpsInGaps() {
-                return (await this.send('getSnpsInGaps')).snpsInGaps;
             }
 
             async getSnp(sample, pipeline, pos) {
@@ -2169,10 +2059,6 @@ pipelines:
 
             async getPairwiseUsableStats() {
                 return (await this.send('getPairwiseUsableStats')).stats;
-            }
-
-            async getReviewerPairwiseStats() {
-                return (await this.send('getReviewerPairwiseStats')).stats;
             }
 
             async getGlobalStatsForPipeline(pipelineId) {
@@ -2238,9 +2124,6 @@ pipelines:
         window.prevPage = prevPage;
         window.toggleFilter = toggleFilter;
         window.onFilterConfigChange = onFilterConfigChange;
-        window.updateQualityFilter = updateQualityFilter;
-        window.resetQualityFilters = resetQualityFilters;
-        window.calculateDistanceMatrix = calculateDistanceMatrix;
         window.setAllRowVisibility = setAllRowVisibility;
         window.filterVisibilityCheckboxes = filterVisibilityCheckboxes;
         window.toggleRowVisibility = toggleRowVisibility;
@@ -2296,9 +2179,7 @@ pipelines:
             // Set loading placeholders for all sections
             setSectionLoading('pipelines-info', true, 'Loading pipelines...');
             setSectionLoading('kpis', true, 'Calculating statistics...');
-            setSectionLoading('per-sample-stats', true, 'Building statistics...');
-            setSectionLoading('coverage-stats-content', true, 'Loading coverage data...');
-            setSectionLoading('matrix-result', true, 'Ready to calculate');
+            setSectionLoading('matrix-result', true, 'Ready to display');
             setSectionLoading('alignment', true, 'Positions will load after statistics...');
 
             // Phase 2: Quick stuff first (instant)
@@ -2320,26 +2201,10 @@ pipelines:
             createVisibilityControls(pipelines);
             console.log(`Phase 4 (KPIs): ${(performance.now() - t0).toFixed(0)}ms`);
 
-            // Phase 5: Per-sample stats (can be slow)
-            await nextFrame();
-            await populatePerSampleStats();
-            console.log(`Phase 5 (per-sample): ${(performance.now() - t0).toFixed(0)}ms`);
-
             // Hide loader - core UI is now visible
             hideLoader();
 
-            // Phase 6: Heavy stuff in idle time
-            scheduleIdleTask(async () => {
-                await populateCoverageStats();
-                console.log(`Phase 6 (coverage): ${(performance.now() - t0).toFixed(0)}ms`);
-            });
-
-            scheduleIdleTask(async () => {
-                await populateReproducibilityCommands();
-                console.log(`Phase 6b (reproducibility): ${(performance.now() - t0).toFixed(0)}ms`);
-            });
-
-            // Phase 7: Genome overview (heavy, but visible)
+            // Phase 5: Genome overview (heavy, but visible)
             await nextFrame();
             await drawGenomeOverview();
             console.log(`Phase 7 (genome): ${(performance.now() - t0).toFixed(0)}ms`);
@@ -2350,7 +2215,7 @@ pipelines:
 
             // Clear matrix placeholder
             document.getElementById('matrix-result').innerHTML =
-                '<p style="color:var(--text-secondary);font-size:11px;">Select options and click "Calculate" to compute distance matrix.</p>';
+                '<p style="color:var(--text-secondary);font-size:11px;">Select a pipeline to view its pre-computed distance matrix.</p>';
 
             console.log(`UI build complete: ${(performance.now() - t0).toFixed(0)}ms`);
         }
@@ -2797,254 +2662,6 @@ pipelines:
             container.innerHTML = html;
         }
 
-        async function populatePerSampleStats() {
-            const container = document.getElementById('per-sample-stats');
-            const stats = await workerApi.getPerSampleStats();
-            const sampleIds = workerApi.sampleIds;
-            const pipelineIds = workerApi.pipelineIds;
-            const gtPipeline = workerApi.groundTruthPipeline;
-            const refLength = workerApi.refLength;
-            const consensusStats = await workerApi.getConsensusStats();
-
-            if (Object.keys(stats).length === 0) {
-                container.innerHTML = '<p style="color:var(--text-secondary);font-size:11px;">No per-sample statistics available.</p>';
-                return;
-            }
-
-            // Build table
-            let html = '<table class="stats-table">';
-
-            // Header row
-            html += '<tr><th rowspan="2">Sample</th>';
-            for (const pipelineId of pipelineIds) {
-                const label = workerApi.getPipelineLabel(pipelineId);
-                const isGT = pipelineId === gtPipeline;
-                const colspan = isGT ? 2 : 4;
-                html += `<th colspan="${colspan}" class="pipeline-header">${label}${isGT ? ' (GT)' : ''}</th>`;
-            }
-            // Add per-pipeline intersection with GT columns
-            const perSampleIntersection = gtPipeline ? await workerApi.getPerSampleIntersectionWithGt() : null;
-            const vcfPipelines = workerApi.vcfPipelines;
-            const nonGtPipelines = vcfPipelines.filter(p => p !== gtPipeline);
-            if (gtPipeline && perSampleIntersection && Object.keys(perSampleIntersection).length > 0) {
-                const gtLabel = workerApi.getPipelineLabel(gtPipeline).split(' ')[0];
-                for (const pipelineId of nonGtPipelines) {
-                    const pLabel = workerApi.getPipelineLabel(pipelineId).split(' ')[0];
-                    html += `<th class="pipeline-header" style="background:#1565c0;" title="SNP intersection: ${pLabel} ∩ ${gtLabel}">${pLabel} ∩ ${gtLabel}</th>`;
-                }
-            }
-            // Add Consensus columns if we have GT
-            if (gtPipeline && consensusStats?.per_sample) {
-                const pipelineNames = nonGtPipelines.map(p => workerApi.getPipelineLabel(p).split(' ')[0]).join(' ∩ ');
-                const gtLabel = workerApi.getPipelineLabel(gtPipeline).split(' ')[0];
-                html += `<th colspan="2" class="pipeline-header" style="background:#4a4a4a;" title="Positions where VCF pipelines agree">${pipelineNames}</th>`;
-                html += `<th class="pipeline-header" style="background:#6a1b9a;" title="Positions where ALL pipelines (incl. GT) agree">${gtLabel} ∩ ${pipelineNames}</th>`;
-            }
-            html += '</tr>';
-
-            // Sub-header row (with info icons)
-            const psInfoIcon = (type) => `<span class="info-icon" onclick="event.stopPropagation();showKpiInfo('${type}')" style="margin-left:3px;">ⓘ</span>`;
-            html += '<tr>';
-            for (const pipelineId of pipelineIds) {
-                const isGT = pipelineId === gtPipeline;
-                html += `<th>SNPs ${psInfoIcon('ps_snps')}</th><th>Gaps ${psInfoIcon('ps_gaps')}</th>`;
-                if (!isGT) {
-                    html += `<th>vs GT ${psInfoIcon('ps_vs_gt')}</th>`;
-                    html += `<th>in GT Gaps ${psInfoIcon('ps_in_gt_gaps')}</th>`;
-                }
-            }
-            // Add intersection sub-headers
-            if (gtPipeline && perSampleIntersection && Object.keys(perSampleIntersection).length > 0) {
-                for (const pipelineId of nonGtPipelines) {
-                    html += `<th>∩ ${psInfoIcon('ps_intersection')}</th>`;
-                }
-            }
-            // Add Consensus sub-headers with explicit % labels
-            if (gtPipeline && consensusStats?.per_sample) {
-                html += `<th>SNPs<br><span style="font-size:9px;color:var(--text-secondary);">% of ref</span> ${psInfoIcon('ps_vcf_consensus')}</th>`;
-                html += `<th>in GT<br><span style="font-size:9px;color:var(--text-secondary);">% of cons</span> ${psInfoIcon('ps_consensus_in_gt')}</th>`;
-                html += `<th>All<br><span style="font-size:9px;color:var(--text-secondary);">% of ref</span> ${psInfoIcon('ps_all_consensus')}</th>`;
-            }
-            html += '</tr>';
-
-            // Data rows
-            for (const sampleId of sampleIds) {
-                const sampleLabel = workerApi.getSampleLabel(sampleId) || sampleId;
-                const sampleStats = stats[sampleId];
-                if (!sampleStats) continue;
-
-                html += `<tr><td>${sampleLabel}</td>`;
-
-                for (const pipelineId of pipelineIds) {
-                    const isGT = pipelineId === gtPipeline;
-                    const pStats = sampleStats.pipelines[pipelineId];
-
-                    if (pStats) {
-                        // SNPs with percentage of reference
-                        const snpPct = ((pStats.snps / refLength) * 100).toFixed(2);
-                        html += `<td title="${pStats.snps.toLocaleString()} SNPs">${pStats.snps.toLocaleString()} (${snpPct}%)</td>`;
-
-                        // Gaps with percentage of reference
-                        const gapPct = ((pStats.gap_bp / refLength) * 100).toFixed(1);
-                        html += `<td title="${pStats.gap_bp.toLocaleString()} bp gaps">${pStats.gap_bp.toLocaleString()} (${gapPct}%)</td>`;
-
-                        if (!isGT) {
-                            // Agreement with GT
-                            const agreePct = pStats.agreement_with_gt_pct.toFixed(1);
-                            const agreeClass = pStats.agreement_with_gt_pct >= 90 ? 'good' : pStats.agreement_with_gt_pct >= 70 ? 'warning' : 'bad';
-                            html += `<td class="${agreeClass}" title="${pStats.agreement_with_gt.toLocaleString()} SNPs match GT positions">${pStats.agreement_with_gt.toLocaleString()} (${agreePct}%)</td>`;
-
-                            // SNPs in GT gaps
-                            const gapsPct = pStats.snps_in_gt_gaps_pct.toFixed(2);
-                            const gapsClass = pStats.snps_in_gt_gaps_pct <= 1 ? 'good' : pStats.snps_in_gt_gaps_pct <= 5 ? 'warning' : 'bad';
-                            html += `<td class="${gapsClass}" title="${pStats.snps_in_gt_gaps.toLocaleString()} SNPs in GT gaps">${pStats.snps_in_gt_gaps.toLocaleString()} (${gapsPct}%)</td>`;
-                        }
-                    } else {
-                        html += '<td>-</td><td>-</td>';
-                        if (!isGT) {
-                            html += '<td>-</td><td>-</td>';
-                        }
-                    }
-                }
-
-                // Add per-pipeline intersection with GT columns
-                if (gtPipeline && perSampleIntersection && perSampleIntersection[sampleId]) {
-                    const sampleInt = perSampleIntersection[sampleId];
-                    for (const pipelineId of nonGtPipelines) {
-                        const iStats = sampleInt[pipelineId];
-                        if (iStats) {
-                            const intClass = iStats.pct_of_gt >= 90 ? 'good' : iStats.pct_of_gt >= 70 ? 'warning' : 'bad';
-                            const gtLabel = workerApi.getPipelineLabel(gtPipeline).split(' ')[0];
-                            const pLabel = workerApi.getPipelineLabel(pipelineId).split(' ')[0];
-                            html += `<td class="${intClass}" title="${iStats.intersection.toLocaleString()} SNPs shared\n${pLabel}: ${iStats.pipeline_snps.toLocaleString()} SNPs\n${gtLabel}: ${iStats.gt_snps.toLocaleString()} SNPs\n${iStats.pct_of_pipeline.toFixed(1)}% of ${pLabel}, ${iStats.pct_of_gt.toFixed(1)}% of ${gtLabel}">${iStats.intersection.toLocaleString()} (${iStats.pct_of_gt.toFixed(1)}%)</td>`;
-                        } else {
-                            html += '<td>-</td>';
-                        }
-                    }
-                } else if (gtPipeline && perSampleIntersection && Object.keys(perSampleIntersection).length > 0) {
-                    for (const _ of nonGtPipelines) {
-                        html += '<td>-</td>';
-                    }
-                }
-
-                // Add Consensus columns
-                if (gtPipeline && consensusStats?.per_sample) {
-                    const cStats = consensusStats.per_sample[sampleId];
-                    if (cStats && cStats.vcf_consensus) {
-                        const vc = cStats.vcf_consensus;
-                        const cSnpPct = ((vc.consensus_snps / refLength) * 100).toFixed(2);
-                        html += `<td title="${vc.consensus_snps.toLocaleString()} VCF consensus SNPs">${vc.consensus_snps.toLocaleString()} (${cSnpPct}%)</td>`;
-
-                        const inGtPct = vc.consensus_in_gt_pct.toFixed(1);
-                        const inGtClass = vc.consensus_in_gt_pct >= 90 ? 'good' : vc.consensus_in_gt_pct >= 70 ? 'warning' : 'bad';
-                        html += `<td class="${inGtClass}" title="${vc.consensus_in_gt.toLocaleString()} of ${vc.consensus_snps.toLocaleString()} VCF consensus SNPs are in GT">${vc.consensus_in_gt.toLocaleString()} (${inGtPct}%)</td>`;
-
-                        // All consensus (GT ∩ all VCF)
-                        const allPct = ((cStats.all_consensus / refLength) * 100).toFixed(2);
-                        html += `<td style="color:#9c27b0;" title="Positions where ALL pipelines (incl. GT) agree">${cStats.all_consensus.toLocaleString()} (${allPct}%)</td>`;
-                    } else {
-                        html += '<td>-</td><td>-</td><td>-</td>';
-                    }
-                }
-
-                html += '</tr>';
-            }
-
-            html += '</table>';
-
-            // Add legend
-            html += `<div style="margin-top:10px;font-size:10px;color:var(--text-secondary);">
-                <strong>Legend:</strong>
-                <span class="good">Green</span> = good,
-                <span class="warning">Yellow</span> = moderate,
-                <span class="bad">Red</span> = potential issue |
-                <strong>vs GT:</strong> % of GT SNP positions also called by this pipeline |
-                <strong>in GT Gaps:</strong> SNPs in regions with no GT coverage |
-                <strong>Consensus:</strong> positions where ALL VCF pipelines agree
-            </div>`;
-
-            container.innerHTML = html;
-        }
-
-        async function populateReproducibilityCommands() {
-            const container = document.getElementById('reproducibility-content');
-            const filePaths = await workerApi.getFilePaths();
-            const kpis = await workerApi.getKpis();
-            const pipelineIds = workerApi.pipelineIds;
-            const groundTruthPipeline = workerApi.groundTruthPipeline;
-
-            if (Object.keys(filePaths).length === 0) {
-                container.innerHTML = '<p style="color:var(--text-secondary);font-size:11px;">No file paths available in report.</p>';
-                return;
-            }
-
-            let html = '<p style="font-size:10px;color:var(--text-secondary);margin-bottom:15px;">Copy these commands to verify the statistics shown in the dashboard.</p>';
-
-            // Group commands by type
-            html += '<div class="repro-section"><h4>SNP Counts (bcftools)</h4>';
-            for (const pipeline of pipelineIds) {
-                if (!kpis.snps[pipeline]) continue;
-                const label = workerApi.getPipelineLabel(pipeline);
-                // Get first sample's VCF path as example
-                for (const [sample, pipelines] of Object.entries(filePaths)) {
-                    if (pipelines[pipeline]?.vcf) {
-                        const vcf = pipelines[pipeline].vcf;
-                        const cmd = `bcftools view -H "${vcf}" | wc -l`;
-                        html += `<div class="repro-cmd"><code>${cmd}</code><button onclick="copyToClipboard(this, \`${cmd.replace(/`/g, '\\`')}\`)">Copy</button></div>`;
-                        html += `<div class="repro-note">Expected: ~${kpis.snps[pipeline].toLocaleString()} for ${label} (${sample})</div>`;
-                        break;
-                    }
-                }
-            }
-            html += '</div>';
-
-            // Gap calculation commands
-            html += '<div class="repro-section"><h4>Gap Regions (samtools depth)</h4>';
-            for (const pipeline of pipelineIds) {
-                if (!kpis.gaps[pipeline]) continue;
-                const label = workerApi.getPipelineLabel(pipeline);
-                for (const [sample, pipelines] of Object.entries(filePaths)) {
-                    if (pipelines[pipeline]?.bam) {
-                        const bam = pipelines[pipeline].bam;
-                        const cmd = `samtools depth -a "${bam}" | awk '$3==0 {sum++} END {print sum}'`;
-                        html += `<div class="repro-cmd"><code>${cmd}</code><button onclick="copyToClipboard(this, \`${cmd.replace(/`/g, '\\`')}\`)">Copy</button></div>`;
-                        html += `<div class="repro-note">Zero-coverage positions for ${label} (${sample})</div>`;
-                        break;
-                    }
-                }
-            }
-            html += '</div>';
-
-            // SNPs in GT gaps verification
-            if (groundTruthPipeline) {
-                html += '<div class="repro-section"><h4>SNPs in Ground Truth Gaps (bedtools)</h4>';
-                html += '<div class="repro-note" style="margin-bottom:8px;">Export gaps as BED, then intersect with VCF:</div>';
-
-                for (const [sample, pipelines] of Object.entries(filePaths)) {
-                    if (pipelines[groundTruthPipeline]?.bam) {
-                        const gtBam = pipelines[groundTruthPipeline].bam;
-                        const cmd1 = `samtools depth -a "${gtBam}" | awk '$3==0 {print $1"\\t"$2-1"\\t"$2}' > gt_gaps.bed`;
-                        html += `<div class="repro-cmd"><code>${cmd1}</code><button onclick="copyToClipboard(this, \`${cmd1.replace(/`/g, '\\`')}\`)">Copy</button></div>`;
-
-                        for (const pipeline of pipelineIds) {
-                            if (pipeline === groundTruthPipeline) continue;
-                            if (pipelines[pipeline]?.vcf) {
-                                const vcf = pipelines[pipeline].vcf;
-                                const label = workerApi.getPipelineLabel(pipeline);
-                                const cmd2 = `bedtools intersect -a "${vcf}" -b gt_gaps.bed | wc -l`;
-                                html += `<div class="repro-cmd"><code>${cmd2}</code><button onclick="copyToClipboard(this, \`${cmd2.replace(/`/g, '\\`')}\`)">Copy</button></div>`;
-                                html += `<div class="repro-note">${label} SNPs in GT gaps (${sample})</div>`;
-                            }
-                        }
-                        break;
-                    }
-                }
-                html += '</div>';
-            }
-
-            container.innerHTML = html;
-        }
-
         function copyToClipboard(button, text) {
             navigator.clipboard.writeText(text).then(() => {
                 const originalText = button.textContent;
@@ -3166,331 +2783,43 @@ pipelines:
                     html += `<table class="kpi-table"><thead><tr>
                         <th rowspan="2">Pipeline</th>
                         <th rowspan="2">Core SNPs</th>
-                        <th colspan="4" style="text-align:center;">Gap-Intersect ${infoIcon('gt_disc_gi')}</th>
-                        <th colspan="4" style="text-align:center;">Gap-Union ${infoIcon('gt_disc_gu')}</th>
-                        <th colspan="3" style="text-align:center;">Pairwise ${infoIcon('gt_disc_pw')}</th>
+                        <th rowspan="2">Disc. SNPs</th>
+                        <th colspan="3" style="text-align:center;">Gap-Intersect ${infoIcon('gt_disc_gi')}</th>
+                        <th colspan="3" style="text-align:center;">Gap-Union ${infoIcon('gt_disc_gu')}</th>
+                        <th colspan="2" style="text-align:center;">Pairwise ${infoIcon('gt_disc_pw')}</th>
                     </tr><tr>
-                        <th>GT Disc.</th><th>Same Pos</th><th>Concordant</th><th>In GT Gaps</th>
-                        <th>GT Disc.</th><th>Same Pos</th><th>Concordant</th><th>In GT Gaps</th>
-                        <th>GT Disc. (avg)</th><th>Same Pos (avg)</th><th>Concordant (avg)</th>
+                        <th>Same Pos</th><th>Concordant</th><th>In GT Gaps</th>
+                        <th>Same Pos</th><th>Concordant</th><th>In GT Gaps</th>
+                        <th>Same Pos (avg)</th><th>Concordant (avg)</th>
                     </tr></thead><tbody>`;
                     for (const [plId, stats] of Object.entries(gtDiscVsPl)) {
                         const plLabel = (pipelineInfo[plId] && pipelineInfo[plId].label) || plId;
-                        const giSamePct = stats.gap_intersect_gt_disc > 0 ? ((stats.gap_intersect_same_pos / stats.gap_intersect_gt_disc) * 100).toFixed(1) : '0.0';
                         const giHasConc = stats.gap_intersect_concordant != null;
                         const giConcPct = giHasConc && stats.gap_intersect_same_pos > 0 ? ((stats.gap_intersect_concordant / stats.gap_intersect_same_pos) * 100).toFixed(1) : '0.0';
-                        const guSamePct = stats.gap_union_gt_disc > 0 ? ((stats.gap_union_same_pos / stats.gap_union_gt_disc) * 100).toFixed(1) : '0.0';
                         const guHasConc = stats.gap_union_concordant != null;
                         const guConcPct = guHasConc && stats.gap_union_same_pos > 0 ? ((stats.gap_union_concordant / stats.gap_union_same_pos) * 100).toFixed(1) : '0.0';
-                        const pwSamePct = stats.pairwise_gt_disc_avg > 0 ? ((stats.pairwise_same_pos_avg / stats.pairwise_gt_disc_avg) * 100).toFixed(1) : '0.0';
                         const pwHasConc = stats.pairwise_concordant_avg != null;
                         const pwConcPct = pwHasConc && stats.pairwise_same_pos_avg > 0 ? ((stats.pairwise_concordant_avg / stats.pairwise_same_pos_avg) * 100).toFixed(1) : '0.0';
                         const fmtConc = (val, pct, hasConc) => hasConc ? `${val.toLocaleString()} <span class="pct">(${pct}%)</span>` : 'N/A';
                         const plCoreSnps = stats.pl_total_core_snps || 0;
+                        const plDiscSnps = stats.pl_discriminating_core_snps;
                         html += `<tr>
                             <td>${plLabel}</td>
                             <td>${plCoreSnps > 0 ? plCoreSnps.toLocaleString() : 'N/A'}</td>
-                            <td>${stats.gap_intersect_gt_disc.toLocaleString()}</td>
-                            <td>${stats.gap_intersect_same_pos.toLocaleString()} <span class="pct">(${giSamePct}%)</span></td>
+                            <td>${plDiscSnps != null ? plDiscSnps.toLocaleString() : 'N/A'}</td>
+                            <td>${stats.gap_intersect_same_pos.toLocaleString()}</td>
                             <td>${fmtConc(stats.gap_intersect_concordant, giConcPct, giHasConc)}</td>
                             <td>${stats.gap_intersect_pl_snps_in_gt_gaps.toLocaleString()}</td>
-                            <td>${stats.gap_union_gt_disc.toLocaleString()}</td>
-                            <td>${stats.gap_union_same_pos.toLocaleString()} <span class="pct">(${guSamePct}%)</span></td>
+                            <td>${stats.gap_union_same_pos.toLocaleString()}</td>
                             <td>${fmtConc(stats.gap_union_concordant, guConcPct, guHasConc)}</td>
                             <td>${stats.gap_union_pl_snps_in_gt_gaps.toLocaleString()}</td>
-                            <td>${stats.pairwise_gt_disc_avg.toFixed(1)}</td>
-                            <td>${stats.pairwise_same_pos_avg.toFixed(1)} <span class="pct">(${pwSamePct}%)</span></td>
+                            <td>${stats.pairwise_same_pos_avg.toFixed(1)}</td>
                             <td>${pwHasConc ? `${stats.pairwise_concordant_avg.toFixed(1)} <span class="pct">(${pwConcPct}%)</span>` : 'N/A'}</td>
                         </tr>`;
                     }
                     html += `</tbody></table>`;
                     html += sectionEnd();
                 }
-            }
-
-            // === SECTION 2: Per-Pipeline Statistics (Pivot Table) ===
-            html += sectionStart('Per-Pipeline Statistics');
-
-            // Helper for subsection labels
-            const subLabel = (title) => `<div class="kpi-sub-label">${title}</div>`;
-
-            // Get MNP stats for table
-            const mnpStats = await workerApi.getMnpStats();
-
-            // Get GT counts for diff calculation
-            const gtSnpCount = gtPipelineId ? (kpis.snps[gtPipelineId] || 0) : null;
-            const gtGapCount = gtPipelineId ? (kpis.gaps[gtPipelineId] || 0) : null;
-
-            // Build pivot table: rows = pipelines, columns = metrics
-            html += `<table class="kpi-table">
-                <thead>
-                    <tr>
-                        <th>Pipeline</th>
-                        <th>SNPs ${infoIcon('snps')}</th>
-                        <th>#All ${infoIcon('core_snps')}</th>
-                        <th>#Consensus ${infoIcon('consensus_snps')}</th>
-                        <th>Usable ${infoIcon('usable_snps')}</th>
-                        <th>Gaps ${infoIcon('gaps')}</th>
-                        <th>MNPs ${infoIcon('mnps')}</th>
-                    </tr>
-                </thead>
-                <tbody>`;
-
-            for (const [pipeline, snpCount] of sortedPipelineEntries(kpis.snps)) {
-                const label = workerApi.getPipelineLabel(pipeline).split(' ')[0]; // Short label
-                const gapCount = kpis.gaps[pipeline] || 0;
-                const coreCount = kpis.core_snps ? (kpis.core_snps[pipeline] || 0) : 0;
-                const consCount = kpis.consensus_snps ? (kpis.consensus_snps[pipeline] || 0) : 0;
-                const mStats = mnpStats ? mnpStats[pipeline] : null;
-                const mnpCount = mStats ? mStats.mnps_found : 0;
-                const isFromBamPileup = workerApi.isFromBamPileup(pipeline);
-
-                // Calculate percentages
-                const totalBases = refLength * kpis.samples;
-                const snpPct = ((snpCount / totalBases) * 100).toFixed(2);
-                const gapPct = ((gapCount / totalBases) * 100).toFixed(2);
-                const corePct = snpCount > 0 ? ((coreCount / snpCount) * 100).toFixed(2) : '0.00';
-                const consPct = snpCount > 0 ? ((consCount / snpCount) * 100).toFixed(2) : '0.00';
-
-                // Calculate diff vs GT for non-GT pipelines
-                let snpDiff = '';
-                let gapDiff = '';
-                if (gtPipelineId && pipeline !== gtPipelineId) {
-                    if (gtSnpCount !== null) {
-                        const diff = snpCount - gtSnpCount;
-                        const diffSign = diff >= 0 ? '+' : '';
-                        const diffPct = gtSnpCount > 0 ? ((diff / gtSnpCount) * 100).toFixed(2) : '0.00';
-                        const diffPctSign = diff >= 0 ? '+' : '';
-                        snpDiff = `<span class="pct" style="color:${diff < 0 ? '#e57373' : '#81c784'}">${diffSign}${diff.toLocaleString()} (${diffPctSign}${diffPct}%)</span>`;
-                    }
-                    if (gtGapCount !== null) {
-                        const diff = gapCount - gtGapCount;
-                        const diffSign = diff >= 0 ? '+' : '';
-                        const diffPct = gtGapCount > 0 ? ((diff / gtGapCount) * 100).toFixed(2) : '0.00';
-                        const diffPctSign = diff >= 0 ? '+' : '';
-                        gapDiff = `<span class="pct" style="color:${diff > 0 ? '#e57373' : '#81c784'}">${diffSign}${diff.toLocaleString()} (${diffPctSign}${diffPct}%)</span>`;
-                    }
-                }
-
-                // Usable SNPs: core - in_gt_gaps - (consensus - consensus_in_gt_gaps)
-                let usableCount, usablePctVal;
-                if (gtPipelineId && pipeline === gtPipelineId) {
-                    // GT itself: usable = core - consensus
-                    usableCount = coreCount - consCount;
-                    usablePctVal = coreCount > 0 ? ((usableCount / coreCount) * 100).toFixed(2) : '0.00';
-                } else if (gtPipelineId) {
-                    // VCF pipeline: remove SNPs in GT gaps + consensus not in GT gaps
-                    const inGtGaps = kpis.snps_in_gt_gaps_core ? (kpis.snps_in_gt_gaps_core[pipeline] || 0) : 0;
-                    const consInGtGaps = kpis.snps_in_gt_gaps_consensus ? (kpis.snps_in_gt_gaps_consensus[pipeline] || 0) : 0;
-                    usableCount = coreCount - inGtGaps - (consCount - consInGtGaps);
-                    usablePctVal = coreCount > 0 ? ((usableCount / coreCount) * 100).toFixed(2) : '0.00';
-                } else {
-                    // No GT: usable = core - consensus
-                    usableCount = coreCount - consCount;
-                    usablePctVal = coreCount > 0 ? ((usableCount / coreCount) * 100).toFixed(2) : '0.00';
-                }
-
-                // Warning icon for MNPs
-                const mnpWarning = mnpCount > 0 ? `<span class="mnp-warning" onclick="event.stopPropagation();showKpiInfo('mnp')" title="Click for MNP info">⚠️</span>` : '';
-                // Warning icon for BAM pileup (no variant calling)
-                const bamPileupWarning = isFromBamPileup ? `<span class="mnp-warning" style="color:#ff9800;" onclick="event.stopPropagation();showKpiInfo('bam_pileup')" title="SNPs from BAM pileup - no variant calling">⚠️</span>` : '';
-
-                html += `<tr>
-                    <td>${label}</td>
-                    <td>${snpCount.toLocaleString()}<span class="pct">(${snpPct}%)</span>${bamPileupWarning}${snpDiff}</td>
-                    <td>${coreCount.toLocaleString()}<span class="pct">(${corePct}%)</span></td>
-                    <td>${consCount.toLocaleString()}<span class="pct">(${consPct}%)</span></td>
-                    <td>${usableCount.toLocaleString()}<span class="pct">(${usablePctVal}%)</span></td>
-                    <td>${gapCount.toLocaleString()}<span class="pct">(${gapPct}%)</span>${gapDiff}</td>
-                    <td>${mnpCount.toLocaleString()}${mnpWarning}</td>
-                </tr>`;
-            }
-
-            html += `</tbody></table>`;
-            html += sectionEnd(); // close Per-Pipeline Statistics
-
-            // === SECTION 3: Cross-Pipeline Concordance ===
-            const concordance = await workerApi.getPipelineConcordance();
-            if (concordance && Object.keys(concordance).length > 0) {
-                html += sectionStart('Cross-Pipeline Concordance');
-
-                // Build table with all pairwise concordance stats
-                const allPipelines = sortedPipelineEntries(kpis.snps).map(([p]) => p);
-                const getShortLabel = (p) => workerApi.getPipelineLabel(p).split(' ')[0];
-
-                html += `<div style="font-size:11px;color:var(--text-secondary);margin-bottom:5px;">SNP positions shared between pipelines. % = shared / min(SNPs<sub>A</sub>, SNPs<sub>B</sub>)</div>`;
-                html += `<table class="kpi-table">
-                    <thead>
-                        <tr>
-                            <th></th>
-                            <th colspan="2" style="text-align:center;">Concordance (same position) ${infoIcon('concordance')}</th>
-                            <th colspan="2" style="text-align:center;">Consensus (same allele) ${infoIcon('consensus')}</th>
-                        </tr>
-                        <tr>
-                            <th>A ∩ B</th>
-                            <th style="text-align:center;" title="At least 1 sample has SNP in both pipelines. % = shared / min(SNPs_A, SNPs_B)">Any</th>
-                            <th style="text-align:center;" title="ALL samples have SNP in both pipelines (Core ∩ Core). % = shared / min(SNPs_A, SNPs_B)">All</th>
-                            <th style="text-align:center;" title="At least 1 sample has same allele in both pipelines. % = shared / min(SNPs_A, SNPs_B)">Any</th>
-                            <th style="text-align:center;" title="ALL samples have same allele in both pipelines. % = shared / min(SNPs_A, SNPs_B)">All</th>
-                        </tr>
-                    </thead>
-                    <tbody>`;
-
-                // Show all unique pairs
-                for (let i = 0; i < allPipelines.length; i++) {
-                    const pipelineA = allPipelines[i];
-                    const labelA = getShortLabel(pipelineA);
-                    const snpsA = kpis.snps[pipelineA] || 0;
-                    for (let j = i + 1; j < allPipelines.length; j++) {
-                        const pipelineB = allPipelines[j];
-                        const labelB = getShortLabel(pipelineB);
-                        const snpsB = kpis.snps[pipelineB] || 0;
-
-                        // Get concordance stats (check both directions since we only store one)
-                        let stats = concordance[pipelineA]?.[pipelineB] || concordance[pipelineB]?.[pipelineA];
-                        if (stats) {
-                            // Calculate percentages relative to minimum SNPs (max possible overlap)
-                            const minSnps = Math.min(snpsA, snpsB);
-                            const pctConcAny = minSnps > 0 ? (stats.concordance_any / minSnps * 100).toFixed(1) : '0.0';
-                            const pctConcAll = minSnps > 0 ? (stats.concordance_all / minSnps * 100).toFixed(1) : '0.0';
-                            const pctConsAny = minSnps > 0 ? (stats.consensus_any / minSnps * 100).toFixed(1) : '0.0';
-                            const pctConsAll = minSnps > 0 ? (stats.consensus_all / minSnps * 100).toFixed(1) : '0.0';
-
-                            html += `<tr>
-                                <td>${labelA} ∩ ${labelB}</td>
-                                <td style="text-align:center;">${stats.concordance_any.toLocaleString()} <span style="color:#888;font-size:0.85em">(${pctConcAny}%)</span></td>
-                                <td style="text-align:center;">${stats.concordance_all.toLocaleString()} <span style="color:#888;font-size:0.85em">(${pctConcAll}%)</span></td>
-                                <td style="text-align:center;">${stats.consensus_any.toLocaleString()} <span style="color:#888;font-size:0.85em">(${pctConsAny}%)</span></td>
-                                <td style="text-align:center;">${stats.consensus_all.toLocaleString()} <span style="color:#888;font-size:0.85em">(${pctConsAll}%)</span></td>
-                            </tr>`;
-                        }
-                    }
-                }
-
-                html += `</tbody></table>`;
-                html += sectionEnd(); // close Cross-Pipeline Concordance
-            }
-
-            // === SECTION 4: Ground Truth Comparison (only if GT exists) ===
-            if (gtPipelineId) {
-                html += sectionStart('Ground Truth Comparison');
-
-                const gtLabel = workerApi.getPipelineLabel(gtPipelineId);
-                const gtShortLabel = gtLabel.split(' ')[0];
-
-                // SNPs in GT Gaps - consolidated table
-                if (kpis.snps_in_gt_gaps_total && Object.keys(kpis.snps_in_gt_gaps_total).length > 0) {
-                    html += subLabel(`SNPs in ${gtShortLabel} Gaps`);
-                    html += `<table class="kpi-table">
-                        <thead>
-                            <tr>
-                                <th>Pipeline</th>
-                                <th>Any ${infoIcon('snps_in_gt_gaps')}</th>
-                                <th>All ${infoIcon('all_snps_in_gt_gaps')}</th>
-                                <th>Consensus ${infoIcon('consensus_snps_in_gt_gaps')}</th>
-                            </tr>
-                        </thead>
-                        <tbody>`;
-
-                    for (const [pipeline, totalCount] of sortedPipelineEntries(kpis.snps_in_gt_gaps_total)) {
-                        const label = workerApi.getPipelineLabel(pipeline).split(' ')[0];
-                        const coreCount = kpis.snps_in_gt_gaps_core ? (kpis.snps_in_gt_gaps_core[pipeline] || 0) : 0;
-                        const consCount = kpis.snps_in_gt_gaps_consensus ? (kpis.snps_in_gt_gaps_consensus[pipeline] || 0) : 0;
-                        const totalSnps = kpis.snps[pipeline] || 1;
-                        const coreSnps = kpis.core_snps ? (kpis.core_snps[pipeline] || 1) : 1;
-                        const consSnps = kpis.consensus_snps ? (kpis.consensus_snps[pipeline] || 1) : 1;
-                        const totalPct = ((totalCount / totalSnps) * 100).toFixed(1);
-                        const corePct = ((coreCount / coreSnps) * 100).toFixed(1);
-                        const consPct = ((consCount / consSnps) * 100).toFixed(1);
-
-                        html += `<tr>
-                            <td>${label}</td>
-                            <td>${totalCount.toLocaleString()}<span class="pct">(${totalPct}%)</span></td>
-                            <td>${coreCount.toLocaleString()}<span class="pct">(${corePct}%)</span></td>
-                            <td>${consCount.toLocaleString()}<span class="pct">(${consPct}%)</span></td>
-                        </tr>`;
-                    }
-                    html += `</tbody></table>`;
-                }
-
-                // GT SNPs Filtered - consolidated table
-                if (kpis.gt_snps_missing && kpis.gt_total_snps > 0) {
-                    html += subLabel(`${gtShortLabel} SNPs Filtered by Pipeline`);
-                    html += `<table class="kpi-table">
-                        <thead>
-                            <tr>
-                                <th>Pipeline</th>
-                                <th>Any (/${kpis.gt_total_snps.toLocaleString()}) ${infoIcon('gt_snps_missing')}</th>
-                                <th>All (/${(kpis.core_gt_total || 0).toLocaleString()}) ${infoIcon('all_gt_missing')}</th>
-                                <th>Consensus (/${(kpis.consensus_gt_total || 0).toLocaleString()}) ${infoIcon('consensus_gt_missing')}</th>
-                            </tr>
-                        </thead>
-                        <tbody>`;
-
-                    for (const [pipeline, totalMissing] of sortedPipelineEntries(kpis.gt_snps_missing)) {
-                        const label = workerApi.getPipelineLabel(pipeline).split(' ')[0];
-                        const coreMissing = kpis.core_gt_missing ? (kpis.core_gt_missing[pipeline] || 0) : 0;
-                        const consMissing = kpis.consensus_gt_missing ? (kpis.consensus_gt_missing[pipeline] || 0) : 0;
-                        const totalPct = ((totalMissing / kpis.gt_total_snps) * 100).toFixed(1);
-                        const corePct = kpis.core_gt_total > 0 ? ((coreMissing / kpis.core_gt_total) * 100).toFixed(1) : '0';
-                        const consPct = kpis.consensus_gt_total > 0 ? ((consMissing / kpis.consensus_gt_total) * 100).toFixed(1) : '0';
-
-                        html += `<tr>
-                            <td>${label}</td>
-                            <td>${totalMissing.toLocaleString()}<span class="pct">(${totalPct}%)</span></td>
-                            <td>${coreMissing.toLocaleString()}<span class="pct">(${corePct}%)</span></td>
-                            <td>${consMissing.toLocaleString()}<span class="pct">(${consPct}%)</span></td>
-                        </tr>`;
-                    }
-                    html += `</tbody></table>`;
-                }
-                html += sectionEnd(); // close Ground Truth Comparison
-            }
-
-            // === SECTION 5: Cross-Pipeline Gap Analysis (all pairwise combinations) ===
-            const snpsInGaps = await workerApi.getSnpsInGaps();
-
-            if (snpsInGaps && Object.keys(snpsInGaps).length > 0) {
-                html += sectionStart('Cross-Pipeline Gap Analysis');
-
-                // For each pipeline that has gaps (gap source)
-                for (const gapPipeline of Object.keys(snpsInGaps).sort()) {
-                    const gapPipelineStats = snpsInGaps[gapPipeline];
-                    if (!gapPipelineStats || Object.keys(gapPipelineStats).length === 0) continue;
-
-                    const gapLabel = workerApi.getPipelineLabel(gapPipeline).split(' ')[0];
-
-                    html += subLabel(`SNPs in ${gapLabel} Gaps ${infoIcon('snps_in_pipeline_gaps')}`);
-                    html += `<table class="kpi-table">
-                        <thead>
-                            <tr>
-                                <th>Pipeline</th>
-                                <th>SNPs in ${gapLabel} Gaps</th>
-                                <th>Total SNPs</th>
-                                <th>%</th>
-                            </tr>
-                        </thead>
-                        <tbody>`;
-
-                    // Sort by pipeline name
-                    const sortedSnpPipelines = Object.entries(gapPipelineStats)
-                        .sort((a, b) => a[0].localeCompare(b[0]));
-
-                    for (const [snpPipeline, stats] of sortedSnpPipelines) {
-                        const snpLabel = workerApi.getPipelineLabel(snpPipeline).split(' ')[0];
-                        const pct = stats.percentage.toFixed(2);
-                        const pctClass = stats.percentage <= 1 ? 'good' : stats.percentage <= 5 ? 'warning' : 'bad';
-
-                        html += `<tr>
-                            <td>${snpLabel}</td>
-                            <td>${stats.snps_in_gaps.toLocaleString()}</td>
-                            <td>${stats.total_snps.toLocaleString()}</td>
-                            <td class="${pctClass}">${pct}%</td>
-                        </tr>`;
-                    }
-                    html += `</tbody></table>`;
-                }
-                html += sectionEnd(); // close Cross-Pipeline Gap Analysis
             }
 
             document.getElementById('kpis').innerHTML = html;
@@ -3642,33 +2971,6 @@ pipelines:
             });
         }
         window.toggleNucleotideLetters = toggleNucleotideLetters;
-
-        async function updateQualityFilter() {
-            const minQual = parseInt(document.getElementById('min-qual').value) || 0;
-            const minDepth = parseInt(document.getElementById('min-depth').value) || 0;
-            const minConsensus = parseInt(document.getElementById('min-consensus').value) || 50;
-
-            qualityFilters.minQual = minQual;
-            qualityFilters.minDepth = minDepth;
-            qualityFilters.minConsensus = minConsensus;
-
-            // Reload positions with quality filtering
-            currentPage = 0;
-            await loadPositions();
-        }
-
-        async function resetQualityFilters() {
-            document.getElementById('min-qual').value = 0;
-            document.getElementById('min-depth').value = 0;
-            document.getElementById('min-consensus').value = 50;
-
-            qualityFilters.minQual = 0;
-            qualityFilters.minDepth = 0;
-            qualityFilters.minConsensus = 50;
-
-            currentPage = 0;
-            await loadPositions();
-        }
 
         function filterByQuality(allPositions) {
             // If no quality filters, return all positions
@@ -3876,46 +3178,7 @@ pipelines:
         }
 
         window.onMatrixPipelineChange = function() {
-            const pipelineSelect = document.getElementById('matrix-pipeline');
-            const sourceSelect = document.getElementById('matrix-source');
-            if (!pipelineSelect || !sourceSelect) return;
-
-            const pipelineId = pipelineSelect.value;
-
-            // Reset source options
-            sourceSelect.innerHTML = '<option value="coreguard">CoreGuard (calculated)</option>';
-
-            // Add pipeline original if available
-            if (pipelineDistanceMatrices[pipelineId]) {
-                sourceSelect.innerHTML += `<option value="pipeline">Pipeline original</option>`;
-            }
-
-            onMatrixSourceChange();
-        }
-
-        window.onMatrixSourceChange = function() {
-            const sourceSelect = document.getElementById('matrix-source');
-            const modeLabel = document.getElementById('matrix-mode-label');
-            const calculateRow = document.getElementById('matrix-calculate-row');
-            const matrixResult = document.getElementById('matrix-result');
-
-            if (!sourceSelect) return;
-
-            const source = sourceSelect.value;
-
-            if (source === 'pipeline') {
-                // Hide mode and calculate button for pipeline matrices
-                if (modeLabel) modeLabel.style.display = 'none';
-                if (calculateRow) calculateRow.style.display = 'none';
-                // Show pipeline matrix immediately
-                showPipelineMatrix();
-            } else {
-                // Show mode and calculate button for CoreGuard
-                if (modeLabel) modeLabel.style.display = '';
-                if (calculateRow) calculateRow.style.display = '';
-                // Clear result to prompt calculation
-                if (matrixResult) matrixResult.innerHTML = '<p style="color:var(--text-secondary);font-size:11px;">Click "Calculate" to compute distance matrix.</p>';
-            }
+            showPipelineMatrix();
         }
 
         function showPipelineMatrix() {
@@ -3964,189 +3227,6 @@ pipelines:
             html += '</tbody></table></div>';
 
             matrixResult.innerHTML = html;
-        }
-
-        async function populateCoverageStats() {
-            const container = document.getElementById('coverage-stats-content');
-            if (!container) return;
-
-            // Get coverage stats from WASM module
-            try {
-                const stats = await workerApi.getCoverageStats();
-                console.log('Coverage stats:', stats);
-
-                if (!stats || Object.keys(stats).length === 0) {
-                    container.innerHTML = '<p style="color:var(--text-secondary);font-size:11px;">Coverage statistics not available in this report.</p>';
-                    return;
-                }
-
-                // Helper to format min-max (avg)
-                const formatRange = (min, max, avg, suffix = '') => {
-                    if (min == null || max == null || avg == null) return 'N/A';
-                    return `${min.toFixed ? min.toFixed(0) : min}-${max.toFixed ? max.toFixed(0) : max} (${avg.toFixed(1)})${suffix}`;
-                };
-
-                const formatPercent = (min, max, avg) => {
-                    if (min == null || max == null || avg == null) return 'N/A';
-                    return `${(min*100).toFixed(0)}-${(max*100).toFixed(0)}% (${(avg*100).toFixed(1)}%)`;
-                };
-
-                let html = '<div class="table-wrapper"><table class="distance-matrix-table" style="font-size:10px;">';
-                html += '<thead><tr><th>Sample</th>';
-                for (const p of pipelines) {
-                    const label = workerApi.getPipelineLabel(p);
-                    html += `<th>${label}<br><small>SNPs</small></th>`;
-                    html += `<th>${label}<br><small>Depth</small></th>`;
-                    html += `<th>${label}<br><small>Qual</small></th>`;
-                    html += `<th>${label}<br><small>Consensus</small></th>`;
-                }
-                html += '</tr></thead><tbody>';
-
-                for (const sample of samples) {
-                    const sampleLabel = workerApi.getSampleLabel(sample);
-                    html += `<tr><th>${sampleLabel}</th>`;
-
-                    for (const p of pipelines) {
-                        const sampleStats = stats[sample]?.[p] || {};
-                        const snpCount = sampleStats.snp_count || 0;
-
-                        // Depth: min-max (avg)
-                        const depthStr = formatRange(sampleStats.depth_min, sampleStats.depth_max, sampleStats.depth_avg, 'x');
-
-                        // Qual: min-max (avg)
-                        const qualStr = formatRange(sampleStats.qual_min, sampleStats.qual_max, sampleStats.qual_avg);
-
-                        // Consensus: min-max% (avg%)
-                        const consStr = formatPercent(sampleStats.consensus_min, sampleStats.consensus_max, sampleStats.consensus_avg);
-
-                        // Color code based on average depth
-                        let depthClass = '';
-                        if (sampleStats.depth_avg) {
-                            if (sampleStats.depth_avg < 10) depthClass = 'high-dist';
-                            else if (sampleStats.depth_avg < 20) depthClass = 'medium-dist';
-                            else depthClass = 'low-dist';
-                        }
-
-                        html += `<td>${snpCount.toLocaleString()}</td>`;
-                        html += `<td class="${depthClass}">${depthStr}</td>`;
-                        html += `<td>${qualStr}</td>`;
-                        html += `<td>${consStr}</td>`;
-                    }
-                    html += '</tr>';
-                }
-                html += '</tbody></table></div>';
-
-                html += '<p style="color:var(--text-secondary);font-size:10px;margin-top:8px;">';
-                html += 'Values show min-max (avg). Depth color: <span style="color:var(--snp-consensus);">≥20x</span> | <span style="color:var(--snp-uncertain);">10-20x</span> | <span style="color:var(--snp-discord);">&lt;10x</span>';
-                html += '</p>';
-
-                container.innerHTML = html;
-            } catch (err) {
-                console.error('Error loading coverage stats:', err);
-                container.innerHTML = '<p style="color:var(--gap-color);font-size:11px;">Error loading coverage statistics.</p>';
-            }
-        }
-
-        async function calculateDistanceMatrix() {
-            showLoader('Calculating distance matrix...', '');
-            // Wait for browser to paint the loader before blocking WASM calculation
-            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-            const selectedPipeline = document.getElementById('matrix-pipeline')?.value || '';
-            const selectedMode = document.getElementById('matrix-mode')?.value || 'vcf_ref';
-            // Use global quality filters
-            const minDepth = parseInt(document.getElementById('min-depth')?.value) || 0;
-            const minConsensus = parseInt(document.getElementById('min-consensus')?.value) || 0;
-            const minQual = parseFloat(document.getElementById('min-qual')?.value) || 0;
-
-            console.log('Distance matrix params:', { selectedPipeline, selectedMode, minDepth, minConsensus, minQual });
-
-            try {
-                const result = await workerApi.calculateDistanceMatrix(
-                    selectedPipeline, selectedMode, minDepth, minConsensus, minQual
-                );
-                console.log('Distance matrix result:', result);
-
-                if (!result.samples || result.samples.length === 0) {
-                    document.getElementById('matrix-result').innerHTML = `
-                        <p style="color:var(--gap-color);">No distance matrix data available.
-                        Make sure the report was generated with BAM files for polymorphic site data.</p>
-                    `;
-                    hideLoader();
-                    return;
-                }
-
-                const n = result.samples.length;
-                const labels = result.labels || result.samples;
-
-                // Find max distance for color scaling
-                let maxDist = 0;
-                for (let i = 0; i < n; i++) {
-                    for (let j = 0; j < n; j++) {
-                        if (i !== j && result.matrix[i][j] > maxDist) {
-                            maxDist = result.matrix[i][j];
-                        }
-                    }
-                }
-
-                // Build table HTML
-                const pipelineLabel = result.pipeline ? workerApi.getPipelineLabel(result.pipeline) : 'Unknown';
-                const modeLabels = {
-                    'vcf_ref': 'VCF + Reference',
-                    'vcf_bam': 'VCF + BAM pileup',
-                    'bam_only': 'BAM only'
-                };
-                const modeLabel = modeLabels[result.mode] || result.mode;
-                let filtersInfo = `depth≥${result.min_depth}`;
-                if (result.min_qual > 0) filtersInfo += `, qual≥${result.min_qual}`;
-                let html = `<div style="margin:10px 0;color:var(--text-secondary);font-size:11px;">
-                    <strong>${pipelineLabel}</strong> (${modeLabel}, ${filtersInfo}): ${result.polymorphic_count || 'N/A'} polymorphic sites analyzed.
-                    Values show SNP distance (comparable positions in parentheses).
-                </div>`;
-
-                html += '<table class="distance-matrix-table"><thead><tr><th></th>';
-                for (const label of labels) {
-                    html += `<th>${label}</th>`;
-                }
-                html += '</tr></thead><tbody>';
-
-                for (let i = 0; i < n; i++) {
-                    html += `<tr><th>${labels[i]}</th>`;
-                    for (let j = 0; j < n; j++) {
-                        if (i === j) {
-                            html += '<td class="diagonal">-</td>';
-                        } else {
-                            const dist = result.matrix[i][j];
-                            const comp = result.comparable[i][j];
-
-                            // Color based on distance
-                            let cellClass = 'low-dist';
-                            if (maxDist > 0) {
-                                const ratio = dist / maxDist;
-                                if (ratio > 0.6) cellClass = 'high-dist';
-                                else if (ratio > 0.2) cellClass = 'medium-dist';
-                            }
-
-                            html += `<td class="${cellClass}">${dist}<span class="comparable">(${comp})</span></td>`;
-                        }
-                    }
-                    html += '</tr>';
-                }
-
-                html += '</tbody></table>';
-
-                // Update info badge
-                document.getElementById('matrix-info').textContent = `(${n} samples)`;
-                document.getElementById('matrix-result').innerHTML = html;
-
-            } catch (err) {
-                console.error('Distance matrix calculation failed:', err);
-                document.getElementById('matrix-result').innerHTML = `
-                    <p style="color:var(--gap-color);">Error calculating distance matrix: ${err}</p>
-                `;
-            }
-
-            hideLoader();
         }
 
         async function drawGenomeOverview() {

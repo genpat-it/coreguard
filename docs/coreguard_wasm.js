@@ -117,7 +117,8 @@ export class GenomeData {
     }
     /**
      * Return per-position detail for GT discriminating SNPs vs a specific pipeline.
-     * Used by the UI to show what's behind each aggregated count.
+     * Returns pre-computed data from the CLI if available, otherwise falls back to
+     * VCF-based computation (which may differ due to different allele sources).
      * `strategy` must be "gap_union" or "gap_intersect".
      * @param {string} pipeline_id
      * @param {string} strategy

@@ -276,6 +276,23 @@ pub struct GapStrategyResult {
     /// None if pipeline has no allele data (CFSAN snplist.txt)
     pub concordant: Option<u32>,
     pub pl_snps_in_gt_gaps: u32,
+    /// Per-position details for drill-down (optional, may be large)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub position_details: Option<Vec<PositionDetail>>,
+}
+
+/// Detail for a single position in the GT disc vs pipeline comparison
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PositionDetail {
+    pub pos: usize,
+    #[serde(rename = "ref")]
+    pub ref_allele: String,
+    /// Sample -> GT allele ("-" if in gap)
+    pub gt: HashMap<String, String>,
+    /// Sample -> Pipeline allele ("-" if in gap)
+    pub pl: HashMap<String, String>,
+    /// concordant, discordant, not_disc_in_pl, lost, in_gt_gap, in_pl_gap
+    pub status: String,
 }
 
 /// Pairwise results (averages across all sample pairs)
@@ -467,38 +484,114 @@ pub fn compute_gt_disc_vs_pipelines(
             })
         };
 
-        // --- Gap-Union: same_pos, concordant ---
+        // --- Helper: build a PositionDetail for a GT disc position ---
+        let build_detail = |pos: usize, status: &str, active_indices: &[usize]| -> PositionDetail {
+            let ref_allele = if pos < ref_bytes.len() { (ref_bytes[pos] as char).to_string() } else { "N".to_string() };
+            let mut gt = HashMap::new();
+            let mut pl = HashMap::new();
+            for &idx in active_indices {
+                let sid = sample_ids[idx].clone();
+                // GT allele
+                let gt_a = if gt_gap_sets[idx].contains(&pos) {
+                    "-".to_string()
+                } else {
+                    let a = gt_snp_maps[idx].get(&pos).copied()
+                        .unwrap_or_else(|| if pos < ref_bytes.len() { ref_bytes[pos] } else { b'N' });
+                    (a as char).to_string()
+                };
+                // PL allele: use core_snps alleles if available, else gap/ref
+                let pl_a = if pl_gap_sets[idx].contains(&pos) {
+                    "-".to_string()
+                } else if core_data.has_alleles {
+                    core_pos_map.get(&pos)
+                        .and_then(|cp| cp.alleles.get(&sid))
+                        .map(|a| if a == "-" || a == "N" { ref_allele.clone() } else { a.chars().next().unwrap_or('?').to_string() })
+                        .unwrap_or_else(|| ref_allele.clone())
+                } else {
+                    "?".to_string()
+                };
+                gt.insert(sid.clone(), gt_a);
+                pl.insert(sid, pl_a);
+            }
+            PositionDetail { pos, ref_allele, gt, pl, status: status.to_string() }
+        };
+
+        let all_indices: Vec<usize> = (0..n).collect();
+
+        // --- Gap-Union: same_pos, concordant, position details ---
         let mut gu_same_pos: u32 = 0;
         let mut gu_concordant: u32 = 0;
+        let mut gu_details: Vec<PositionDetail> = Vec::new();
         for &pos in &gt_disc_union {
-            if !disc_positions.contains(&pos) { continue; }
+            if !disc_positions.contains(&pos) {
+                // GT disc pos not discriminating in pipeline
+                let has_any_pl_snp = core_pos_map.contains_key(&pos);
+                if has_any_pl_snp {
+                    gu_details.push(build_detail(pos, "not_disc_in_pl", &all_indices));
+                } else if pl_gap_sets.iter().any(|gs| gs.contains(&pos)) {
+                    gu_details.push(build_detail(pos, "in_pl_gap", &all_indices));
+                } else {
+                    gu_details.push(build_detail(pos, "lost", &all_indices));
+                }
+                continue;
+            }
             gu_same_pos += 1;
             if core_data.has_alleles {
-                let all_indices: Vec<usize> = (0..n).collect();
                 if check_concordance(pos, &all_indices) {
                     gu_concordant += 1;
+                    gu_details.push(build_detail(pos, "concordant", &all_indices));
+                } else {
+                    gu_details.push(build_detail(pos, "discordant", &all_indices));
                 }
+            } else {
+                gu_details.push(build_detail(pos, "concordant", &all_indices));
             }
         }
         let gu_pl_in_gaps: u32 = disc_positions.iter()
             .filter(|p| gt_gap_union.contains(p))
             .count() as u32;
+        // Add in_gt_gap positions
+        for &pos in disc_positions.iter().filter(|p| gt_gap_union.contains(p)) {
+            gu_details.push(build_detail(pos, "in_gt_gap", &all_indices));
+        }
+        gu_details.sort_by_key(|d| d.pos);
 
-        // --- Gap-Intersect: same_pos, concordant ---
+        // --- Gap-Intersect: same_pos, concordant, position details ---
         let mut gi_same_pos: u32 = 0;
         let mut gi_concordant: u32 = 0;
+        let mut gi_details: Vec<PositionDetail> = Vec::new();
         for &pos in &gt_disc_intersect {
-            if !disc_positions.contains(&pos) { continue; }
             let active: Vec<usize> = (0..n).filter(|&idx| !gt_gap_sets[idx].contains(&pos)).collect();
             if active.len() < 2 { continue; }
+            if !disc_positions.contains(&pos) {
+                let has_any_pl_snp = core_pos_map.contains_key(&pos);
+                if has_any_pl_snp {
+                    gi_details.push(build_detail(pos, "not_disc_in_pl", &all_indices));
+                } else if pl_gap_sets.iter().any(|gs| gs.contains(&pos)) {
+                    gi_details.push(build_detail(pos, "in_pl_gap", &all_indices));
+                } else {
+                    gi_details.push(build_detail(pos, "lost", &all_indices));
+                }
+                continue;
+            }
             gi_same_pos += 1;
             if core_data.has_alleles && check_concordance(pos, &active) {
                 gi_concordant += 1;
+                gi_details.push(build_detail(pos, "concordant", &all_indices));
+            } else if core_data.has_alleles {
+                gi_details.push(build_detail(pos, "discordant", &all_indices));
+            } else {
+                gi_details.push(build_detail(pos, "concordant", &all_indices));
             }
         }
         let gi_pl_in_gaps: u32 = disc_positions.iter()
             .filter(|p| gt_gap_intersection.contains(p))
             .count() as u32;
+        // Add in_gt_gap positions for gap-intersect
+        for &pos in disc_positions.iter().filter(|p| gt_gap_intersection.contains(p)) {
+            gi_details.push(build_detail(pos, "in_gt_gap", &all_indices));
+        }
+        gi_details.sort_by_key(|d| d.pos);
 
         // --- Pairwise ---
         let mut pw_total_disc: f64 = 0.0;
@@ -549,12 +642,14 @@ pub fn compute_gt_disc_vs_pipelines(
                 same_pos: gi_same_pos,
                 concordant: if core_data.has_alleles { Some(gi_concordant) } else { None },
                 pl_snps_in_gt_gaps: gi_pl_in_gaps,
+                position_details: Some(gi_details),
             },
             gap_union: GapStrategyResult {
                 gt_disc: gt_disc_union.len() as u32,
                 same_pos: gu_same_pos,
                 concordant: if core_data.has_alleles { Some(gu_concordant) } else { None },
                 pl_snps_in_gt_gaps: gu_pl_in_gaps,
+                position_details: Some(gu_details),
             },
             pairwise: PairwiseGtDiscResult {
                 gt_disc_avg: pw_total_disc / np,
@@ -797,12 +892,14 @@ pub fn compute_gt_disc_vs_pipelines_from_vcf(
                 same_pos: gi_same_pos,
                 concordant: Some(gi_concordant),
                 pl_snps_in_gt_gaps: gi_pl_in_gaps,
+                position_details: None, // VCF fallback path doesn't collect details
             },
             gap_union: GapStrategyResult {
                 gt_disc: gt_disc_union.len() as u32,
                 same_pos: gu_same_pos,
                 concordant: Some(gu_concordant),
                 pl_snps_in_gt_gaps: gu_pl_in_gaps,
+                position_details: None,
             },
             pairwise: PairwiseGtDiscResult {
                 gt_disc_avg: pw_total_disc / np,

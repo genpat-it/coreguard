@@ -1837,15 +1837,20 @@ pipelines:
             );
         }
 
+        let _posSearchTimeout = null;
         function applyPosSearch() {
-            const input = document.getElementById('pos-search');
-            window._gtDiscPosSearch = input ? input.value : '';
-            if (!window._gtDiscDetailData) return;
-            showGtDiscDetail(
-                window._gtDiscDetailPlId,
-                window._gtDiscDetailStrategy,
-                window._gtDiscDetailStatusFilter || 'all'
-            );
+            // Debounce: wait 300ms after user stops typing
+            if (_posSearchTimeout) clearTimeout(_posSearchTimeout);
+            _posSearchTimeout = setTimeout(() => {
+                const input = document.getElementById('pos-search');
+                window._gtDiscPosSearch = input ? input.value : '';
+                if (!window._gtDiscDetailData) return;
+                showGtDiscDetail(
+                    window._gtDiscDetailPlId,
+                    window._gtDiscDetailStrategy,
+                    window._gtDiscDetailStatusFilter || 'all'
+                );
+            }, 300);
         }
 
         function exportGtDiscPositions(format) {

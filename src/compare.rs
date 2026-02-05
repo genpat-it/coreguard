@@ -29,8 +29,8 @@ pub struct CompareReport {
     /// Pipeline metadata
     pub pipelines: HashMap<String, PipelineInfo>,
 
-    /// Data: sample -> pipeline -> gaps/snps
-    #[serde(default)]
+    /// Data: sample -> pipeline -> gaps/snps (omitted in dashboard mode)
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub data: HashMap<String, HashMap<String, PipelineData>>,
 
     /// Pre-computed per-pipeline KPIs (replaces WASM get_kpis)
@@ -1546,6 +1546,24 @@ impl CompareReport {
             gt_disc_vs_pipelines,
             config_yaml,
         })
+    }
+
+    /// Convert to dashboard mode: removes raw data, keeps only pre-computed statistics
+    /// This significantly reduces file size while maintaining all dashboard functionality
+    pub fn to_dashboard(mut self) -> Self {
+        // Clear raw gap/SNP data - all statistics are pre-computed
+        self.data.clear();
+
+        // Also clear position details from GT disc results (optional drill-down data)
+        if let Some(ref mut gt_disc) = self.gt_disc_vs_pipelines {
+            for result in gt_disc.iter_mut() {
+                result.gap_intersect.position_details = None;
+                result.gap_union.position_details = None;
+            }
+        }
+
+        log::info!("Dashboard mode: removed raw data, keeping pre-computed statistics");
+        self
     }
 
     /// Save report to JSON file

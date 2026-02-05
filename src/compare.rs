@@ -4,11 +4,11 @@
 //! a compact JSON report for visualization.
 
 use anyhow::{Context, Result};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use std::process::Command;
-
 use crate::config::Config;
 use crate::parsers::{self, CoreSnpData, CoreSnpPosition};
 use crate::pileup;
@@ -601,14 +601,14 @@ pub fn compute_gt_disc_vs_pipelines(
         }
         gi_details.sort_by_key(|d| d.pos);
 
-        // --- Pairwise ---
-        let mut pw_total_disc: f64 = 0.0;
-        let mut pw_total_same_pos: f64 = 0.0;
-        let mut pw_total_concordant: f64 = 0.0;
-        let mut num_pairs: u32 = 0;
+        // --- Pairwise --- PARALLELIZED with rayon
+        let pw_pairs: Vec<(usize, usize)> = (0..n)
+            .flat_map(|i| ((i + 1)..n).map(move |j| (i, j)))
+            .collect();
 
-        for i in 0..n {
-            for j in (i + 1)..n {
+        let pw_results: Vec<(f64, f64, f64)> = pw_pairs
+            .par_iter()
+            .map(|&(i, j)| {
                 let pair_gap_union: HashSet<usize> = gt_gap_sets[i].union(&gt_gap_sets[j]).cloned().collect();
 
                 let mut pair_disc: Vec<usize> = Vec::new();
@@ -632,12 +632,14 @@ pub fn compute_gt_disc_vs_pipelines(
                     }
                 }
 
-                pw_total_disc += pair_disc.len() as f64;
-                pw_total_same_pos += p_same as f64;
-                pw_total_concordant += p_conc as f64;
-                num_pairs += 1;
-            }
-        }
+                (pair_disc.len() as f64, p_same as f64, p_conc as f64)
+            })
+            .collect();
+
+        let num_pairs = pw_results.len() as u32;
+        let (pw_total_disc, pw_total_same_pos, pw_total_concordant) = pw_results
+            .iter()
+            .fold((0.0, 0.0, 0.0), |acc, &(d, s, c)| (acc.0 + d, acc.1 + s, acc.2 + c));
 
         let np = if num_pairs > 0 { num_pairs as f64 } else { 1.0 };
 
@@ -865,14 +867,14 @@ pub fn compute_gt_disc_vs_pipelines_from_vcf(
         }
         let gi_pl_in_gaps = count_pl_in_gt_gaps(&gt_gap_intersection);
 
-        // Pairwise
-        let mut pw_total_disc: f64 = 0.0;
-        let mut pw_total_same_pos: f64 = 0.0;
-        let mut pw_total_concordant: f64 = 0.0;
-        let mut num_pairs: u32 = 0;
+        // Pairwise - PARALLELIZED with rayon
+        let vcf_pw_pairs: Vec<(usize, usize)> = (0..n)
+            .flat_map(|i| ((i + 1)..n).map(move |j| (i, j)))
+            .collect();
 
-        for i in 0..n {
-            for j in (i + 1)..n {
+        let vcf_pw_results: Vec<(f64, f64, f64)> = vcf_pw_pairs
+            .par_iter()
+            .map(|&(i, j)| {
                 let pair_gap_union: HashSet<usize> = gt_gap_sets[i].union(&gt_gap_sets[j]).cloned().collect();
                 let pair_disc: Vec<usize> = all_gt_snp_positions.iter().filter(|&&pos| {
                     if pair_gap_union.contains(&pos) { return false; }
@@ -882,12 +884,14 @@ pub fn compute_gt_disc_vs_pipelines_from_vcf(
                 let pair_indices = vec![i, j];
                 let (p_same, p_conc) = count_same_concordant(&pair_disc, &pair_indices);
 
-                pw_total_disc += pair_disc.len() as f64;
-                pw_total_same_pos += p_same as f64;
-                pw_total_concordant += p_conc as f64;
-                num_pairs += 1;
-            }
-        }
+                (pair_disc.len() as f64, p_same as f64, p_conc as f64)
+            })
+            .collect();
+
+        let num_pairs = vcf_pw_results.len() as u32;
+        let (pw_total_disc, pw_total_same_pos, pw_total_concordant) = vcf_pw_results
+            .iter()
+            .fold((0.0, 0.0, 0.0), |acc, &(d, s, c)| (acc.0 + d, acc.1 + s, acc.2 + c));
 
         let np = if num_pairs > 0 { num_pairs as f64 } else { 1.0 };
 
@@ -1177,14 +1181,16 @@ fn compute_all_stats(
             disc_breakdown,
         };
 
-        // Pairwise stats (gap-union per pair)
-        let mut pair_disc_snps: Vec<u32> = Vec::new();
-        let mut pair_usable: Vec<u32> = Vec::new();
-        let mut sample_disc_totals: HashMap<String, (f64, f64, u32)> = HashMap::new(); // (usable_sum, disc_sum, count)
-        let mut sample_pairs: HashMap<String, HashMap<String, PairDetail>> = HashMap::new();
+        // Pairwise stats (gap-union per pair) - PARALLELIZED with rayon
+        // Generate all pairs first
+        let pairs: Vec<(usize, usize)> = (0..n)
+            .flat_map(|i| ((i + 1)..n).map(move |j| (i, j)))
+            .collect();
 
-        for i in 0..n {
-            for j in (i+1)..n {
+        // Compute pairwise distances in parallel
+        let pair_results: Vec<(usize, usize, u32, u32)> = pairs
+            .par_iter()
+            .map(|&(i, j)| {
                 let pair_gap_union: HashSet<usize> = gap_sets[i].union(&gap_sets[j]).cloned().collect();
                 let usable = (ref_length - pair_gap_union.len()) as u32;
 
@@ -1200,22 +1206,32 @@ fn compute_all_stats(
                     }
                 }
 
-                pair_disc_snps.push(disc);
-                pair_usable.push(usable);
+                (i, j, disc, usable)
+            })
+            .collect();
 
-                let detail = PairDetail { usable_space: usable, disc_snps: disc };
+        // Aggregate results (sequential, but fast)
+        let mut pair_disc_snps: Vec<u32> = Vec::with_capacity(pair_results.len());
+        let mut pair_usable: Vec<u32> = Vec::with_capacity(pair_results.len());
+        let mut sample_disc_totals: HashMap<String, (f64, f64, u32)> = HashMap::new();
+        let mut sample_pairs: HashMap<String, HashMap<String, PairDetail>> = HashMap::new();
 
-                // Accumulate per-sample stats + store pair details
-                for &idx in &[i, j] {
-                    let other_idx = if idx == i { j } else { i };
-                    let entry = sample_disc_totals.entry(sample_ids[idx].clone()).or_default();
-                    entry.0 += usable as f64;
-                    entry.1 += disc as f64;
-                    entry.2 += 1;
-                    sample_pairs.entry(sample_ids[idx].clone())
-                        .or_default()
-                        .insert(sample_ids[other_idx].clone(), detail.clone());
-                }
+        for (i, j, disc, usable) in pair_results {
+            pair_disc_snps.push(disc);
+            pair_usable.push(usable);
+
+            let detail = PairDetail { usable_space: usable, disc_snps: disc };
+
+            // Accumulate per-sample stats + store pair details
+            for &idx in &[i, j] {
+                let other_idx = if idx == i { j } else { i };
+                let entry = sample_disc_totals.entry(sample_ids[idx].clone()).or_default();
+                entry.0 += usable as f64;
+                entry.1 += disc as f64;
+                entry.2 += 1;
+                sample_pairs.entry(sample_ids[idx].clone())
+                    .or_default()
+                    .insert(sample_ids[other_idx].clone(), detail.clone());
             }
         }
 
@@ -1331,90 +1347,104 @@ impl CompareReport {
             }
         }
 
-        // Process data for each sample and pipeline
+        // Process data for each sample and pipeline - PARALLELIZED with rayon
+        // Collect all loading tasks first
+        struct LoadTask {
+            sample_id: String,
+            pipeline_id: String,
+            bam_path: Option<String>,
+            vcf_path: Option<String>,
+            is_reference: bool,
+            gaps_only: bool,
+        }
+
+        let mut tasks: Vec<LoadTask> = Vec::new();
+        for sample_id in &sample_ids {
+            for pipeline_id in &pipeline_ids {
+                if let Some(pipeline) = config.pipelines.get(pipeline_id) {
+                    if let Some(files) = pipeline.samples.get(sample_id) {
+                        tasks.push(LoadTask {
+                            sample_id: sample_id.clone(),
+                            pipeline_id: pipeline_id.clone(),
+                            bam_path: files.bam.clone(),
+                            vcf_path: files.vcf.clone(),
+                            is_reference: pipeline.reference,
+                            gaps_only: pipeline.gaps_only,
+                        });
+                    }
+                }
+            }
+        }
+
+        log::info!("Loading {} sample/pipeline combinations in parallel...", tasks.len());
+
+        // Process tasks in parallel
+        let min_depth = config.options.min_depth;
+        let min_qual = config.options.min_qual;
+        let include_indels = config.options.include_indels;
+        let min_consensus = config.options.min_consensus;
+
+        let results: Vec<Result<(String, String, PipelineData, usize, usize)>> = tasks
+            .par_iter()
+            .map(|task| {
+                let mut pipeline_data = PipelineData::default();
+                let mut mnps_found = 0;
+                let mut snps_from_mnps = 0;
+
+                // Load gaps from BAM
+                if let Some(bam_path) = &task.bam_path {
+                    log::debug!("Loading gaps for {}/{}", task.sample_id, task.pipeline_id);
+                    pipeline_data.gaps = load_gaps_from_bam(bam_path, ref_length, min_depth)?;
+                    pipeline_data.bam_path = Some(bam_path.clone());
+                }
+
+                // Load SNPs from VCF
+                if let Some(vcf_path) = &task.vcf_path {
+                    log::debug!("Loading SNPs for {}/{}", task.sample_id, task.pipeline_id);
+                    let result = load_snps_from_vcf(vcf_path, min_qual, include_indels)?;
+                    pipeline_data.snps = result.snps;
+                    pipeline_data.vcf_path = Some(vcf_path.clone());
+                    mnps_found = result.mnps_found;
+                    snps_from_mnps = result.snps_from_mnps;
+                } else if task.is_reference && task.bam_path.is_some() && !task.gaps_only {
+                    // For ground truth without VCF, load SNPs from BAM pileup
+                    let bam_path = task.bam_path.as_ref().unwrap();
+                    log::debug!("Loading SNPs from pileup for {}/{}", task.sample_id, task.pipeline_id);
+                    let pileup_snps = pileup::get_snps_from_pileup(
+                        Path::new(bam_path),
+                        &ref_seq,
+                        &ref_name,
+                        min_depth as u32,
+                        min_consensus,
+                    )?;
+                    pipeline_data.snps = pileup_snps.iter().map(|ps| Snp {
+                        pos: ps.pos,
+                        ref_allele: ps.ref_base.to_string(),
+                        alt: ps.alt_base.to_string(),
+                        qual: 0.0,
+                        dp: ps.depth as usize,
+                    }).collect();
+                }
+
+                Ok((task.sample_id.clone(), task.pipeline_id.clone(), pipeline_data, mnps_found, snps_from_mnps))
+            })
+            .collect();
+
+        // Aggregate results and handle errors
         let mut data: HashMap<String, HashMap<String, PipelineData>> = HashMap::new();
         let mut total_mnps_found = 0;
         let mut total_snps_from_mnps = 0;
 
-        for sample_id in &sample_ids {
-            let mut sample_data: HashMap<String, PipelineData> = HashMap::new();
-
-            for pipeline_id in &pipeline_ids {
-                if let Some(pipeline) = config.pipelines.get(pipeline_id) {
-                    if let Some(files) = pipeline.samples.get(sample_id) {
-                        let mut pipeline_data = PipelineData::default();
-
-                        // Load gaps from BAM
-                        if let Some(bam_path) = &files.bam {
-                            log::info!(
-                                "Loading gaps for {}/{} from {}",
-                                sample_id,
-                                pipeline_id,
-                                bam_path
-                            );
-                            pipeline_data.gaps =
-                                load_gaps_from_bam(bam_path, ref_length, config.options.min_depth)?;
-                            pipeline_data.bam_path = Some(bam_path.clone());
-                            log::info!(
-                                "  Found {} gap regions",
-                                pipeline_data.gaps.len()
-                            );
-                        }
-
-                        // Load SNPs from VCF
-                        if let Some(vcf_path) = &files.vcf {
-                            log::info!(
-                                "Loading SNPs for {}/{} from {}",
-                                sample_id,
-                                pipeline_id,
-                                vcf_path
-                            );
-                            let result = load_snps_from_vcf(
-                                vcf_path,
-                                config.options.min_qual,
-                                config.options.include_indels,
-                            )?;
-                            pipeline_data.snps = result.snps;
-                            pipeline_data.vcf_path = Some(vcf_path.clone());
-                            total_mnps_found += result.mnps_found;
-                            total_snps_from_mnps += result.snps_from_mnps;
-                            log::info!("  Found {} SNPs", pipeline_data.snps.len());
-                        } else if pipeline.reference && files.bam.is_some() && !pipeline.gaps_only {
-                            // For ground truth without VCF, load SNPs from BAM pileup
-                            // (skip if gaps_only is set to reduce output size)
-                            let bam_path = files.bam.as_ref().unwrap();
-                            log::info!(
-                                "Loading SNPs for {}/{} from BAM pileup {}",
-                                sample_id,
-                                pipeline_id,
-                                bam_path
-                            );
-                            let pileup_snps = pileup::get_snps_from_pileup(
-                                Path::new(bam_path),
-                                &ref_seq,
-                                &ref_name,
-                                config.options.min_depth as u32,
-                                config.options.min_consensus,
-                            )?;
-                            pipeline_data.snps = pileup_snps.iter().map(|ps| Snp {
-                                pos: ps.pos,
-                                ref_allele: ps.ref_base.to_string(),
-                                alt: ps.alt_base.to_string(),
-                                qual: 0.0,  // No quality score from pileup
-                                dp: ps.depth as usize,
-                            }).collect();
-                            log::info!("  Found {} SNPs from pileup", pipeline_data.snps.len());
-                        } else if pipeline.gaps_only && files.bam.is_some() {
-                            log::info!("  Skipping SNP pileup for {}/{} (gaps_only mode)", sample_id, pipeline_id);
-                        }
-
-                        sample_data.insert(pipeline_id.clone(), pipeline_data);
-                    }
-                }
-            }
-
-            data.insert(sample_id.clone(), sample_data);
+        for result in results {
+            let (sample_id, pipeline_id, pipeline_data, mnps, snps) = result?;
+            total_mnps_found += mnps;
+            total_snps_from_mnps += snps;
+            data.entry(sample_id)
+                .or_insert_with(HashMap::new)
+                .insert(pipeline_id, pipeline_data);
         }
+
+        log::info!("Loaded data for {} samples", data.len());
 
         // Build warnings
         let mut warnings = Vec::new();

@@ -90,6 +90,11 @@ struct CompareArgs {
     #[arg(long)]
     binary: bool,
 
+    /// Dashboard mode: omit raw data, include only pre-computed statistics
+    /// Results in much smaller files suitable for web viewing
+    #[arg(long)]
+    dashboard: bool,
+
     /// Start web server to view the report in browser
     #[cfg(feature = "serve")]
     #[arg(long)]
@@ -326,6 +331,14 @@ fn run_compare(args: CompareArgs) -> Result<()> {
         sanitized
     });
     let report = compare::CompareReport::from_config_with_yaml(&config, config_yaml)?;
+
+    // Convert to dashboard mode if requested (removes raw data, keeps pre-computed stats)
+    let report = if args.dashboard {
+        info!("Dashboard mode enabled: removing raw data to reduce file size");
+        report.to_dashboard()
+    } else {
+        report
+    };
 
     // Auto-detect gzip from output extension
     let use_gzip = args.gzip || args.output.extension().map(|e| e == "gz").unwrap_or(false);

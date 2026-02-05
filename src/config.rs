@@ -76,6 +76,10 @@ pub struct PipelineConfig {
     #[serde(default)]
     pub core_snps: Option<String>,
 
+    /// Only load gaps from BAM, skip SNP pileup (reduces output size for large genomes)
+    #[serde(default)]
+    pub gaps_only: bool,
+
     /// Sample files for this pipeline
     #[serde(default)]
     pub samples: HashMap<String, PipelineSampleFiles>,

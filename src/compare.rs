@@ -1379,8 +1379,9 @@ impl CompareReport {
                             total_mnps_found += result.mnps_found;
                             total_snps_from_mnps += result.snps_from_mnps;
                             log::info!("  Found {} SNPs", pipeline_data.snps.len());
-                        } else if pipeline.reference && files.bam.is_some() {
+                        } else if pipeline.reference && files.bam.is_some() && !pipeline.gaps_only {
                             // For ground truth without VCF, load SNPs from BAM pileup
+                            // (skip if gaps_only is set to reduce output size)
                             let bam_path = files.bam.as_ref().unwrap();
                             log::info!(
                                 "Loading SNPs for {}/{} from BAM pileup {}",
@@ -1403,6 +1404,8 @@ impl CompareReport {
                                 dp: ps.depth as usize,
                             }).collect();
                             log::info!("  Found {} SNPs from pileup", pipeline_data.snps.len());
+                        } else if pipeline.gaps_only && files.bam.is_some() {
+                            log::info!("  Skipping SNP pileup for {}/{} (gaps_only mode)", sample_id, pipeline_id);
                         }
 
                         sample_data.insert(pipeline_id.clone(), pipeline_data);

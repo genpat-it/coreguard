@@ -62,6 +62,9 @@ struct Cli {
 enum Commands {
     /// Compare SNPs across multiple pipelines (VCF/BAM → compact JSON for visualization)
     Compare(CompareArgs),
+
+    /// Convert pipeline output to CoreGuard TSV format
+    Convert(ConvertArgs),
 }
 
 /// Arguments for the compare subcommand
@@ -100,6 +103,44 @@ struct CompareArgs {
     /// Verbose output
     #[arg(short, long)]
     verbose: bool,
+}
+
+/// Arguments for the convert subcommand
+#[derive(Parser, Debug)]
+struct ConvertArgs {
+    /// Source format: cfsan
+    #[arg(value_enum)]
+    format: ConvertFormat,
+
+    /// Output file (CoreGuard TSV format)
+    #[arg(short, long)]
+    output: PathBuf,
+
+    /// CFSAN snplist.txt file (genomic positions)
+    #[arg(long)]
+    snplist: Option<PathBuf>,
+
+    /// CFSAN snpma.fasta file (sample alleles)
+    #[arg(long)]
+    snpma: Option<PathBuf>,
+
+    /// CFSAN referenceSNP.fasta file (reference alleles)
+    #[arg(long)]
+    reference_snp: Option<PathBuf>,
+
+    /// Chromosome/contig name (default: auto-detect from snplist.txt)
+    #[arg(long)]
+    chrom: Option<String>,
+
+    /// Verbose output
+    #[arg(short, long)]
+    verbose: bool,
+}
+
+#[derive(clap::ValueEnum, Clone, Debug)]
+enum ConvertFormat {
+    /// CFSAN SNP Pipeline output (snplist.txt + snpma.fasta + referenceSNP.fasta)
+    Cfsan,
 }
 
 /// Legacy args for the default QC analysis command
@@ -238,6 +279,7 @@ fn main() -> Result<()> {
     if let Some(cmd) = cli.command {
         return match cmd {
             Commands::Compare(compare_args) => run_compare(compare_args),
+            Commands::Convert(convert_args) => run_convert(convert_args),
         };
     }
 
@@ -465,6 +507,140 @@ fn serve_compare_viewer(report_path: &PathBuf, port: u16) -> Result<()> {
 
         let _ = request.respond(response);
     }
+
+    Ok(())
+}
+
+/// Run the convert subcommand: convert pipeline output to CoreGuard TSV format
+fn run_convert(args: ConvertArgs) -> Result<()> {
+    // Initialize logging
+    let log_level = if args.verbose { "debug" } else { "info" };
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level)).init();
+
+    info!("coreguard convert v{}", env!("CARGO_PKG_VERSION"));
+
+    match args.format {
+        ConvertFormat::Cfsan => convert_cfsan(&args)?,
+    }
+
+    Ok(())
+}
+
+/// Convert CFSAN output to CoreGuard TSV format
+fn convert_cfsan(args: &ConvertArgs) -> Result<()> {
+    use std::io::{BufRead, BufReader, Write};
+    use std::collections::HashMap;
+
+    let snplist = args.snplist.as_ref()
+        .context("--snplist is required for CFSAN conversion")?;
+    let snpma = args.snpma.as_ref()
+        .context("--snpma is required for CFSAN conversion")?;
+    let reference_snp = args.reference_snp.as_ref()
+        .context("--reference-snp is required for CFSAN conversion")?;
+
+    info!("Reading CFSAN files:");
+    info!("  snplist.txt: {}", snplist.display());
+    info!("  snpma.fasta: {}", snpma.display());
+    info!("  referenceSNP.fasta: {}", reference_snp.display());
+
+    // 1. Read genomic positions and chromosome from snplist.txt
+    let snplist_file = std::fs::File::open(snplist)
+        .with_context(|| format!("Failed to open {}", snplist.display()))?;
+    let reader = BufReader::new(snplist_file);
+
+    let mut positions: Vec<(String, usize)> = Vec::new(); // (chrom, pos)
+    for line in reader.lines() {
+        let line = line?;
+        let parts: Vec<&str> = line.split('\t').collect();
+        if parts.len() < 2 { continue; }
+        let chrom = parts[0].to_string();
+        let pos: usize = parts[1].parse().unwrap_or(0);
+        if pos == 0 { continue; }
+        positions.push((chrom, pos)); // Keep 1-based for output
+    }
+    info!("  Loaded {} positions from snplist.txt", positions.len());
+
+    // 2. Read reference alleles from referenceSNP.fasta
+    let ref_file = std::fs::File::open(reference_snp)
+        .with_context(|| format!("Failed to open {}", reference_snp.display()))?;
+    let reader = BufReader::new(ref_file);
+    let mut ref_seq = String::new();
+    for line in reader.lines() {
+        let line = line?;
+        if !line.starts_with('>') {
+            ref_seq.push_str(line.trim());
+        }
+    }
+    info!("  Loaded {} reference alleles", ref_seq.len());
+
+    if ref_seq.len() != positions.len() {
+        anyhow::bail!(
+            "Length mismatch: referenceSNP.fasta has {} alleles, snplist.txt has {} positions",
+            ref_seq.len(), positions.len()
+        );
+    }
+
+    // 3. Read sample alleles from snpma.fasta
+    let snpma_file = std::fs::File::open(snpma)
+        .with_context(|| format!("Failed to open {}", snpma.display()))?;
+    let reader = BufReader::new(snpma_file);
+    let mut sample_seqs: HashMap<String, String> = HashMap::new();
+    let mut sample_order: Vec<String> = Vec::new();
+    let mut current: Option<String> = None;
+
+    for line in reader.lines() {
+        let line = line?;
+        if line.starts_with('>') {
+            let name = line[1..].trim().to_string();
+            if !sample_seqs.contains_key(&name) {
+                sample_order.push(name.clone());
+            }
+            current = Some(name.clone());
+            sample_seqs.entry(name).or_default();
+        } else if let Some(ref name) = current {
+            sample_seqs.get_mut(name).unwrap().push_str(line.trim());
+        }
+    }
+    info!("  Loaded {} samples from snpma.fasta", sample_order.len());
+
+    // Verify all sequences have same length
+    for (name, seq) in &sample_seqs {
+        if seq.len() != positions.len() {
+            anyhow::bail!(
+                "Sample {} has {} alleles but expected {} (from snplist.txt)",
+                name, seq.len(), positions.len()
+            );
+        }
+    }
+
+    // 4. Write CoreGuard TSV format
+    let mut output = std::fs::File::create(&args.output)
+        .with_context(|| format!("Failed to create {}", args.output.display()))?;
+
+    // Header: CHR, POS, REF, sample1, sample2, ...
+    write!(output, "CHR\tPOS\tREF")?;
+    for sample in &sample_order {
+        write!(output, "\t{}", sample)?;
+    }
+    writeln!(output)?;
+
+    // Data rows
+    let ref_bytes = ref_seq.as_bytes();
+    for (i, (chrom, pos)) in positions.iter().enumerate() {
+        let ref_allele = ref_bytes[i] as char;
+        write!(output, "{}\t{}\t{}", chrom, pos, ref_allele)?;
+
+        for sample in &sample_order {
+            let seq = sample_seqs.get(sample).unwrap();
+            let allele = seq.as_bytes()[i] as char;
+            write!(output, "\t{}", allele)?;
+        }
+        writeln!(output)?;
+    }
+
+    info!("Wrote {} positions × {} samples to {}",
+          positions.len(), sample_order.len(), args.output.display());
+    info!("CoreGuard TSV format ready for use with 'coreguard compare'");
 
     Ok(())
 }

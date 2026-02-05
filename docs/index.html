@@ -2366,8 +2366,8 @@
             await new Promise(r => requestAnimationFrame(r));
 
             try {
-                // Use binary format for large datasets
-                const response = await fetch('demo3.bin.gz');
+                // Use JSON format (gaps_only mode makes it small enough)
+                const response = await fetch('demo3.json.gz');
                 if (!response.ok) throw new Error('Failed to fetch demo3 file');
 
                 const compressedSize = parseInt(response.headers.get('content-length') || '0');
@@ -2376,14 +2376,14 @@
                 const arrayBuffer = await response.arrayBuffer();
 
                 showLoader('Decompressing...', '0 MB');
-                const binaryData = await decompressGzipBinary(arrayBuffer, (bytes) => {
+                const jsonText = await decompressGzip(arrayBuffer, (bytes) => {
                     showLoader('Decompressing...', `${(bytes / 1024 / 1024).toFixed(1)} MB`);
                 });
 
-                showLoader('Loading data...', `${(binaryData.byteLength / 1024 / 1024).toFixed(0)} MB binary`);
+                showLoader('Loading data...', `${(jsonText.length / 1024 / 1024).toFixed(1)} MB JSON`);
                 await new Promise(r => requestAnimationFrame(r));
 
-                await workerApi.loadBinary(binaryData);
+                await workerApi.loadJson(jsonText);
 
                 showLoader('Preparing view...', '');
                 await new Promise(r => requestAnimationFrame(r));

@@ -2961,7 +2961,11 @@
                 const labels = matrixSamples.map(s => workerApi.getSampleLabel(s));
 
                 html += `<div style="margin-bottom:16px;">`;
-                html += `<p style="color:var(--accent);font-size:11px;margin-bottom:6px;"><strong>${pipelineLabel}</strong></p>`;
+                html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">`;
+                html += `<p style="color:var(--accent);font-size:11px;margin:0;"><strong>${pipelineLabel}</strong></p>`;
+                html += `<button class="filter-btn" onclick="exportDistanceMatrix('${pipelineId}','tsv')" title="Download as TSV">TSV</button>`;
+                html += `<button class="filter-btn" onclick="exportDistanceMatrix('${pipelineId}','csv')" title="Download as CSV">CSV</button>`;
+                html += `</div>`;
                 html += '<div class="table-wrapper"><table class="distance-matrix-table"><thead><tr><th></th>';
                 for (const label of labels) {
                     html += `<th>${label}</th>`;
@@ -2990,6 +2994,29 @@
             } else {
                 matrixResult.innerHTML = html;
             }
+        }
+
+        function exportDistanceMatrix(pipelineId, format) {
+            const matrixData = pipelineDistanceMatrices[pipelineId];
+            if (!matrixData) return;
+
+            const { samples: matrixSamples, matrix } = matrixData;
+            const labels = matrixSamples.map(s => workerApi.cachedData.sampleLabels[s] || s);
+            const sep = format === 'csv' ? ',' : '\t';
+
+            let content = sep + labels.join(sep) + '\n';
+            for (let i = 0; i < matrixSamples.length; i++) {
+                content += labels[i] + sep + matrix[i].join(sep) + '\n';
+            }
+
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const plLabel = (workerApi.cachedData.pipelineInfo[pipelineId]?.label || pipelineId).replace(/\s+/g, '_');
+            a.download = `distance_matrix_${plLabel}.${format}`;
+            a.click();
+            URL.revokeObjectURL(url);
         }
 
         main();

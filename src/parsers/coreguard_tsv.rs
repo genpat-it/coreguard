@@ -1,7 +1,10 @@
-//! Parser for Snippy `core.tab` format.
+//! Parser for CoreGuard TSV format.
 //!
 //! Format: TSV with header `CHR\tPOS\tREF\tsample1\tsample2\t...`
 //! Each row has per-sample alleles; samples with allele != REF (and != N/-) have a SNP.
+//!
+//! This format is identical to Snippy's `core.tab` output.
+//! For other pipelines (CFSAN, GATK, etc.), use `coreguard convert` to generate this format.
 
 use anyhow::Context;
 use std::collections::HashMap;
@@ -10,11 +13,11 @@ use std::path::Path;
 
 use super::{CoreSnpData, CoreSnpParser, CoreSnpPosition};
 
-pub struct SnippyCoreTabParser;
+pub struct CoreGuardTsvParser;
 
-impl CoreSnpParser for SnippyCoreTabParser {
+impl CoreSnpParser for CoreGuardTsvParser {
     fn format_name(&self) -> &str {
-        "snippycore.tab"
+        "coreguard_tsv"
     }
 
     fn can_parse(&self, path: &Path) -> bool {
@@ -88,7 +91,7 @@ impl CoreSnpParser for SnippyCoreTabParser {
         }).count();
 
         log::info!(
-            "Parsed {} core SNP positions from snippycore.tab (with alleles, {} discriminating)",
+            "Parsed {} core SNP positions from CoreGuard TSV (with alleles, {} discriminating)",
             positions.len(), discriminating_count
         );
 

@@ -2,7 +2,9 @@
 # Listeria monocytogenes comparison: Snippy vs CFSAN vs Reference alignment
 #
 # To use: copy to demo_config.yaml and replace ${VARIABLES} with actual paths
-# Or run: ./scripts/make_demo_config.sh
+#
+# NOTE: For CFSAN, first convert to CoreGuard TSV format:
+#   coreguard convert cfsan --snplist snplist.txt --snpma snpma.fasta --reference-snp referenceSNP.fasta -o core_snps.tsv
 
 description: testdata/demo_description.md
 
@@ -54,7 +56,8 @@ pipelines:
     label: "CFSAN"
     command: "cfsan_snp_pipeline run -s samples/ -o output/ reference.fasta"
     distance_matrix: ${SNPS_STUDY}/results/cfsan/snp_distance_matrix.tsv
-    core_snps: ${SNPS_STUDY}/results/cfsan/snplist.txt
+    # Generated with: coreguard convert cfsan --snplist snplist.txt --snpma snpma.fasta --reference-snp referenceSNP.fasta -o core_snps.tsv
+    core_snps: ${SNPS_STUDY}/results/cfsan/core_snps.tsv
     samples:
       TE15676:
         bam: ${SNPS_STUDY}/results/cfsan/samples/TE15676/reads.sorted.bam

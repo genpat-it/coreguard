@@ -835,6 +835,11 @@
         .description-content strong { color: var(--text-primary); }
         .description-content em { font-style: italic; }
         .description-content a { color: var(--accent); }
+        .description-content .md-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12px; }
+        .description-content .md-table th,
+        .description-content .md-table td { padding: 8px 12px; border: 1px solid var(--border-color); text-align: left; }
+        .description-content .md-table th { background: var(--bg-tertiary); font-weight: bold; }
+        .description-content .md-table tr:nth-child(even) { background: var(--bg-secondary); }
         .pipeline-info-item {
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
@@ -2578,81 +2583,121 @@
         function renderMarkdown(text) {
             if (!text) return '';
 
-            // Process line by line for better list handling
             const lines = text.split('\n');
             let html = '';
             let inList = false;
             let inParagraph = false;
+            let inCodeBlock = false;
+            let codeBlockContent = [];
+            let inTable = false;
+            let tableRows = [];
+
+            function applyInline(str) {
+                return str
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+                    .replace(/_([^_]+)_/g, '<em>$1</em>')
+                    .replace(/`([^`]+)`/g, '<code>$1</code>');
+            }
+
+            function closeOpenTags() {
+                if (inParagraph) { html += '</p>'; inParagraph = false; }
+                if (inList) { html += '</ul>'; inList = false; }
+            }
+
+            function renderTable() {
+                if (tableRows.length < 2) return;
+                let thtml = '<table class="md-table"><thead><tr>';
+                const headers = tableRows[0].split('|').filter(c => c.trim());
+                headers.forEach(h => thtml += `<th>${applyInline(h.trim())}</th>`);
+                thtml += '</tr></thead><tbody>';
+                for (let i = 2; i < tableRows.length; i++) {
+                    const cells = tableRows[i].split('|').filter(c => c.trim());
+                    thtml += '<tr>';
+                    cells.forEach(c => thtml += `<td>${applyInline(c.trim())}</td>`);
+                    thtml += '</tr>';
+                }
+                thtml += '</tbody></table>';
+                html += thtml;
+                tableRows = [];
+                inTable = false;
+            }
 
             for (let i = 0; i < lines.length; i++) {
                 let line = lines[i];
 
-                // Escape HTML
+                // Code block handling
+                if (line.trim().startsWith('```')) {
+                    if (inCodeBlock) {
+                        html += '<pre><code>' + codeBlockContent.join('\n')
+                            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</code></pre>';
+                        codeBlockContent = [];
+                        inCodeBlock = false;
+                    } else {
+                        closeOpenTags();
+                        if (inTable) renderTable();
+                        inCodeBlock = true;
+                    }
+                    continue;
+                }
+                if (inCodeBlock) {
+                    codeBlockContent.push(line);
+                    continue;
+                }
+
+                // Escape HTML for non-code
                 line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-                // Check line type
+                // Table handling
+                const isTableRow = /^\|.*\|$/.test(line.trim());
+                const isSeparator = /^\|[-:\s|]+\|$/.test(line.trim());
+                if (isTableRow || isSeparator) {
+                    if (!inTable) {
+                        closeOpenTags();
+                        inTable = true;
+                    }
+                    tableRows.push(line.trim());
+                    continue;
+                } else if (inTable) {
+                    renderTable();
+                }
+
                 const isHeader = /^#{1,3} /.test(line);
                 const isListItem = /^[-*] /.test(line) || /^\d+\. /.test(line);
                 const isEmpty = line.trim() === '';
 
-                // Close paragraph if needed
                 if (inParagraph && (isHeader || isListItem || isEmpty)) {
                     html += '</p>';
                     inParagraph = false;
                 }
-
-                // Close list if needed
                 if (inList && !isListItem) {
                     html += '</ul>';
                     inList = false;
                 }
+                if (isEmpty) continue;
 
-                if (isEmpty) {
-                    continue;
-                }
-
-                // Headers
                 if (/^### (.+)$/.test(line)) {
-                    html += line.replace(/^### (.+)$/, '<h3>$1</h3>');
+                    html += line.replace(/^### (.+)$/, '<h3>' + '$1'.replace(/\*/g, '') + '</h3>').replace(/\*([^*]+)\*/g, '<em>$1</em>');
                 } else if (/^## (.+)$/.test(line)) {
-                    html += line.replace(/^## (.+)$/, '<h2>$1</h2>');
+                    html += line.replace(/^## (.+)$/, '<h2>$1</h2>').replace(/\*([^*]+)\*/g, '<em>$1</em>');
                 } else if (/^# (.+)$/.test(line)) {
-                    html += line.replace(/^# (.+)$/, '<h1>$1</h1>');
-                }
-                // List items
-                else if (isListItem) {
-                    if (!inList) {
-                        html += '<ul>';
-                        inList = true;
-                    }
+                    html += line.replace(/^# (.+)$/, '<h1>$1</h1>').replace(/\*([^*]+)\*/g, '<em>$1</em>');
+                } else if (isListItem) {
+                    if (!inList) { html += '<ul>'; inList = true; }
                     let content = line.replace(/^[-*] /, '').replace(/^\d+\. /, '');
-                    // Apply inline formatting
-                    content = content
-                        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                        .replace(/\*(.+?)\*/g, '<em>$1</em>')
-                        .replace(/_(.+?)_/g, '<em>$1</em>')
-                        .replace(/`([^`]+)`/g, '<code>$1</code>');
-                    html += '<li>' + content + '</li>';
-                }
-                // Regular text
-                else {
-                    if (!inParagraph) {
-                        html += '<p>';
-                        inParagraph = true;
-                    } else {
-                        html += ' ';
-                    }
-                    // Apply inline formatting
-                    line = line
-                        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                        .replace(/\*(.+?)\*/g, '<em>$1</em>')
-                        .replace(/_(.+?)_/g, '<em>$1</em>')
-                        .replace(/`([^`]+)`/g, '<code>$1</code>');
-                    html += line;
+                    html += '<li>' + applyInline(content) + '</li>';
+                } else {
+                    if (!inParagraph) { html += '<p>'; inParagraph = true; }
+                    else html += ' ';
+                    html += applyInline(line);
                 }
             }
 
-            // Close any open tags
+            if (inCodeBlock) {
+                html += '<pre><code>' + codeBlockContent.join('\n')
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</code></pre>';
+            }
+            if (inTable) renderTable();
             if (inParagraph) html += '</p>';
             if (inList) html += '</ul>';
 

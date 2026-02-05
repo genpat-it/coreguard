@@ -2033,9 +2033,13 @@
             document.getElementById('loader').classList.remove('active');
         }
 
-        function goToLanding() {
+        function goToLanding(fromPopState = false) {
             document.getElementById('viewer').classList.add('hidden');
             document.getElementById('drop-zone').classList.remove('hidden');
+            // Update URL without adding to history (unless triggered by back button)
+            if (!fromPopState) {
+                history.replaceState({ view: 'landing' }, '', window.location.pathname);
+            }
         }
 
         // Progressive loading helpers
@@ -2062,6 +2066,9 @@
             // Phase 1: Show viewer immediately with loading states
             document.getElementById('drop-zone').classList.add('hidden');
             document.getElementById('viewer').classList.remove('hidden');
+
+            // Push history state so browser back button returns to landing
+            history.pushState({ view: 'viewer' }, '', '#viewer');
 
             // Set loading placeholders for all sections
             setSectionLoading('pipelines-info', true, 'Loading pipelines...');
@@ -2108,6 +2115,13 @@
             console.log('Worker + WASM initialized');
             setupDropZone();
             setupFileInput();
+
+            // Handle browser back button
+            window.addEventListener('popstate', (e) => {
+                if (!e.state || e.state.view !== 'viewer') {
+                    goToLanding(true);
+                }
+            });
         }
 
         function setupDropZone() {

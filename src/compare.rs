@@ -1554,13 +1554,8 @@ impl CompareReport {
         // Clear raw gap/SNP data - all statistics are pre-computed
         self.data.clear();
 
-        // Also clear position details from GT disc results (optional drill-down data)
-        if let Some(ref mut gt_disc) = self.gt_disc_vs_pipelines {
-            for result in gt_disc.iter_mut() {
-                result.gap_intersect.position_details = None;
-                result.gap_union.position_details = None;
-            }
-        }
+        // Keep position_details in gt_disc_vs_pipelines for drill-down functionality
+        // (these are relatively small compared to raw data)
 
         log::info!("Dashboard mode: removed raw data, keeping pre-computed statistics");
         self

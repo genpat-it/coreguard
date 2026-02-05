@@ -41,6 +41,10 @@ impl CoreSnpParser for CfsanSnplistParser {
         let ref_snp_path = dir.join("referenceSNP.fasta");
 
         if snpma_path.exists() && ref_snp_path.exists() && snplist_path.exists() {
+            log::warn!("DEPRECATED: Auto-discovery of CFSAN files is deprecated.");
+            log::warn!("Please use 'coreguard convert cfsan' to create a CoreGuard TSV file:");
+            log::warn!("  coreguard convert cfsan --snplist {} --snpma {} --reference-snp {} -o output.tsv",
+                snplist_path.display(), snpma_path.display(), ref_snp_path.display());
             self.parse_with_snpma(&snplist_path, &snpma_path, &ref_snp_path)
         } else if snplist_path.exists() {
             log::warn!("snpma.fasta or referenceSNP.fasta not found in {}, falling back to snplist.txt-only parsing (no alleles, no gap info)", dir.display());

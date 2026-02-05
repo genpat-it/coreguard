@@ -223,31 +223,44 @@ description: "## My Study\nComparing pipelines on *Listeria* outbreak data."
 description: docs/study_description.md
 ```
 
-### Core SNPs
+### Core SNPs Format
 
-The `core_snps` field points to a pipeline's native core SNP output. When provided, CoreGuard uses it for both pipeline statistics and the "Reference Discriminating SNPs vs Pipelines" comparison, making per-sample VCF files unnecessary.
+The `core_snps` field points to a **CoreGuard TSV** file — a simple tab-separated format with genomic positions and per-sample alleles:
 
-Supported formats:
-
-- **Snippy**: `core.tab` — TSV with CHR, POS, REF, and per-sample alleles
-- **CFSAN**: `snplist.txt` — one position per line (or `snpma.fasta` for alleles)
-
-#### Adding a New Core SNP Parser
-
-CoreGuard uses a plugin system (`CoreSnpParser` trait in `src/parsers/mod.rs`) for parsing pipeline-specific core SNP output files. To add support for a new format:
-
-```rust
-pub trait CoreSnpParser {
-    fn format_name(&self) -> &str;
-    fn can_parse(&self, path: &Path) -> bool;
-    fn parse(&self, path: &Path) -> anyhow::Result<CoreSnpData>;
-}
+```tsv
+CHR	POS	REF	sample1	sample2	sample3	sample4
+CP014790.1	16686	C	C	C	T	C
+CP014790.1	17153	C	C	T	C	C
+CP014790.1	23349	T	T	T	A	T
 ```
 
-1. Implement the trait for your format
-2. Register it in `parse_core_snps()` (add to the `parsers` vector)
+- `CHR` — Chromosome/contig name
+- `POS` — Genomic position (1-based)
+- `REF` — Reference allele
+- `<sample>` — Sample allele (`-` for gap, `N` for no call)
 
-Current implementations: `SnippyCoreTabParser` (Snippy `core.tab`), `CfsanSnplistParser` (CFSAN `snplist.txt`/`snpma.fasta`).
+**Snippy** `core.tab` output is already in this format — use it directly.
+
+**CFSAN** requires conversion:
+
+```bash
+coreguard convert cfsan \
+  --snplist /path/to/snplist.txt \
+  --snpma /path/to/snpma.fasta \
+  --reference-snp /path/to/referenceSNP.fasta \
+  -o cfsan_core_snps.tsv
+```
+
+Then reference the converted file in your YAML:
+
+```yaml
+pipelines:
+  cfsan:
+    label: "CFSAN 2.2.1"
+    core_snps: cfsan_core_snps.tsv
+```
+
+**Other pipelines**: Convert your output to CoreGuard TSV format. The format is simple enough to generate with a small script.
 
 ### Distance Matrix
 

@@ -1,22 +1,17 @@
-//! Core SNP parser plugin system.
+//! Core SNP parser for CoreGuard TSV format.
 //!
-//! Each pipeline format (Snippy, CFSAN, etc.) has its own parser module.
-//! To add a new format:
-//! 1. Create `src/parsers/my_format.rs` implementing [`CoreSnpParser`]
-//! 2. Register it in [`all_parsers()`] below
+//! CoreGuard uses a standard TSV format identical to Snippy's `core.tab`:
+//! `CHR\tPOS\tREF\tsample1\tsample2\t...`
 //!
-//! The dispatcher [`parse_core_snps()`] tries each parser in order and uses
-//! the first one that accepts the file.
+//! For pipelines that don't natively output this format (CFSAN, GATK, etc.),
+//! use `coreguard convert <format>` to generate a compatible file.
 
-mod snippy;
-mod cfsan;
+mod coreguard_tsv;
 
 use std::collections::HashMap;
 use std::path::Path;
 
-// Re-export parser implementations for direct use if needed
-pub use snippy::SnippyCoreTabParser;
-pub use cfsan::CfsanSnplistParser;
+pub use coreguard_tsv::CoreGuardTsvParser;
 
 /// Core SNP data extracted from a pipeline's native output file.
 #[derive(Debug, Clone)]
@@ -69,14 +64,10 @@ pub trait CoreSnpParser {
     fn parse(&self, path: &Path) -> anyhow::Result<CoreSnpData>;
 }
 
-/// Return all registered parsers, in priority order.
-///
-/// Parsers are tried in order; the first one whose [`CoreSnpParser::can_parse()`]
-/// returns `true` wins. Put more specific parsers first.
+/// Return the CoreGuard TSV parser.
 fn all_parsers() -> Vec<Box<dyn CoreSnpParser>> {
     vec![
-        Box::new(SnippyCoreTabParser),
-        Box::new(CfsanSnplistParser),
+        Box::new(CoreGuardTsvParser),
     ]
 }
 

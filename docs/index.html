@@ -2790,8 +2790,8 @@
                 });
             };
 
-            // Helper to create info icon
-            const infoIcon = (type) => `<span class="info-icon" onclick="event.stopPropagation();showKpiInfo('${type}')">ⓘ</span>`;
+            // Helper to create info icon (preventDefault stops <details> toggle, stopPropagation stops event bubbling)
+            const infoIcon = (type) => `<span class="info-icon" onclick="event.preventDefault();event.stopPropagation();showKpiInfo('${type}')">ⓘ</span>`;
 
             // Helper to create collapsible section
             const sectionStart = (title, open = false, extraClass = '') => `<details class="kpi-section${extraClass ? ' ' + extraClass : ''}"${open ? ' open' : ''}><summary>${title}</summary><div class="kpi-section-content">`;

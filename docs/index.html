@@ -2376,7 +2376,7 @@
                 const arrayBuffer = await response.arrayBuffer();
 
                 showLoader('Decompressing...', '0 MB');
-                const jsonText = await decompressGzip(arrayBuffer, (bytes) => {
+                const jsonText = await decompressGzipWithProgress(arrayBuffer, (bytes) => {
                     showLoader('Decompressing...', `${(bytes / 1024 / 1024).toFixed(1)} MB`);
                 });
 

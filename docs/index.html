@@ -2652,7 +2652,13 @@ pipelines:
                     if (pw && pw.num_pairs > 0) {
                         html += sectionStart(`Pairwise (Gap-Union) ${infoIcon('gt_disc_pw')} <span style="font-weight:normal;font-size:10px;color:var(--text-muted);">(${pw.num_pairs} pairs)</span>`, true, 'bg-pw');
                         html += `<div class="kpi"><div class="label">Avg Usable Space ${infoIcon('pp_pw_usable')}</div><div class="value">${Math.round(pw.avg_usable_space).toLocaleString()} bp <span class="pct">(${pw.avg_usable_space_pct.toFixed(2)}%)</span></div></div>`;
-                        html += `<div class="kpi"><div class="label">Discriminating SNPs ${infoIcon('pp_pw_disc')}</div><div class="value">avg ${pw.avg_usable_snps.toFixed(1)} &nbsp;|&nbsp; min ${pw.min_usable_snps.toLocaleString()} &nbsp;|&nbsp; med ${pw.median_usable_snps.toFixed(1)} &nbsp;|&nbsp; max ${pw.max_usable_snps.toLocaleString()}</div></div>`;
+                        html += `<div class="kpi"><div class="label">Discriminating SNPs ${infoIcon('pp_pw_disc')}</div><div class="value">avg ${pw.avg_usable_snps.toFixed(1)}</div></div>`;
+                        html += `<button class="kpi-expand-btn" onclick="this.nextElementSibling.classList.toggle('expanded');this.textContent=this.textContent==='+'?'−':'+'">+</button>`;
+                        html += `<div class="kpi-collapsible">`;
+                        html += `<div class="kpi"><div class="label">Min</div><div class="value">${pw.min_usable_snps.toLocaleString()}</div></div>`;
+                        html += `<div class="kpi"><div class="label">Median</div><div class="value">${pw.median_usable_snps.toFixed(1)}</div></div>`;
+                        html += `<div class="kpi"><div class="label">Max</div><div class="value">${pw.max_usable_snps.toLocaleString()}</div></div>`;
+                        html += `</div>`;
                         html += sectionEnd();
                     }
                 }

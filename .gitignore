@@ -44,11 +44,16 @@ CLAUDE.md
 
 # Config with local paths (use template instead)
 testdata/demo_config.yaml
+testdata/demo2_config.yaml
+
+# Demo data directories (raw data, not tracked)
+testdata/outbreak_marche/
 
 # Keep docs files needed for GitHub Pages
 !docs/index.html
 !docs/worker.js
 !docs/demo.json.gz
+!docs/demo2.json.gz
 !docs/package.json
 !docs/coreguard_wasm.js
 !docs/coreguard_wasm.d.ts

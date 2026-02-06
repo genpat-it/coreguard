@@ -2926,7 +2926,7 @@
                                     const cellStyle = p ? heatStyle(p.disc_snps) : '';
                                     if (p && p.usable_space != null) {
                                         const uPct = refLen > 0 ? ((p.usable_space / refLen) * 100).toFixed(2) : '0.00';
-                                        html += `<td style="${cellStyle}">${typeof val === 'number' ? val.toLocaleString() : val}<br><span class="pct" style="opacity:0.7;">${p.usable_space.toLocaleString()} (${uPct}%)</span></td>`;
+                                        html += `<td style="${cellStyle}">${typeof val === 'number' ? val.toLocaleString() : val}<br><span style="font-size:9px;opacity:0.85;color:inherit;">${p.usable_space.toLocaleString()} (${uPct}%)</span></td>`;
                                     } else {
                                         html += `<td style="${cellStyle}">${typeof val === 'number' ? val.toLocaleString() : val}</td>`;
                                     }

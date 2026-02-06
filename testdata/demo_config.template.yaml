@@ -1,10 +1,12 @@
 # CoreGuard Demo Configuration
-# Listeria monocytogenes comparison: Snippy vs CFSAN vs Reference alignment
+# Listeria monocytogenes comparison: Snippy vs CFSAN vs SPANDx vs Reference alignment
 #
 # To use: copy to demo_config.yaml and replace ${VARIABLES} with actual paths
 #
-# NOTE: For CFSAN, first convert to CoreGuard TSV format:
-#   coreguard convert cfsan --snplist snplist.txt --snpma snpma.fasta --reference-snp referenceSNP.fasta -o core_snps.tsv
+# NOTE: Convert pipeline outputs to CoreGuard format:
+#   CFSAN:  coreguard convert --from cfsan-snpma -i snpma.fasta --snplist snplist.txt --reference-snp referenceSNP.fasta -o core_snps.tsv
+#   SPANDx: coreguard convert --from spandx-vcf-table -i out.vcf.table -o core_snps.tsv
+#   Distance matrix: coreguard convert --from nexus -i Ortho_SNP_matrix.nex -o distances.tsv
 
 description: testdata/demo_description.md
 
@@ -38,7 +40,7 @@ pipelines:
         bam: ${COREGUARD}/testdata/mm2_bams/TE8064.bam
 
   snippy:
-    label: "Snippy"
+    label: "Snippy v4.6.0"
     command: "snippy --reference ref.fa --R1 reads_1.fq.gz --R2 reads_2.fq.gz --outdir out"
     distance_matrix: ${SNPS_STUDY}/results/analysis_outputs/snippy_snp_distance_matrix.tsv
     core_snps: ${SNPS_STUDY}/results/snippy_core/core.tab
@@ -53,10 +55,10 @@ pipelines:
         bam: ${SNPS_STUDY}/results/TE8064_snippy/TE8064_snippy.bam
 
   cfsan:
-    label: "CFSAN"
+    label: "CFSAN SNP Pipeline v2.2.1"
     command: "cfsan_snp_pipeline run -s samples/ -o output/ reference.fasta"
     distance_matrix: ${SNPS_STUDY}/results/cfsan/snp_distance_matrix.tsv
-    # Generated with: coreguard convert cfsan --snplist snplist.txt --snpma snpma.fasta --reference-snp referenceSNP.fasta -o core_snps.tsv
+    # Generated with: coreguard convert --from cfsan-snpma -i snpma.fasta --snplist snplist.txt --reference-snp referenceSNP.fasta -o core_snps.tsv
     core_snps: ${SNPS_STUDY}/results/cfsan/core_snps.tsv
     samples:
       TE15676:
@@ -67,6 +69,23 @@ pipelines:
         bam: ${SNPS_STUDY}/results/cfsan/samples/TE15678/reads.sorted.bam
       TE8064:
         bam: ${SNPS_STUDY}/results/cfsan/samples/TE8064/reads.sorted.bam
+
+  spandx:
+    label: "SPANDx v4.0.5"
+    command: "nextflow run dsarov/spandx --fastq '*_{1,2}.fastq.gz' --ref ref.fa --matrix true --phylogeny true"
+    # Generated with: coreguard convert --from spandx-vcf-table -i out.vcf.table -o core_snps.tsv
+    # Distance matrix: coreguard convert --from nexus -i Ortho_SNP_matrix.nex -o distances.tsv
+    core_snps: ${SNPS_STUDY}/results/spandx/core_snps.tsv
+    distance_matrix: ${SNPS_STUDY}/results/spandx/distances.tsv
+    samples:
+      TE15676:
+        bam: ${SNPS_STUDY}/results/spandx/bams/TE15676.dedup.bam
+      TE15677:
+        bam: ${SNPS_STUDY}/results/spandx/bams/TE15677.dedup.bam
+      TE15678:
+        bam: ${SNPS_STUDY}/results/spandx/bams/TE15678.dedup.bam
+      TE8064:
+        bam: ${SNPS_STUDY}/results/spandx/bams/TE8064.dedup.bam
 
 options:
   min_depth: 1

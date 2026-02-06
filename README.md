@@ -8,15 +8,20 @@ CoreGuard compares SNP calls from multiple pipelines (Snippy, CFSAN, GATK, etc.)
 
 **Live Viewer:** [https://genpat-it.github.io/coreguard/](https://genpat-it.github.io/coreguard/)
 
-### Demo
+### Demo Datasets
 
-Click **"Load Demo"** in the viewer to explore a pre-loaded dataset:
+The viewer includes 4 pre-loaded demo datasets. Click the demo buttons to explore:
 
-- **Organism**: *Listeria monocytogenes* (4 samples)
-- **Pipelines compared**: Snippy, CFSAN SNP Pipeline
-- **Reference alignment**: minimap2 (BAM pileup without variant calling)
+| Demo | Organism | Samples | Pipelines | Description |
+|------|----------|---------|-----------|-------------|
+| **Demo 1** | *Listeria monocytogenes* | 4 | Snippy, CFSAN | Small dataset, clone group + outlier |
+| **Demo 2** | *Listeria monocytogenes* | 53 | Snippy, CFSAN | Large outbreak dataset |
+| **Demo 3** | *Klebsiella pneumoniae* | 17 | Snippy, CFSAN | Different organism |
+| **Demo 4** | *West Nile Virus* | 9 | Snippy, CFSAN | Viral genome (small reference) |
 
-The demo illustrates how different pipelines can produce varying SNP calls on the same data, and how CoreGuard helps identify these discrepancies.
+All demos use **minimap2** as the reference alignment (BAM pileup without variant calling) for ground truth comparison.
+
+The demos illustrate how different pipelines can produce varying SNP calls on the same data, and how CoreGuard helps identify these discrepancies.
 
 ## Why CoreGuard?
 
@@ -166,15 +171,17 @@ options:
 ### 2. Generate the comparison report
 
 ```bash
-# JSON format (human-readable)
+# Dashboard mode (recommended) - lightweight output for web viewing
+coreguard compare --config project.yaml -o report.json.gz --dashboard
+
+# Full mode - includes raw data for advanced analysis
+coreguard compare --config project.yaml -o report.json.gz
+
+# JSON format (human-readable, for debugging)
 coreguard compare --config project.yaml -o report.json
-
-# Compact JSON with gzip (smaller file)
-coreguard compare --config project.yaml -o report.json.gz --gzip --compact
-
-# Binary format with gzip compression (recommended, ~10x faster loading)
-coreguard compare --config project.yaml -o report.bin.gz --binary --gzip
 ```
+
+**Dashboard mode** (`--dashboard`) omits raw gap/SNP data and keeps only pre-computed statistics. This reduces file size by 10-100x while maintaining full dashboard functionality.
 
 ### 3. Visualize the results
 
@@ -200,6 +207,7 @@ Supported formats: `.json`, `.json.gz`, `.bin`, `.bin.gz`
 | `label` | Display name in the viewer | pipeline ID |
 | `command` | Command line used (shown in viewer) | - |
 | `reference` | Mark as reference alignment (BAM-only baseline) | false |
+| `gaps_only` | Only load gaps from BAM, skip SNP pileup (reduces output size) | false |
 | `distance_matrix` | Path to pre-computed SNP distance matrix (TSV) | - |
 | `core_snps` | Path to core SNP output (snippy `core.tab` or CFSAN `snplist.txt`) | - |
 
@@ -268,21 +276,25 @@ The `distance_matrix` field points to a TSV file with pairwise SNP distances bet
 
 ## Output Formats
 
-| Format | Extension | Pros | Cons |
-|--------|-----------|------|------|
-| JSON | `.json` | Human-readable, debuggable | Large files, slower parsing |
-| JSON gzip | `.json.gz` | Smaller download | Still slower parsing |
-| Binary | `.bin` | Fast parsing (~10x) | Not human-readable |
-| Binary gzip | `.bin.gz` | Fast + small | Not human-readable |
+| Format | Extension | Description |
+|--------|-----------|-------------|
+| JSON gzip | `.json.gz` | Recommended for production |
+| JSON | `.json` | Human-readable, for debugging |
 
-**Recommendation**: Use `--binary --gzip` for production, JSON for debugging.
+### Dashboard vs Full Mode
+
+| Mode | Flag | Output Size | Use Case |
+|------|------|-------------|----------|
+| **Dashboard** | `--dashboard` | 10-100x smaller | Web viewing, sharing |
+| **Full** | (default) | Large | Advanced analysis, raw data access |
+
+**Recommendation**: Use `--dashboard` for web viewing. Use full mode only if you need raw gap/SNP data for custom analysis.
 
 ## Technology
 
-- **CLI**: Rust (fast BAM/core_snps processing, pre-computes all KPIs)
-- **Viewer**: Vanilla JavaScript dashboard
-- **WASM**: Rust compiled to WebAssembly (for backward compatibility with v1 reports)
-- **No backend required**: All processing happens client-side
+- **CLI**: Rust with rayon parallelization (fast BAM/core_snps processing, pre-computes all KPIs)
+- **Viewer**: Vanilla JavaScript dashboard with pre-computed statistics
+- **No backend required**: All processing happens at CLI time; viewer loads instantly
 
 ## Dependencies
 

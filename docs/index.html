@@ -961,6 +961,21 @@
             color: var(--text-muted);
             display: block;
         }
+        /* Heat map cell zoom on hover */
+        .distance-matrix-table td:not(.diagonal),
+        .kpi-table td[style*="background:rgb"] {
+            transition: transform 0.15s ease, box-shadow 0.15s ease, z-index 0s;
+            position: relative;
+            cursor: default;
+        }
+        .distance-matrix-table td:not(.diagonal):hover,
+        .kpi-table td[style*="background:rgb"]:hover {
+            transform: scale(1.8);
+            z-index: 10;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            border-radius: 3px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>

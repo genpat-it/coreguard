@@ -2873,6 +2873,32 @@
                     const pw2 = await workerApi.getPairwiseUsableStatsForPipeline(gtPipelineId);
                     if (pw2 && pw2.per_sample && pw2.per_sample.length > 0) {
                         const allSamples = pw2.per_sample.map(s => ({ id: s.sample_id, label: s.sample_label }));
+                        // Collect all disc_snps values for heat map scaling
+                        let allDiscSnps = [];
+                        for (const s of pw2.per_sample) {
+                            if (s.pairs) s.pairs.forEach(p => { if (p.disc_snps != null) allDiscSnps.push(p.disc_snps); });
+                        }
+                        const minSnps = allDiscSnps.length > 0 ? Math.min(...allDiscSnps) : 0;
+                        const maxSnps = allDiscSnps.length > 0 ? Math.max(...allDiscSnps) : 1;
+                        const snpRange = maxSnps - minSnps || 1;
+                        // Heat map color: green (low) -> yellow (mid) -> red (high)
+                        function heatColor(val) {
+                            const t = Math.min(1, Math.max(0, (val - minSnps) / snpRange));
+                            const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+                            if (t <= 0.5) {
+                                const t2 = t * 2;
+                                const r = Math.round(isDark ? 30 + t2 * 100 : 220 + t2 * 35);
+                                const g = Math.round(isDark ? 120 + t2 * 30 : 240 - t2 * 20);
+                                const b = Math.round(isDark ? 80 - t2 * 40 : 200 - t2 * 100);
+                                return `rgb(${r},${g},${b})`;
+                            } else {
+                                const t2 = (t - 0.5) * 2;
+                                const r = Math.round(isDark ? 130 + t2 * 70 : 255);
+                                const g = Math.round(isDark ? 150 - t2 * 100 : 220 - t2 * 140);
+                                const b = Math.round(isDark ? 40 - t2 * 30 : 100 - t2 * 60);
+                                return `rgb(${r},${g},${b})`;
+                            }
+                        }
                         html += sectionStart(`Per-Sample Pairwise ${infoIcon('pp_ps_table')}`, false);
                         const refLen = workerApi.refLength;
                         const sepPs = 'border-left:2px solid var(--text-muted);';
@@ -2894,17 +2920,12 @@
                                 } else {
                                     const p = pairMap[other.id];
                                     const val = p ? p.disc_snps : '?';
-                                    let cls = '';
-                                    if (p) {
-                                        if (p.disc_snps <= 5) cls = 'low-dist';
-                                        else if (p.disc_snps <= 20) cls = 'medium-dist';
-                                        else cls = 'high-dist';
-                                    }
+                                    const bgStyle = p ? `background:${heatColor(p.disc_snps)};color:#fff;text-shadow:0 0 2px rgba(0,0,0,0.5);` : '';
                                     if (p && p.usable_space != null) {
                                         const uPct = refLen > 0 ? ((p.usable_space / refLen) * 100).toFixed(2) : '0.00';
-                                        html += `<td class="${cls}">${typeof val === 'number' ? val.toLocaleString() : val}<br><span class="pct">${p.usable_space.toLocaleString()} (${uPct}%)</span></td>`;
+                                        html += `<td style="${bgStyle}">${typeof val === 'number' ? val.toLocaleString() : val}<br><span class="pct" style="text-shadow:none;opacity:0.8;">${p.usable_space.toLocaleString()} (${uPct}%)</span></td>`;
                                     } else {
-                                        html += `<td class="${cls}">${typeof val === 'number' ? val.toLocaleString() : val}</td>`;
+                                        html += `<td style="${bgStyle}">${typeof val === 'number' ? val.toLocaleString() : val}</td>`;
                                     }
                                 }
                             }
@@ -3012,6 +3033,34 @@
                 html += `<button class="filter-btn" onclick="exportDistanceMatrix('${pipelineId}','tsv')" title="Download as TSV">TSV</button>`;
                 html += `<button class="filter-btn" onclick="exportDistanceMatrix('${pipelineId}','csv')" title="Download as CSV">CSV</button>`;
                 html += `</div>`;
+                // Compute min/max for heat map
+                let dmMin = Infinity, dmMax = -Infinity;
+                for (let i = 0; i < matrixSamples.length; i++) {
+                    for (let j = 0; j < matrixSamples.length; j++) {
+                        if (i !== j) { dmMin = Math.min(dmMin, matrix[i][j]); dmMax = Math.max(dmMax, matrix[i][j]); }
+                    }
+                }
+                if (!isFinite(dmMin)) dmMin = 0;
+                if (!isFinite(dmMax)) dmMax = 1;
+                const dmRange = dmMax - dmMin || 1;
+                function dmHeatColor(val) {
+                    const t = Math.min(1, Math.max(0, (val - dmMin) / dmRange));
+                    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+                    if (t <= 0.5) {
+                        const t2 = t * 2;
+                        const r = Math.round(isDark ? 30 + t2 * 100 : 220 + t2 * 35);
+                        const g = Math.round(isDark ? 120 + t2 * 30 : 240 - t2 * 20);
+                        const b = Math.round(isDark ? 80 - t2 * 40 : 200 - t2 * 100);
+                        return `rgb(${r},${g},${b})`;
+                    } else {
+                        const t2 = (t - 0.5) * 2;
+                        const r = Math.round(isDark ? 130 + t2 * 70 : 255);
+                        const g = Math.round(isDark ? 150 - t2 * 100 : 220 - t2 * 140);
+                        const b = Math.round(isDark ? 40 - t2 * 30 : 100 - t2 * 60);
+                        return `rgb(${r},${g},${b})`;
+                    }
+                }
+
                 html += '<div class="table-wrapper"><table class="distance-matrix-table"><thead><tr><th></th>';
                 for (const label of labels) {
                     html += `<th>${label}</th>`;
@@ -3022,13 +3071,11 @@
                     html += `<tr><th>${labels[i]}</th>`;
                     for (let j = 0; j < matrixSamples.length; j++) {
                         const dist = matrix[i][j];
-                        let cellClass = 'diagonal';
-                        if (i !== j) {
-                            if (dist <= 5) cellClass = 'low-dist';
-                            else if (dist <= 20) cellClass = 'medium-dist';
-                            else cellClass = 'high-dist';
+                        if (i === j) {
+                            html += `<td class="diagonal">${dist}</td>`;
+                        } else {
+                            html += `<td style="background:${dmHeatColor(dist)};color:#fff;text-shadow:0 0 2px rgba(0,0,0,0.5);">${dist}</td>`;
                         }
-                        html += `<td class="${cellClass}">${dist}</td>`;
                     }
                     html += '</tr>';
                 }

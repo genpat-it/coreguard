@@ -57,6 +57,7 @@ testdata/outbreak_marche/
 !docs/demo3.json.gz
 !docs/demo3.bin.gz
 !docs/demo4.json.gz
+!docs/demo5.json.gz
 !docs/package.json
 !docs/coreguard_wasm.js
 !docs/coreguard_wasm.d.ts

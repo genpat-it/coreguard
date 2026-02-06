@@ -113,39 +113,54 @@ struct CompareArgs {
 /// Arguments for the convert subcommand
 #[derive(Parser, Debug)]
 struct ConvertArgs {
-    /// Source format: cfsan
-    #[arg(value_enum)]
-    format: ConvertFormat,
+    /// Input file to convert
+    #[arg(short, long)]
+    input: PathBuf,
 
-    /// Output file (CoreGuard TSV format)
+    /// Output file
     #[arg(short, long)]
     output: PathBuf,
 
-    /// CFSAN snplist.txt file (genomic positions)
+    /// Input format
+    #[arg(long, value_enum)]
+    from: ConvertFormat,
+
+    /// Output format (default: auto-detect from --from)
+    #[arg(long, value_enum)]
+    to: Option<ConvertOutputFormat>,
+
+    // === CFSAN-specific options ===
+    /// CFSAN snplist.txt file (genomic positions) - only for --from cfsan-snpma
     #[arg(long)]
     snplist: Option<PathBuf>,
 
-    /// CFSAN snpma.fasta file (sample alleles)
-    #[arg(long)]
-    snpma: Option<PathBuf>,
-
-    /// CFSAN referenceSNP.fasta file (reference alleles)
+    /// CFSAN referenceSNP.fasta file (reference alleles) - only for --from cfsan-snpma
     #[arg(long)]
     reference_snp: Option<PathBuf>,
-
-    /// Chromosome/contig name (default: auto-detect from snplist.txt)
-    #[arg(long)]
-    chrom: Option<String>,
 
     /// Verbose output
     #[arg(short, long)]
     verbose: bool,
 }
 
-#[derive(clap::ValueEnum, Clone, Debug)]
+#[derive(clap::ValueEnum, Clone, Debug, PartialEq)]
 enum ConvertFormat {
-    /// CFSAN SNP Pipeline output (snplist.txt + snpma.fasta + referenceSNP.fasta)
-    Cfsan,
+    /// CFSAN SNP Pipeline snpma.fasta (requires --snplist and --reference-snp)
+    CfsanSnpma,
+    /// SPANDx out.vcf.table (GATK VariantsToTable output)
+    SpandxVcfTable,
+    /// Nexus format SNP matrix (e.g., SPANDx Ortho_SNP_matrix.nex)
+    Nexus,
+    /// CoreGuard TSV core_snps format
+    CoreSnps,
+}
+
+#[derive(clap::ValueEnum, Clone, Debug, PartialEq)]
+enum ConvertOutputFormat {
+    /// CoreGuard TSV core_snps format (CHR, POS, REF, sample1, sample2, ...)
+    CoreSnps,
+    /// Distance matrix TSV (pairwise SNP distances)
+    DistanceMatrix,
 }
 
 /// Legacy args for the default QC analysis command
@@ -532,22 +547,37 @@ fn run_convert(args: ConvertArgs) -> Result<()> {
 
     info!("coreguard convert v{}", env!("CARGO_PKG_VERSION"));
 
-    match args.format {
-        ConvertFormat::Cfsan => convert_cfsan(&args)?,
+    // Determine output format (default based on input format)
+    let output_format = args.to.clone().unwrap_or_else(|| {
+        match args.from {
+            ConvertFormat::CfsanSnpma | ConvertFormat::SpandxVcfTable => ConvertOutputFormat::CoreSnps,
+            ConvertFormat::Nexus | ConvertFormat::CoreSnps => ConvertOutputFormat::DistanceMatrix,
+        }
+    });
+
+    info!("Converting {:?} → {:?}", args.from, output_format);
+    info!("  Input: {}", args.input.display());
+    info!("  Output: {}", args.output.display());
+
+    match (&args.from, &output_format) {
+        (ConvertFormat::CfsanSnpma, ConvertOutputFormat::CoreSnps) => convert_cfsan_snpma(&args)?,
+        (ConvertFormat::SpandxVcfTable, ConvertOutputFormat::CoreSnps) => convert_spandx_vcf_table(&args)?,
+        (ConvertFormat::Nexus, ConvertOutputFormat::DistanceMatrix) => convert_nexus_to_distance(&args)?,
+        (ConvertFormat::CoreSnps, ConvertOutputFormat::DistanceMatrix) => convert_coresnps_to_distance(&args)?,
+        (from, to) => anyhow::bail!("Unsupported conversion: {:?} → {:?}", from, to),
     }
 
     Ok(())
 }
 
-/// Convert CFSAN output to CoreGuard TSV format
-fn convert_cfsan(args: &ConvertArgs) -> Result<()> {
+/// Convert CFSAN snpma.fasta to CoreGuard TSV format
+fn convert_cfsan_snpma(args: &ConvertArgs) -> Result<()> {
     use std::io::{BufRead, BufReader, Write};
     use std::collections::HashMap;
 
     let snplist = args.snplist.as_ref()
         .context("--snplist is required for CFSAN conversion")?;
-    let snpma = args.snpma.as_ref()
-        .context("--snpma is required for CFSAN conversion")?;
+    let snpma = &args.input; // snpma.fasta is the main input
     let reference_snp = args.reference_snp.as_ref()
         .context("--reference-snp is required for CFSAN conversion")?;
 
@@ -656,6 +686,238 @@ fn convert_cfsan(args: &ConvertArgs) -> Result<()> {
     info!("CoreGuard TSV format ready for use with 'coreguard compare'");
 
     Ok(())
+}
+
+/// Convert SPANDx out.vcf.table (GATK VariantsToTable) to CoreGuard TSV format
+fn convert_spandx_vcf_table(args: &ConvertArgs) -> Result<()> {
+    use std::io::{BufRead, BufReader, Write};
+
+    let input_file = std::fs::File::open(&args.input)
+        .with_context(|| format!("Failed to open {}", args.input.display()))?;
+    let reader = BufReader::new(input_file);
+    let mut output = std::fs::File::create(&args.output)
+        .with_context(|| format!("Failed to create {}", args.output.display()))?;
+
+    let mut line_count = 0;
+    for (line_num, line_result) in reader.lines().enumerate() {
+        let line = line_result?;
+        let fields: Vec<&str> = line.split('\t').collect();
+
+        if line_num == 0 {
+            // Header: CHROM, POS, REF, ALT, TYPE, sample1.GT, sample2.GT, ...
+            if fields.len() < 6 {
+                anyhow::bail!("Invalid header: expected CHROM, POS, REF, ALT, TYPE, samples...");
+            }
+            // Output header: CHR, POS, REF, sample1, sample2, ...
+            write!(output, "CHR\tPOS\tREF")?;
+            for sample_gt in &fields[5..] {
+                // Remove .GT suffix from sample names
+                let sample = sample_gt.trim_end_matches(".GT");
+                write!(output, "\t{}", sample)?;
+            }
+            writeln!(output)?;
+        } else {
+            // Data: CHROM, POS, REF, ALT, TYPE, GT1, GT2, ...
+            if fields.len() < 6 { continue; }
+            let chrom = fields[0];
+            let pos = fields[1];
+            let ref_allele = fields[2];
+            let alt_allele = fields[3];
+            let genotypes = &fields[5..];
+
+            write!(output, "{}\t{}\t{}", chrom, pos, ref_allele)?;
+            for gt in genotypes {
+                let allele = genotype_to_allele(gt, ref_allele, alt_allele);
+                write!(output, "\t{}", allele)?;
+            }
+            writeln!(output)?;
+            line_count += 1;
+        }
+    }
+
+    info!("Converted {} SNP positions to CoreGuard TSV", line_count);
+    Ok(())
+}
+
+/// Convert VCF genotype (e.g., "T/T", "A|A", "./.") to single allele
+fn genotype_to_allele(gt: &str, ref_allele: &str, alt_allele: &str) -> String {
+    if gt == "./." || gt == ".|." {
+        return "N".to_string();
+    }
+    // Extract first allele (handle both / and | separators)
+    let normalized = gt.replace('|', "/");
+    let allele = normalized.split('/').next().unwrap_or("N");
+
+    if allele == "." {
+        "N".to_string()
+    } else if allele == ref_allele {
+        ref_allele.to_string()
+    } else if allele == alt_allele {
+        alt_allele.to_string()
+    } else {
+        allele.to_string()
+    }
+}
+
+/// Convert Nexus SNP matrix to pairwise distance matrix
+fn convert_nexus_to_distance(args: &ConvertArgs) -> Result<()> {
+    use std::io::{BufRead, BufReader, Write};
+    use std::collections::HashMap;
+
+    let input_file = std::fs::File::open(&args.input)
+        .with_context(|| format!("Failed to open {}", args.input.display()))?;
+    let reader = BufReader::new(input_file);
+
+    let mut taxlabels: Vec<String> = Vec::new();
+    let mut sequences: HashMap<String, Vec<char>> = HashMap::new();
+    let mut in_matrix = false;
+
+    for line_result in reader.lines() {
+        let line = line_result?.trim().to_string();
+
+        if line.starts_with("taxlabels") {
+            // Parse: taxlabels REF sample1 sample2 ...;
+            let labels_str = line
+                .trim_start_matches("taxlabels")
+                .trim_end_matches(';')
+                .trim();
+            taxlabels = labels_str.split('\t')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            for label in &taxlabels {
+                sequences.insert(label.clone(), Vec::new());
+            }
+        } else if line == "matrix" {
+            in_matrix = true;
+        } else if in_matrix && !line.is_empty() && !line.starts_with(';') && !line.starts_with("end") {
+            // Parse: POS REF_ALLELE SAMPLE1_ALLELE SAMPLE2_ALLELE ...
+            let parts: Vec<&str> = line.split('\t').collect();
+            if parts.len() >= taxlabels.len() + 1 {
+                for (i, label) in taxlabels.iter().enumerate() {
+                    if let Some(allele) = parts.get(i + 1) {
+                        let ch = allele.chars().next().unwrap_or('.');
+                        sequences.get_mut(label).unwrap().push(ch);
+                    }
+                }
+            }
+        }
+    }
+
+    // Remove REF from distance calculations
+    let samples: Vec<String> = taxlabels.into_iter()
+        .filter(|s| s != "REF")
+        .collect();
+
+    info!("Loaded {} samples with {} positions each",
+          samples.len(),
+          sequences.get(&samples[0]).map(|s| s.len()).unwrap_or(0));
+
+    // Compute and write distance matrix
+    let mut output = std::fs::File::create(&args.output)
+        .with_context(|| format!("Failed to create {}", args.output.display()))?;
+
+    // Header
+    write!(output, "")?;
+    for sample in &samples {
+        write!(output, "\t{}", sample)?;
+    }
+    writeln!(output)?;
+
+    // Distance rows
+    for s1 in &samples {
+        write!(output, "{}", s1)?;
+        let seq1 = sequences.get(s1).unwrap();
+        for s2 in &samples {
+            let seq2 = sequences.get(s2).unwrap();
+            let dist = compute_snp_distance(seq1, seq2);
+            write!(output, "\t{}", dist)?;
+        }
+        writeln!(output)?;
+    }
+
+    info!("Wrote {}×{} distance matrix to {}", samples.len(), samples.len(), args.output.display());
+    Ok(())
+}
+
+/// Convert CoreGuard TSV core_snps to pairwise distance matrix
+fn convert_coresnps_to_distance(args: &ConvertArgs) -> Result<()> {
+    use std::io::{BufRead, BufReader, Write};
+    use std::collections::HashMap;
+
+    let input_file = std::fs::File::open(&args.input)
+        .with_context(|| format!("Failed to open {}", args.input.display()))?;
+    let reader = BufReader::new(input_file);
+
+    let mut samples: Vec<String> = Vec::new();
+    let mut sequences: HashMap<String, Vec<char>> = HashMap::new();
+
+    for (line_num, line_result) in reader.lines().enumerate() {
+        let line = line_result?;
+        let fields: Vec<&str> = line.split('\t').collect();
+
+        if line_num == 0 {
+            // Header: CHR, POS, REF, sample1, sample2, ...
+            if fields.len() < 4 {
+                anyhow::bail!("Invalid header: expected CHR, POS, REF, samples...");
+            }
+            samples = fields[3..].iter().map(|s| s.to_string()).collect();
+            for sample in &samples {
+                sequences.insert(sample.clone(), Vec::new());
+            }
+        } else {
+            // Data: CHR, POS, REF, allele1, allele2, ...
+            let alleles = &fields[3..];
+            for (i, sample) in samples.iter().enumerate() {
+                let allele = alleles.get(i).map(|s| s.chars().next().unwrap_or('N')).unwrap_or('N');
+                sequences.get_mut(sample).unwrap().push(allele);
+            }
+        }
+    }
+
+    info!("Loaded {} samples with {} positions each",
+          samples.len(),
+          sequences.get(&samples[0]).map(|s| s.len()).unwrap_or(0));
+
+    // Compute and write distance matrix
+    let mut output = std::fs::File::create(&args.output)
+        .with_context(|| format!("Failed to create {}", args.output.display()))?;
+
+    // Header
+    write!(output, "")?;
+    for sample in &samples {
+        write!(output, "\t{}", sample)?;
+    }
+    writeln!(output)?;
+
+    // Distance rows
+    for s1 in &samples {
+        write!(output, "{}", s1)?;
+        let seq1 = sequences.get(s1).unwrap();
+        for s2 in &samples {
+            let seq2 = sequences.get(s2).unwrap();
+            let dist = compute_snp_distance(seq1, seq2);
+            write!(output, "\t{}", dist)?;
+        }
+        writeln!(output)?;
+    }
+
+    info!("Wrote {}×{} distance matrix to {}", samples.len(), samples.len(), args.output.display());
+    Ok(())
+}
+
+/// Compute pairwise SNP distance between two sequences (ignoring gaps/missing)
+fn compute_snp_distance(seq1: &[char], seq2: &[char]) -> usize {
+    let mut dist = 0;
+    for (a, b) in seq1.iter().zip(seq2.iter()) {
+        // Only count differences between valid nucleotides
+        if matches!(a, 'A' | 'C' | 'G' | 'T') && matches!(b, 'A' | 'C' | 'G' | 'T') {
+            if a != b {
+                dist += 1;
+            }
+        }
+    }
+    dist
 }
 
 /// Run the legacy QC analysis (default command)

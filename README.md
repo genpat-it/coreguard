@@ -10,18 +10,19 @@ CoreGuard compares SNP calls from multiple pipelines (Snippy, CFSAN, GATK, etc.)
 
 ### Demo Datasets
 
-The viewer includes 4 pre-loaded demo datasets. Click the demo buttons to explore:
+The viewer includes 5 pre-loaded demo datasets. Click the demo buttons to explore:
 
 | Demo | Organism | Samples | Pipelines | Description |
 |------|----------|---------|-----------|-------------|
-| **Demo 1** | *Listeria monocytogenes* | 4 | Snippy, CFSAN | Small dataset, clone group + outlier |
-| **Demo 2** | *Listeria monocytogenes* | 53 | Snippy, CFSAN | Large outbreak dataset |
-| **Demo 3** | *Klebsiella pneumoniae* | 17 | Snippy, CFSAN | Different organism |
-| **Demo 4** | *West Nile Virus* | 9 | Snippy, CFSAN | Viral genome (small reference) |
+| **Demo 1** | *Listeria monocytogenes* | 4 | Snippy, CFSAN, SPANDx | Small dataset, clone group + outlier (EGD-e ref) |
+| **Demo 2** | *Listeria monocytogenes* | 53 | Snippy, CFSAN, SPANDx | Large outbreak dataset |
+| **Demo 3** | *Brucella melitensis* | 17 | Snippy, CFSAN, SPANDx | Different organism |
+| **Demo 4** | West Nile Virus | 10 | Snippy, CFSAN, SPANDx | Viral genome (small reference) |
+| **Demo 5** | *Listeria monocytogenes* | 4 | Snippy, CFSAN, SPANDx | Same as Demo 1 with F2365 ref (different serovar) |
 
-All demos use **minimap2** as the reference alignment (BAM pileup without variant calling) for ground truth comparison.
+All demos use **minimap2** as the reference alignment (BAM pileup without variant calling) for ground truth comparison, plus **Snippy v4.6.0**, **CFSAN SNP Pipeline v2.2.1**, and **SPANDx v4.0.5** as variant calling pipelines.
 
-The demos illustrate how different pipelines can produce varying SNP calls on the same data, and how CoreGuard helps identify these discrepancies.
+The demos illustrate how different pipelines can produce varying SNP calls on the same data, and how CoreGuard helps identify these discrepancies. Demo 5 specifically demonstrates the critical impact of reference genome choice on SNP calling resolution.
 
 ## Why CoreGuard?
 

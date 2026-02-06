@@ -1056,6 +1056,10 @@
                             <button onclick="loadDemo4()" style="background: #7b1fa2; font-size: 13px; padding: 10px 16px;">Demo 4</button>
                             <p style="font-size: 9px; opacity: 0.7; margin-top: 4px;">10 WNV</p>
                         </div>
+                        <div style="text-align: center;">
+                            <button onclick="loadDemo5()" style="background: #c62828; font-size: 13px; padding: 10px 16px;">Demo 5</button>
+                            <p style="font-size: 9px; opacity: 0.7; margin-top: 4px;">4 <i>L.m.</i> (F2365)</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2488,6 +2492,62 @@
             }
         }
         window.loadDemo4 = loadDemo4;
+
+        async function loadDemo5() {
+            showLoader('Loading demo 5...', 'Fetching Listeria F2365 reference data');
+            await new Promise(r => requestAnimationFrame(r));
+
+            try {
+                const response = await fetch('demo5.json.gz');
+                if (!response.ok) throw new Error('Failed to fetch demo5 file');
+
+                const compressedSize = parseInt(response.headers.get('content-length') || '0');
+                showLoader('Downloading...', `${(compressedSize / 1024 / 1024).toFixed(1)} MB compressed`);
+                await new Promise(r => requestAnimationFrame(r));
+                const arrayBuffer = await response.arrayBuffer();
+
+                showLoader('Decompressing...', '0 MB');
+                const jsonText = await decompressGzipWithProgress(arrayBuffer, (bytes) => {
+                    showLoader('Decompressing...', `${(bytes / 1024 / 1024).toFixed(1)} MB`);
+                });
+
+                showLoader('Loading data...', `${(jsonText.length / 1024 / 1024).toFixed(0)} MB (in background)`);
+                await new Promise(r => requestAnimationFrame(r));
+
+                await workerApi.loadJson(jsonText);
+
+                showLoader('Preparing view...', '');
+                await new Promise(r => requestAnimationFrame(r));
+
+                samples = workerApi.sampleIds;
+                pipelines = workerApi.pipelineIds;
+
+                document.getElementById('header-info').textContent =
+                    `${workerApi.refName} (${workerApi.refLength.toLocaleString()} bp) | ${samples.length} samples | ${pipelines.length} pipelines`;
+
+                const timestamp = workerApi.generatedAt;
+                if (timestamp) {
+                    const date = new Date(timestamp);
+                    const dd = String(date.getDate()).padStart(2, '0');
+                    const mm = String(date.getMonth() + 1).padStart(2, '0');
+                    const yyyy = date.getFullYear();
+                    const hh = String(date.getHours()).padStart(2, '0');
+                    const mi = String(date.getMinutes()).padStart(2, '0');
+                    const ss = String(date.getSeconds()).padStart(2, '0');
+                    const formattedDate = `${dd}/${mm}/${yyyy} ${hh}:${mi}:${ss}`;
+                    document.getElementById('report-timestamp').textContent =
+                        `Report generated: ${formattedDate}`;
+                }
+
+                await buildUIProgressively();
+
+            } catch (error) {
+                hideLoader();
+                alert('Error loading demo 5: ' + error.message);
+                console.error(error);
+            }
+        }
+        window.loadDemo5 = loadDemo5;
 
         async function loadFile(file) {
             showLoader('Loading file...', `${(file.size / 1024 / 1024).toFixed(1)} MB`);

@@ -252,11 +252,19 @@ CP014790.1	23349	T	T	T	A	T
 **CFSAN** requires conversion:
 
 ```bash
-coreguard convert cfsan \
-  --snplist /path/to/snplist.txt \
-  --snpma /path/to/snpma.fasta \
-  --reference-snp /path/to/referenceSNP.fasta \
+coreguard convert --from cfsan-snpma \
+  -i snpma.fasta \
+  --snplist snplist.txt \
+  --reference-snp referenceSNP.fasta \
   -o cfsan_core_snps.tsv
+```
+
+**SPANDx** — convert GATK VariantsToTable output:
+
+```bash
+coreguard convert --from spandx-vcf-table \
+  -i out.vcf.table \
+  -o spandx_core_snps.tsv
 ```
 
 Then reference the converted file in your YAML:
@@ -266,13 +274,32 @@ pipelines:
   cfsan:
     label: "CFSAN 2.2.1"
     core_snps: cfsan_core_snps.tsv
+  spandx:
+    label: "SPANDx v4.0.5"
+    core_snps: spandx_core_snps.tsv
 ```
-
-**Other pipelines**: Convert your output to CoreGuard TSV format. The format is simple enough to generate with a small script.
 
 ### Distance Matrix
 
-The `distance_matrix` field points to a TSV file with pairwise SNP distances between samples, as produced by the pipeline itself. These are displayed in the viewer's "SNP Distance Matrix" panel.
+The `distance_matrix` field points to a TSV file with pairwise SNP distances between samples. CoreGuard can compute this automatically from various sources:
+
+**From Nexus SNP matrix** (e.g., SPANDx `Ortho_SNP_matrix.nex`):
+
+```bash
+coreguard convert --from nexus \
+  -i Ortho_SNP_matrix.nex \
+  -o distances.tsv
+```
+
+**From CoreGuard TSV core_snps**:
+
+```bash
+coreguard convert --from core-snps \
+  -i core_snps.tsv \
+  -o distances.tsv
+```
+
+These computed distances are displayed in the viewer's "SNP Distance Matrix" panel.
 
 ## Output Formats
 
